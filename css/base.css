@@ -1,0 +1,176 @@
+/* ═══════════════════════════════════════════
+   BASE — Reset + Tipografia + Utilitários
+   ═══════════════════════════════════════════ */
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior:smooth; -webkit-font-smoothing:antialiased; }
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  line-height: 1.65;
+  padding-top: var(--nav-h);
+}
+
+img { display:block; max-width:100%; }
+a   { text-decoration:none; color:inherit; }
+button { cursor:pointer; }
+ul { list-style:none; }
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:var(--black); }
+::-webkit-scrollbar-thumb { background:var(--gold); border-radius:2px; }
+
+/* ─── Preloader ─── */
+#preloader {
+  position:fixed; inset:0; background:var(--black);
+  z-index:99999; display:flex; align-items:center; justify-content:center;
+  transition: opacity .7s var(--ease-out), visibility .7s;
+}
+#preloader.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+.pre-inner { text-align:center; }
+.pre-logo-wrap {
+  width:90px; height:90px; margin:0 auto 1.5rem;
+  animation: spinSlow 2.2s linear infinite;
+}
+.pre-logo-wrap img { width:100%; height:100%; object-fit:contain; }
+.pre-bar {
+  width:200px; height:2px; background:var(--border);
+  margin:0 auto; overflow:hidden; border-radius:1px;
+}
+.pre-fill {
+  height:100%;
+  background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-light));
+  width:0; animation:loadBar 1.9s var(--ease-out) forwards;
+}
+.pre-text {
+  font-family:var(--font-cond); font-size:.72rem; letter-spacing:5px;
+  color:var(--gray); margin-top:1.1rem; text-transform:uppercase;
+}
+@keyframes spinSlow  { to { transform:rotate(360deg); } }
+@keyframes loadBar   { to { width:100%; } }
+
+/* ─── Separadores ─── */
+.sep { padding:0 2rem; max-width:var(--max-w); margin:0 auto; }
+.sep-line { height:1px; background:var(--border); }
+
+/* ─── Seções Comuns ─── */
+.section-wrap { padding:var(--section-pad); max-width:var(--max-w); margin:0 auto; }
+
+.section-eyebrow {
+  font-family:var(--font-cond); font-size:.72rem; font-weight:600;
+  letter-spacing:5px; text-transform:uppercase; color:var(--gold);
+  display:flex; align-items:center; gap:.8rem; margin-bottom:1rem;
+}
+.section-eyebrow::before { content:''; display:block; width:30px; height:1px; background:var(--gold); }
+
+.section-title {
+  font-family:var(--font-display);
+  font-size:clamp(2.2rem,5vw,4rem);
+  line-height:1; letter-spacing:2px; margin-bottom:1.5rem;
+}
+
+.section-divider {
+  width:60px; height:2px;
+  background:linear-gradient(90deg,var(--gold),transparent);
+  margin-bottom:2.5rem;
+}
+
+/* ─── Botões ─── */
+.btn-gold {
+  font-family:var(--font-cond); font-size:.9rem; font-weight:700;
+  letter-spacing:3px; text-transform:uppercase;
+  background:linear-gradient(135deg,var(--gold-dark),var(--gold),var(--gold-light));
+  color:var(--black); border:none;
+  padding:.95rem 2.6rem; cursor:pointer;
+  display:inline-flex; align-items:center; gap:.6rem;
+  position:relative; overflow:hidden; transition:all var(--trans-med);
+}
+.btn-gold::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(135deg,transparent,rgba(255,255,255,.2),transparent);
+  transform:translateX(-100%); transition:transform .5s;
+}
+.btn-gold:hover::after { transform:translateX(100%); }
+.btn-gold:hover { box-shadow:var(--shadow-gold); transform:translateY(-2px); }
+
+.btn-outline {
+  font-family:var(--font-cond); font-size:.9rem; font-weight:600;
+  letter-spacing:3px; text-transform:uppercase;
+  background:transparent; color:var(--white);
+  border:1px solid rgba(255,255,255,.2);
+  padding:.95rem 2.6rem; cursor:pointer;
+  display:inline-flex; align-items:center; gap:.6rem;
+  transition:all var(--trans-med);
+}
+.btn-outline:hover { border-color:var(--gold); color:var(--gold); }
+
+.btn-ghost {
+  font-family:var(--font-cond); font-size:.85rem; font-weight:600;
+  letter-spacing:2px; text-transform:uppercase;
+  background:transparent; color:var(--gold);
+  border:1px solid rgba(197,160,40,.4);
+  padding:.75rem 2rem; cursor:pointer;
+  display:inline-flex; align-items:center; gap:.5rem;
+  transition:all var(--trans-fast);
+}
+.btn-ghost:hover { background:var(--gold-faint); border-color:var(--gold); }
+
+/* ─── Reveal Animations ─── */
+.reveal { opacity:0; transform:translateY(24px); transition:opacity .7s var(--ease-out), transform .7s var(--ease-out); }
+.reveal.vis { opacity:1; transform:none; }
+.reveal-delay-1 { transition-delay:.12s; }
+.reveal-delay-2 { transition-delay:.24s; }
+.reveal-delay-3 { transition-delay:.36s; }
+.reveal-delay-4 { transition-delay:.48s; }
+
+/* ─── Numbers Strip ─── */
+.numbers-strip {
+  background:var(--dark);
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  padding:2.5rem 2rem;
+}
+.numbers-inner {
+  max-width:var(--max-w); margin:0 auto;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:2rem;
+}
+.num-item {
+  text-align:center; position:relative; padding:1rem;
+}
+.num-item::after {
+  content:''; position:absolute; right:0; top:50%; transform:translateY(-50%);
+  height:50%; width:1px; background:var(--border);
+}
+.num-item:last-child::after { display:none; }
+.num-value {
+  font-family:var(--font-display); font-size:3.2rem;
+  background:linear-gradient(135deg,var(--gold-dark),var(--gold),var(--gold-light));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  background-clip:text; line-height:1;
+}
+.num-label {
+  font-family:var(--font-cond); font-size:.78rem;
+  letter-spacing:2px; text-transform:uppercase;
+  color:var(--gray); margin-top:.4rem;
+}
+
+/* ─── Utilitários ─── */
+.text-gold { color:var(--gold); }
+.text-gray { color:var(--gray); }
+.flex-center { display:flex; align-items:center; justify-content:center; }
+.gap-sm { gap:.8rem; }
+.gap-md { gap:1.5rem; }
+.mt-1 { margin-top:1rem; }
+.mt-2 { margin-top:2rem; }
+
+/* ─── Responsivo Base ─── */
+@media(max-width:700px) {
+  .numbers-inner { grid-template-columns:1fr 1fr; }
+  .num-item:nth-child(2)::after,
+  .num-item:nth-child(4)::after { display:none; }
+}

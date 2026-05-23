@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Podium Arena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/vars.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/auth.css">
+  <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body class="admin-page">
+
+<!-- ══════════════════════════════════════
+     MODAIS
+     ══════════════════════════════════════ -->
+
+<!-- Confirmar ação -->
+<div class="admin-modal-overlay" id="modalConfirm">
+  <div class="admin-modal" style="max-width:400px">
+    <div class="admin-modal-header">
+      <h3 id="confirmTitle">Confirmar?</h3>
+      <button class="admin-modal-close" onclick="closeModal('modalConfirm')">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <p id="confirmText" style="color:var(--gray);font-size:.9rem;line-height:1.7"></p>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn-admin-secondary" onclick="closeModal('modalConfirm')">Cancelar</button>
+      <button class="btn-admin-danger" onclick="confirmAction()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Editar usuário -->
+<div class="admin-modal-overlay" id="modalEditUser">
+  <div class="admin-modal">
+    <div class="admin-modal-header">
+      <h3>Editar Usuário</h3>
+      <button class="admin-modal-close" onclick="closeModal('modalEditUser')">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <input type="hidden" id="editUserId">
+      <div class="admin-grid-2">
+        <div class="admin-field" style="grid-column:1/-1">
+          <label>Nome completo</label>
+          <input type="text" id="editNome" placeholder="Nome do usuário">
+        </div>
+        <div class="admin-field" style="grid-column:1/-1">
+          <label>E-mail (não editável)</label>
+          <input type="email" id="editEmail" readonly style="opacity:.45;cursor:not-allowed">
+        </div>
+        <div class="admin-field" style="grid-column:1/-1">
+          <label>Telefone</label>
+          <input type="tel" id="editTel" placeholder="(43) 9 9999-9999">
+        </div>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn-admin-secondary" onclick="closeModal('modalEditUser')">Cancelar</button>
+      <button class="btn-admin-primary" onclick="salvarEdicaoUsuario()">Salvar Alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ver inscrições de evento -->
+<div class="admin-modal-overlay" id="modalInscricoes">
+  <div class="admin-modal">
+    <div class="admin-modal-header">
+      <h3 id="modalInscTitle" style="font-size:1.2rem">Inscrições</h3>
+      <button class="admin-modal-close" onclick="closeModal('modalInscricoes')">✕</button>
+    </div>
+    <div class="admin-modal-body" id="modalInscListBody" style="max-height:360px;overflow-y:auto"></div>
+    <div class="admin-modal-footer">
+      <button class="btn-admin-secondary" onclick="closeModal('modalInscricoes')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Novo Evento -->
+<div class="admin-modal-overlay" id="modalNovoEvento">
+  <div class="admin-modal" style="max-width:560px">
+    <div class="admin-modal-header">
+      <h3 id="novoEventoTitle">Novo Evento</h3>
+      <button class="admin-modal-close" onclick="closeModal('modalNovoEvento')">✕</button>
+    </div>
+    <div class="admin-modal-body">
+      <input type="hidden" id="editEventoId">
+      <div class="admin-grid-2">
+        <div class="admin-field" style="grid-column:1/-1">
+          <label>Nome do Evento *</label>
+          <input type="text" id="evNome" placeholder="Ex: Copa Podium Arena — Beach Tennis">
+        </div>
+        <div class="admin-field">
+          <label>Data *</label>
+          <input type="date" id="evData">
+        </div>
+        <div class="admin-field">
+          <label>Horário</label>
+          <input type="text" id="evHora" placeholder="Ex: 08h–19h">
+        </div>
+        <div class="admin-field">
+          <label>Local</label>
+          <input type="text" id="evLocal" placeholder="Ex: Quadras de Areia">
+        </div>
+        <div class="admin-field">
+          <label>Vagas</label>
+          <input type="number" id="evVagas" placeholder="64" min="1">
+        </div>
+        <div class="admin-field">
+          <label>Preço da Inscrição (R$)</label>
+          <input type="number" id="evPreco" placeholder="50.00" min="0" step="0.01">
+        </div>
+        <div class="admin-field">
+          <label>Categoria</label>
+          <div class="custom-select-wrap">
+            <select id="evCategoria" class="custom-select">
+              <option value="beachtennis">Beach Tennis</option>
+              <option value="futevolei">Futevôlei</option>
+              <option value="volei">Vôlei de Praia</option>
+              <option value="pickleball">Pickleball</option>
+              <option value="geral">Geral</option>
+            </select>
+            <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+        </div>
+        <div class="admin-field">
+          <label>Status</label>
+          <div class="custom-select-wrap">
+            <select id="evStatus" class="custom-select">
+              <option value="aberto">Inscrições Abertas</option>
+              <option value="breve">Em Breve</option>
+              <option value="encerrado">Encerrado</option>
+            </select>
+            <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+        </div>
+        <div class="admin-field" style="grid-column:1/-1">
+          <label>Descrição</label>
+          <textarea id="evDesc" placeholder="Descrição do evento..." style="min-height:80px;resize:vertical"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn-admin-secondary" onclick="closeModal('modalNovoEvento')">Cancelar</button>
+      <button class="btn-admin-primary" onclick="salvarEvento()">Salvar Evento</button>
+    </div>
+  </div>
+</div>
+
+<!-- Atualizar Ranking -->
+<div class="admin-modal-overlay" id="modalRanking">
+  <div class="admin-modal rank-modal-wide">
+    <div class="admin-modal-header">
+      <div>
+        <p class="admin-eyebrow" style="margin-bottom:.2rem">Gestão</p>
+        <h3>ATUALIZAR RANKING</h3>
+      </div>
+      <button class="admin-modal-close" onclick="closeModal('modalRanking')">✕</button>
+    </div>
+    <div class="admin-modal-body" style="padding:1.5rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+        <div class="admin-field" style="margin:0">
+          <label>Modalidade</label>
+          <div class="custom-select-wrap">
+            <select id="rankModalidade" class="custom-select">
+              <option value="beachtennis">Beach Tennis</option>
+              <option value="futevolei">Futevôlei</option>
+            </select>
+            <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+        </div>
+        <div class="admin-field" style="margin:0">
+          <label>Categoria</label>
+          <div class="custom-select-wrap">
+            <select id="rankCategoria" class="custom-select">
+              <option value="masculino">Masculino</option>
+              <option value="feminino">Feminino</option>
+            </select>
+            <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
+        </div>
+      </div>
+      <div class="rank-entries-header">
+        <span style="width:32px;text-align:center">#</span>
+        <span style="flex:1.4">Dupla</span>
+        <span style="flex:1">Clube</span>
+        <span style="width:70px;text-align:center">Pts</span>
+        <span style="width:50px;text-align:center">V</span>
+        <span style="width:50px;text-align:center">D</span>
+        <span style="width:32px"></span>
+      </div>
+      <div id="rankEntradas" style="display:flex;flex-direction:column;gap:.4rem;max-height:360px;overflow-y:auto;padding-right:2px"></div>
+      <button class="rank-add-btn" onclick="addRankEntry()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+        Adicionar Dupla
+      </button>
+    </div>
+    <div class="admin-modal-footer">
+      <button class="btn-admin-secondary" onclick="closeModal('modalRanking')">Cancelar</button>
+      <button class="btn-admin-primary" onclick="salvarRanking()">Salvar Ranking</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="admin-toast-wrap" id="adminToastWrap"></div>
+
+<!-- ══════════════════════════════════════
+     TOPBAR
+     ══════════════════════════════════════ -->
+<header class="admin-topbar">
+
+  <a href="../index.html" class="admin-topbar-logo">
+    <img data-logo src="../img/logo.png" alt="Podium Arena">
+    <div class="admin-topbar-logo-text">
+      <strong>PODIUM ARENA</strong>
+      <span>Administração</span>
+    </div>
+  </a>
+
+  <div class="admin-topbar-divider"></div>
+  <div class="admin-topbar-badge"><span>Painel Admin</span></div>
+
+  <div class="admin-topbar-right">
+    <div class="admin-topbar-user">
+      <div class="admin-topbar-avatar" id="adminTopbarAvatar">A</div>
+      <span class="admin-topbar-name" id="adminTopbarName">Admin</span>
+    </div>
+    <a href="../index.html" class="admin-topbar-site">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Ver site
+    </a>
+    <button class="admin-topbar-logout" id="btnAdminLogout">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+      Sair
+    </button>
+  </div>
+
+  <button class="admin-hamburger" id="adminHamburger" onclick="toggleAdminMenu()">
+    <span></span><span></span><span></span>
+  </button>
+
+</header>
+
+<!-- ══════════════════════════════════════
+     LAYOUT
+     ══════════════════════════════════════ -->
+<div class="admin-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="admin-sidebar" id="adminSidebar">
+
+    <div class="admin-sidebar-section">
+      <div class="admin-sidebar-label">Visão Geral</div>
+      <button class="admin-nav-item active" data-tab="dashboard">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        Dashboard
+      </button>
+    </div>
+
+    <div class="admin-sidebar-section">
+      <div class="admin-sidebar-label">Gestão</div>
+      <button class="admin-nav-item" data-tab="reservas">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+        Reservas
+      </button>
+      <button class="admin-nav-item" data-tab="usuarios">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Usuários
+      </button>
+      <button class="admin-nav-item" data-tab="eventos">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+        Eventos
+      </button>
+      <button class="admin-nav-item" data-tab="ranking">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+        Ranking
+      </button>
+    </div>
+
+    <div class="admin-sidebar-section">
+      <div class="admin-sidebar-label">Financeiro</div>
+      <button class="admin-nav-item" data-tab="financeiro">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Financeiro
+      </button>
+    </div>
+
+    <div class="admin-sidebar-footer">
+      <a href="painel.html">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Meu Painel
+      </a>
+      <button onclick="document.getElementById('btnAdminLogout').click()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+        Sair
+      </button>
+    </div>
+
+  </aside>
+
+  <div class="admin-overlay" id="adminOverlay" onclick="toggleAdminMenu()"></div>
+
+  <!-- CONTEÚDO -->
+  <main class="admin-content">
+
+    <!-- ══ DASHBOARD ══ -->
+    <section class="admin-section active" id="admin-dashboard">
+      <div class="admin-section-header">
+        <div>
+          <p class="admin-eyebrow">Visão geral</p>
+          <h2 class="admin-section-h2">DASHBOARD</h2>
+        </div>
+      </div>
+
+      <div class="admin-stats">
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="admin-stat-value" id="dashTotalRec">R$ 0</div>
+          <div class="admin-stat-label">Receita Total</div>
+        </div>
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></div>
+          <div class="admin-stat-value" id="dashReservas">0</div>
+          <div class="admin-stat-label">Total Reservas</div>
+        </div>
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div class="admin-stat-value" id="dashUsuarios">0</div>
+          <div class="admin-stat-label">Usuários Ativos</div>
+        </div>
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
+          <div class="admin-stat-value" id="dashEventosInsc">0</div>
+          <div class="admin-stat-label">Inscrições Eventos</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
+        <div class="admin-card">
+          <div class="admin-card-header"><h3>Receita — Últimos 7 Meses</h3></div>
+          <div style="padding:.8rem 0"><div class="mini-bar-chart" id="revenueChart"></div></div>
+        </div>
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3>Ações Rápidas</h3>
+          </div>
+          <div style="padding:1.2rem;display:flex;flex-direction:column;gap:.7rem">
+            <button class="btn-admin-primary" style="justify-content:center" onclick="adminTab('reservas')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+              Gerenciar Reservas
+            </button>
+            <button class="btn-admin-secondary" style="justify-content:center" onclick="adminTab('usuarios')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              Ver Usuários
+            </button>
+            <button class="btn-admin-secondary" style="justify-content:center" onclick="adminTab('financeiro')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              Relatório Financeiro
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+        <div class="admin-card">
+          <div class="admin-card-header"><h3>Últimas Reservas</h3><button onclick="adminTab('reservas')">Ver todas</button></div>
+          <div id="dashLastBookings"></div>
+        </div>
+        <div class="admin-card">
+          <div class="admin-card-header"><h3>Últimos Cadastros</h3><button onclick="adminTab('usuarios')">Ver todos</button></div>
+          <div id="dashLastUsers"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ RESERVAS ══ -->
+    <section class="admin-section" id="admin-reservas">
+      <div class="admin-section-header">
+        <div>
+          <p class="admin-eyebrow">Gestão</p>
+          <h2 class="admin-section-h2">RESERVAS</h2>
+        </div>
+      </div>
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <h3>Todas as Reservas</h3>
+          <div class="admin-card-toolbar">
+            <div class="admin-search">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input type="text" id="reservasSearch" placeholder="Buscar usuário ou quadra…">
+            </div>
+            <select class="admin-filter-select" id="reservasFilter">
+              <option value="todas">Todas</option>
+              <option value="proximas">Próximas</option>
+              <option value="concluidas">Concluídas</option>
+              <option value="canceladas">Canceladas</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Usuário / Data</th>
+                <th>Quadra</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th style="text-align:right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="reservasTableBody"></tbody>
+          </table>
+        </div>
+        <div class="admin-pagination" id="reservasPag"></div>
+      </div>
+    </section>
+
+    <!-- ══ USUÁRIOS ══ -->
+    <section class="admin-section" id="admin-usuarios">
+      <div class="admin-section-header">
+        <div>
+          <p class="admin-eyebrow">Gestão</p>
+          <h2 class="admin-section-h2">USUÁRIOS</h2>
+        </div>
+      </div>
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <h3>Base de Usuários</h3>
+          <div class="admin-card-toolbar">
+            <div class="admin-search">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input type="text" id="usuariosSearch" placeholder="Buscar nome ou e-mail…">
+            </div>
+            <select class="admin-filter-select" id="usuariosFilter">
+              <option value="todos">Todos</option>
+              <option value="ativos">Ativos</option>
+              <option value="bloqueados">Bloqueados</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Usuário</th>
+                <th>Telefone</th>
+                <th>Cadastro</th>
+                <th>Atividade</th>
+                <th>Status</th>
+                <th style="text-align:right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="usuariosTableBody"></tbody>
+          </table>
+        </div>
+        <div class="admin-pagination" id="usuariosPag"></div>
+      </div>
+    </section>
+
+    <!-- ══ EVENTOS ══ -->
+    <section class="admin-section" id="admin-eventos">
+      <div class="admin-section-header">
+        <div>
+          <p class="admin-eyebrow">Gestão</p>
+          <h2 class="admin-section-h2">EVENTOS</h2>
+        </div>
+        <button class="btn-admin-primary" onclick="abrirNovoEvento()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+          Novo Evento
+        </button>
+      </div>
+
+      <div class="admin-card" style="margin-bottom:1.5rem">
+        <div class="admin-card-header">
+          <h3>Agenda de Eventos</h3>
+          <div class="admin-card-toolbar">
+            <div class="admin-search">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input type="text" id="eventosSearch" placeholder="Buscar evento…">
+            </div>
+            <select class="admin-filter-select" id="eventosFilter">
+              <option value="todos">Todos</option>
+              <option value="aberto">Abertos</option>
+              <option value="breve">Em Breve</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Evento / Data</th>
+                <th>Local</th>
+                <th>Inscrições</th>
+                <th>Preço</th>
+                <th>Status</th>
+                <th style="text-align:right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="eventosTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-header"><h3>Inscrições Recentes</h3></div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Atleta</th>
+                <th>Evento / Data</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th style="text-align:right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="inscricoesTableBody"></tbody>
+          </table>
+        </div>
+        <div class="admin-pagination" id="inscricoesPag"></div>
+      </div>
+    </section>
+
+    <!-- ══ FINANCEIRO ══ -->
+    <section class="admin-section" id="admin-financeiro">
+      <div class="admin-section-header">
+        <div>
+          <p class="admin-eyebrow">Relatório</p>
+          <h2 class="admin-section-h2">FINANCEIRO</h2>
+        </div>
+      </div>
+
+      <div class="admin-stats" style="margin-bottom:1.5rem">
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="admin-stat-value" id="finTotalGeral">R$ 0</div>
+          <div class="admin-stat-label">Receita Total</div>
+        </div>
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></div>
+          <div class="admin-stat-value" id="finReservas">R$ 0</div>
+          <div class="admin-stat-label">Receita Reservas</div>
+        </div>
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
+          <div class="admin-stat-value" id="finEventos">R$ 0</div>
+          <div class="admin-stat-label">Receita Eventos</div>
+        </div>
+        <div class="admin-stat">
+          <div class="admin-stat-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div class="admin-stat-value" id="finMesAtual">R$ 0</div>
+          <div class="admin-stat-label">Mês Atual</div>
+          <div id="finDelta" class="admin-stat-delta"></div>
+        </div>
+      </div>
+
+      <div class="admin-card" style="margin-bottom:1.5rem">
+        <div class="admin-card-header"><h3>Receita — Últimos 7 Meses</h3></div>
+        <div style="padding:.8rem 0"><div class="mini-bar-chart" id="revenueChartFin"></div></div>
+      </div>
+
+      <div class="admin-card">
+        <div class="admin-card-header"><h3>Todas as Transações</h3></div>
+        <div id="finTransacoes"></div>
+      </div>
+    </section>
+
+    <!-- ══ RANKING ══ -->
+    <section class="admin-section" id="admin-ranking">
+      <div class="admin-section-header">
+        <div>
+          <p class="admin-eyebrow">Gestão</p>
+          <h2 class="admin-section-h2">RANKING</h2>
+        </div>
+        <button class="btn-admin-primary" onclick="abrirModalRanking()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+          Atualizar Ranking
+        </button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.5rem">
+
+        <div class="admin-card">
+          <div class="rank-admin-card-header">
+            <h3>Beach Tennis — Masculino</h3>
+            <button class="btn-rank-edit" onclick="abrirModalRanking('beachtennis','masculino')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Editar
+            </button>
+          </div>
+          <div id="rankBTMasc"></div>
+        </div>
+
+        <div class="admin-card">
+          <div class="rank-admin-card-header">
+            <h3>Beach Tennis — Feminino</h3>
+            <button class="btn-rank-edit" onclick="abrirModalRanking('beachtennis','feminino')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Editar
+            </button>
+          </div>
+          <div id="rankBTFem"></div>
+        </div>
+
+        <div class="admin-card">
+          <div class="rank-admin-card-header">
+            <h3>Futevôlei — Masculino</h3>
+            <button class="btn-rank-edit" onclick="abrirModalRanking('futevolei','masculino')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Editar
+            </button>
+          </div>
+          <div id="rankFVMasc"></div>
+        </div>
+
+        <div class="admin-card">
+          <div class="rank-admin-card-header">
+            <h3>Futevôlei — Feminino</h3>
+            <button class="btn-rank-edit" onclick="abrirModalRanking('futevolei','feminino')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Editar
+            </button>
+          </div>
+          <div id="rankFVFem"></div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="../js/logo.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/admin.js"></script>
+</body>
+</html>
