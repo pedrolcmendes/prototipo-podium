@@ -3,17 +3,18 @@
    ═══════════════════════════════════════════ */
 
 // ─── Toast global seguro (fallback para páginas sem main.js) ──
-if (typeof window.showToast !== 'function') {
-  window.showToast = function(msg, type = 'success') {
-    let wrap = document.getElementById('_toast_wrap');
+if (typeof window.showToast !== "function") {
+  window.showToast = function (msg, type = "success") {
+    let wrap = document.getElementById("_toast_wrap");
     if (!wrap) {
-      wrap = document.createElement('div');
-      wrap.id = '_toast_wrap';
-      wrap.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none';
+      wrap = document.createElement("div");
+      wrap.id = "_toast_wrap";
+      wrap.style.cssText =
+        "position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none";
       document.body.appendChild(wrap);
     }
-    const colors = { success: '#E0AC6B', error: '#ef4444', warn: '#f59e0b' };
-    const t = document.createElement('div');
+    const colors = { success: "#E0AC6B", error: "#ef4444", warn: "#f59e0b" };
+    const t = document.createElement("div");
     t.style.cssText = `
       display:flex;align-items:center;gap:.7rem;
       background:var(--card,#161616);
@@ -26,13 +27,17 @@ if (typeof window.showToast !== 'function') {
       transition:opacity .3s,transform .3s;pointer-events:auto
     `;
     t.innerHTML = `
-      <span style="width:6px;height:6px;border-radius:50%;background:${colors[type]||colors.success};flex-shrink:0;box-shadow:0 0 8px ${colors[type]||colors.success}"></span>
+      <span style="width:6px;height:6px;border-radius:50%;background:${colors[type] || colors.success};flex-shrink:0;box-shadow:0 0 8px ${colors[type] || colors.success}"></span>
       <span>${msg}</span>
     `;
     wrap.appendChild(t);
-    requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'none'; });
+    requestAnimationFrame(() => {
+      t.style.opacity = "1";
+      t.style.transform = "none";
+    });
     setTimeout(() => {
-      t.style.opacity = '0'; t.style.transform = 'translateX(12px)';
+      t.style.opacity = "0";
+      t.style.transform = "translateX(12px)";
       setTimeout(() => t.remove(), 350);
     }, 3200);
   };
@@ -43,8 +48,11 @@ const Auth = {
   STORAGE_KEY: "podium_user",
 
   getUser() {
-    try { return JSON.parse(localStorage.getItem(this.STORAGE_KEY)); }
-    catch { return null; }
+    try {
+      return JSON.parse(localStorage.getItem(this.STORAGE_KEY));
+    } catch {
+      return null;
+    }
   },
 
   saveUser(user) {
@@ -53,15 +61,19 @@ const Auth = {
 
   logout() {
     localStorage.removeItem(this.STORAGE_KEY);
-    if (typeof updateNavUser === 'function') {
-      try { updateNavUser(null); } catch(e) {}
+    if (typeof updateNavUser === "function") {
+      try {
+        updateNavUser(null);
+      } catch (e) {}
     }
-    if (typeof window.showToast === 'function') {
+    if (typeof window.showToast === "function") {
       showToast("Você saiu da sua conta.", "success");
     }
   },
 
-  isLoggedIn() { return !!this.getUser(); },
+  isLoggedIn() {
+    return !!this.getUser();
+  },
 };
 
 // ─── Modal logout nav ─────────────────────
@@ -127,11 +139,11 @@ function updateNavUser(user) {
     wrap.className = "user-avatar-pill";
     const inPages = window.location.pathname.includes("/pages/");
     const base = inPages ? "" : "pages/";
-    const icoHome     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
-    const icoCal      = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`;
-    const icoRanking  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>`;
-    const icoUser     = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
-    const icoLogout   = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>`;
+    const icoHome = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`;
+    const icoCal = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`;
+    const icoRanking = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>`;
+    const icoUser = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    const icoLogout = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>`;
     const firstName = (user.nome || user.email).split(" ")[0];
 
     wrap.innerHTML = `
@@ -147,18 +159,22 @@ function updateNavUser(user) {
           </div>
         </div>
         <div class="divider"></div>
-        ${user.admin ? `
+        ${
+          user.admin
+            ? `
           <a href="${base}admin.html">${icoHome} Meu Painel</a>
           <a href="${base}admin.html?aba=reservas">${icoCal} Reservas</a>
           <a href="${base}ranking.html">${icoRanking} Ranking</a>
           <a href="${base}admin.html?aba=usuarios">${icoUser} Gerenciamento</a>
-        ` : `
+        `
+            : `
           <a href="${base}painel.html">${icoHome} Meu Painel</a>
           <a href="${base}painel.html?aba=reservas">${icoCal} Minhas Reservas</a>
           <a href="${base}ranking.html">${icoRanking} Ranking</a>
           <div class="divider"></div>
           <a href="${base}painel.html?aba=perfil">${icoUser} Meu Perfil</a>
-        `}
+        `
+        }
         <div class="divider"></div>
         <a href="#" onclick="event.preventDefault();abrirModalLogoutNav()" style="color:var(--red)">${icoLogout} Sair</a>
       </div>
@@ -194,7 +210,7 @@ function closeAuthModal() {
 
 // ─── Trocar aba (slider) ──────────────────
 function switchTab(tab) {
-  document.querySelectorAll(".auth-tab").forEach(t => {
+  document.querySelectorAll(".auth-tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === tab);
   });
 
@@ -205,9 +221,22 @@ function switchTab(tab) {
     inner.style.transform = `translateX(-${idx * 100}%)`;
   } else {
     // fallback para modal antigo (display none/block)
-    document.querySelectorAll(".auth-panel").forEach(p => {
+    document.querySelectorAll(".auth-panel").forEach((p) => {
       p.classList.toggle("active", p.id === `panel-${tab}`);
     });
+  }
+
+  const visual = document.querySelector(".auth-visual");
+  if (visual) {
+    const inPages = window.location.pathname.includes("/pages/");
+    const base = inPages ? "../img/" : "img/";
+    const img = tab === "login" ? "arena-login.jpeg" : "arena-cadastro.jpeg";
+
+    visual.style.opacity = "0";
+    setTimeout(() => {
+      visual.style.backgroundImage = `url('${base}${img}')`;
+      visual.style.opacity = "1";
+    }, 300);
   }
 }
 
@@ -243,7 +272,9 @@ function fieldError(id, msg) {
   if (err) err.textContent = msg;
 }
 function clearErrors() {
-  document.querySelectorAll(".field.error").forEach(f => f.classList.remove("error"));
+  document
+    .querySelectorAll(".field.error")
+    .forEach((f) => f.classList.remove("error"));
 }
 
 // ─── Login ────────────────────────────────
@@ -254,16 +285,30 @@ function handleLogin(e) {
   const senha = document.getElementById("loginSenha")?.value;
   let valid = true;
 
-  if (!validateEmail(email)) { fieldError("loginEmail", "E-mail inválido"); valid = false; }
-  if (!senha || senha.length < 6) { fieldError("loginSenha", "Senha muito curta"); valid = false; }
+  if (!validateEmail(email)) {
+    fieldError("loginEmail", "E-mail inválido");
+    valid = false;
+  }
+  if (!senha || senha.length < 6) {
+    fieldError("loginSenha", "Senha muito curta");
+    valid = false;
+  }
   if (!valid) return;
 
   const users = JSON.parse(localStorage.getItem("podium_users") || "[]");
-  const user = users.find(u => u.email === email && u.senha === btoa(senha));
+  const user = users.find((u) => u.email === email && u.senha === btoa(senha));
 
-  if (!user) { fieldError("loginEmail", "E-mail ou senha incorretos"); return; }
+  if (!user) {
+    fieldError("loginEmail", "E-mail ou senha incorretos");
+    return;
+  }
 
-  Auth.saveUser({ email: user.email, nome: user.nome, id: user.id, admin: !!user.admin });
+  Auth.saveUser({
+    email: user.email,
+    nome: user.nome,
+    id: user.id,
+    admin: !!user.admin,
+  });
   closeAuthModal();
   updateNavUser(Auth.getUser());
   showToast(`Bem-vindo de volta, ${user.nome.split(" ")[0]}!`);
@@ -281,35 +326,68 @@ function handleCadastro(e) {
   e.preventDefault();
   clearErrors();
 
-  const nome  = document.getElementById("cadNome")?.value.trim();
+  const nome = document.getElementById("cadNome")?.value.trim();
   const email = document.getElementById("cadEmail")?.value.trim();
-  const cpf   = document.getElementById("cadCPF")?.value.trim();
-  const nasc  = document.getElementById("cadNasc")?.value;
-  const tel   = document.getElementById("cadTel")?.value.trim();
+  const cpf = document.getElementById("cadCPF")?.value.trim();
+  const nasc = document.getElementById("cadNasc")?.value;
+  const tel = document.getElementById("cadTel")?.value.trim();
   const senha = document.getElementById("cadSenha")?.value;
-  const conf  = document.getElementById("cadConf")?.value;
+  const conf = document.getElementById("cadConf")?.value;
   let valid = true;
 
-  if (!nome || nome.length < 3)  { fieldError("cadNome",  "Nome muito curto"); valid = false; }
-  if (!validateEmail(email))      { fieldError("cadEmail", "E-mail inválido"); valid = false; }
-  if (!validateCPF(cpf))          { fieldError("cadCPF",   "CPF inválido (11 dígitos)"); valid = false; }
-  if (!nasc)                      { fieldError("cadNasc",  "Informe sua data de nascimento"); valid = false; }
-  if (!senha || senha.length < 8) { fieldError("cadSenha", "Mínimo 8 caracteres"); valid = false; }
-  if (senha !== conf)             { fieldError("cadConf",  "Senhas não conferem"); valid = false; }
+  if (!nome || nome.length < 3) {
+    fieldError("cadNome", "Nome muito curto");
+    valid = false;
+  }
+  if (!validateEmail(email)) {
+    fieldError("cadEmail", "E-mail inválido");
+    valid = false;
+  }
+  if (!validateCPF(cpf)) {
+    fieldError("cadCPF", "CPF inválido (11 dígitos)");
+    valid = false;
+  }
+  if (!nasc) {
+    fieldError("cadNasc", "Informe sua data de nascimento");
+    valid = false;
+  }
+  if (!senha || senha.length < 8) {
+    fieldError("cadSenha", "Mínimo 8 caracteres");
+    valid = false;
+  }
+  if (senha !== conf) {
+    fieldError("cadConf", "Senhas não conferem");
+    valid = false;
+  }
   if (!valid) return;
 
   const users = JSON.parse(localStorage.getItem("podium_users") || "[]");
-  if (users.find(u => u.email === email)) { fieldError("cadEmail", "E-mail já cadastrado"); return; }
+  if (users.find((u) => u.email === email)) {
+    fieldError("cadEmail", "E-mail já cadastrado");
+    return;
+  }
 
   const newUser = {
-    id: Date.now().toString(), nome, email, cpf, nasc, tel,
-    senha: btoa(senha), criadoEm: new Date().toISOString(),
-    reservas: [], inscricoes: [],
+    id: Date.now().toString(),
+    nome,
+    email,
+    cpf,
+    nasc,
+    tel,
+    senha: btoa(senha),
+    criadoEm: new Date().toISOString(),
+    reservas: [],
+    inscricoes: [],
   };
   users.push(newUser);
   localStorage.setItem("podium_users", JSON.stringify(users));
 
-  Auth.saveUser({ email: newUser.email, nome: newUser.nome, id: newUser.id, admin: false });
+  Auth.saveUser({
+    email: newUser.email,
+    nome: newUser.nome,
+    id: newUser.id,
+    admin: false,
+  });
   closeAuthModal();
   updateNavUser(Auth.getUser());
   showToast(`Cadastro realizado! Seja bem-vindo(a), ${nome.split(" ")[0]}!`);
@@ -326,14 +404,18 @@ function togglePw(inputId) {
 document.addEventListener("DOMContentLoaded", () => {
   // Seed admin padrão
   const users = JSON.parse(localStorage.getItem("podium_users") || "[]");
-  if (!users.some(u => u.admin)) {
+  if (!users.some((u) => u.admin)) {
     users.push({
-      id: "admin_1", nome: "Administrador",
-      email: "admin@email.com", cpf: "000.000.000-00",
-      tel: "(43) 9 9000-0000", nasc: "1990-01-01",
+      id: "admin_1",
+      nome: "Administrador",
+      email: "admin@email.com",
+      cpf: "000.000.000-00",
+      tel: "(43) 9 9000-0000",
+      nasc: "1990-01-01",
       senha: btoa("senha123"),
       criadoEm: new Date().toISOString(),
-      ativo: true, admin: true,
+      ativo: true,
+      admin: true,
     });
     localStorage.setItem("podium_users", JSON.stringify(users));
   }
@@ -350,7 +432,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateNavUser(Auth.getUser());
 
   // Abas
-  document.querySelectorAll(".auth-tab").forEach(tab => {
+  document.querySelectorAll(".auth-tab").forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
 
@@ -364,7 +446,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Máscara CPF
   const cpfInput = document.getElementById("cadCPF");
   if (cpfInput) {
-    cpfInput.addEventListener("input", function() {
+    cpfInput.addEventListener("input", function () {
       let v = this.value.replace(/\D/g, "");
       v = v.replace(/(\d{3})(\d)/, "$1.$2");
       v = v.replace(/(\d{3})(\d)/, "$1.$2");
@@ -376,7 +458,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Máscara Telefone
   const telInput = document.getElementById("cadTel");
   if (telInput) {
-    telInput.addEventListener("input", function() {
+    telInput.addEventListener("input", function () {
       let v = this.value.replace(/\D/g, "");
       v = v.replace(/(\d{2})(\d)/, "($1) $2");
       v = v.replace(/(\d{5})(\d{4})$/, "$1-$2");
@@ -386,12 +468,12 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ─── Exportar globais ─────────────────────
-window.Auth                 = Auth;
-window.openAuthModal        = openAuthModal;
-window.closeAuthModal       = closeAuthModal;
-window.switchTab            = switchTab;
-window.togglePw             = togglePw;
-window.updateNavUser        = updateNavUser;
-window.abrirModalLogoutNav  = abrirModalLogoutNav;
+window.Auth = Auth;
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.switchTab = switchTab;
+window.togglePw = togglePw;
+window.updateNavUser = updateNavUser;
+window.abrirModalLogoutNav = abrirModalLogoutNav;
 window.fecharModalLogoutNav = fecharModalLogoutNav;
-window.confirmarLogoutNav   = confirmarLogoutNav;
+window.confirmarLogoutNav = confirmarLogoutNav;
