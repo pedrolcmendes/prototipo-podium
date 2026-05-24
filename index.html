@@ -25,101 +25,227 @@
   </div>
 </div>
 
-<!-- AUTH MODAL -->
 <div class="modal-overlay" id="authOverlay">
   <div class="auth-modal">
-    <button class="modal-close" onclick="closeAuthModal()">&#x2715;</button>
-    <div class="auth-header">
-      <div class="auth-logo">
-        <img data-logo src="img/logo.png" alt="Podium Arena">
-        <span>PODIUM ARENA</span>
+ 
+    <!-- FECHAR -->
+    <button class="modal-close" onclick="closeAuthModal()" aria-label="Fechar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+ 
+    <!-- ══ ESQUERDA — Visual ══ -->
+    <div class="auth-visual">
+      <svg class="visual-arcs" viewBox="0 0 400 600" preserveAspectRatio="none">
+        <circle cx="200" cy="-80" r="260" stroke-width="1"/>
+        <circle cx="200" cy="-80" r="340" stroke-width=".5"/>
+        <circle cx="380" cy="700" r="300" stroke-width=".7"/>
+      </svg>
+      <div class="visual-glow-bl"></div>
+ 
+      <!-- Stats -->
+      <div class="visual-stats">
+        <div class="visual-stat-card">
+          <div class="visual-stat-number" id="vStat1">0</div>
+          <div class="visual-stat-label">Quadras</div>
+        </div>
+        <div class="visual-stat-card">
+          <div class="visual-stat-number" id="vStat2">0</div>
+          <div class="visual-stat-label">Atletas</div>
+        </div>
+        <div class="visual-stat-card">
+          <div class="visual-stat-number" id="vStat3">0</div>
+          <div class="visual-stat-label">Eventos</div>
+        </div>
       </div>
+ 
+      <!-- Brand -->
+      <div class="visual-brand">
+        <div class="visual-logo-row">
+          <div class="visual-logo-badge">
+            <svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+              <path d="M4 22h16"/>
+              <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+              <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+              <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+            </svg>
+          </div>
+          <span class="visual-arena-name">PODIUM ARENA</span>
+        </div>
+        <div class="visual-headline">
+          SUA <em>VITÓRIA</em><br>COMEÇA<br>AQUI
+        </div>
+        <div class="visual-tags">
+          <span class="visual-tag">Beach Tennis</span>
+          <span class="visual-tag">Futevôlei</span>
+          <span class="visual-tag">Pickleball</span>
+          <span class="visual-tag">Academia</span>
+          <span class="visual-tag">Taekwondo</span>
+        </div>
+      </div>
+    </div>
+ 
+    <!-- ══ DIREITA — Formulários ══ -->
+    <div class="auth-form-panel">
+ 
+      <!-- Abas -->
       <div class="auth-tabs">
         <button class="auth-tab active" data-tab="login">Entrar</button>
         <button class="auth-tab" data-tab="cadastro">Cadastrar</button>
       </div>
-    </div>
-    <div class="auth-body">
-
-      <!-- LOGIN -->
-      <div class="auth-panel active" id="panel-login">
-        <form class="auth-form" id="loginForm" novalidate>
-          <div class="field" id="field-loginEmail">
-            <label>E-mail</label>
-            <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="email">
-            <span class="field-error">E-mail inválido</span>
-          </div>
-          <div class="field" id="field-loginSenha">
-            <label>Senha</label>
-            <div class="field-pw">
-              <input type="password" id="loginSenha" placeholder="••••••••" autocomplete="current-password">
-              <button type="button" class="toggle-pw" onclick="togglePw('loginSenha')"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+ 
+      <!-- Slider de painéis -->
+      <div class="auth-panels-track">
+        <div class="auth-panels-inner" id="authPanelsInner">
+ 
+          <!-- ── LOGIN ── -->
+          <div class="auth-panel" id="panel-login">
+            <div class="panel-heading">
+              <h2>ACESSO</h2>
+              <p>Bem-vindo de volta à arena</p>
             </div>
-            <span class="field-error">Senha incorreta</span>
-          </div>
-          <button type="submit" class="btn-auth">Entrar na Arena</button>
-          <p class="auth-terms">Não tem conta? <a href="#" onclick="switchTab('cadastro')">Cadastre-se grátis</a></p>
-        </form>
-      </div>
-
-      <!-- CADASTRO -->
-      <div class="auth-panel" id="panel-cadastro">
-        <form class="auth-form" id="cadForm" novalidate>
-          <div class="field" id="field-cadNome">
-            <label>Nome completo</label>
-            <input type="text" id="cadNome" placeholder="Seu nome completo">
-            <span class="field-error">Nome inválido</span>
-          </div>
-          <div class="field-row">
-            <div class="field" id="field-cadEmail">
-              <label>E-mail</label>
-              <input type="email" id="cadEmail" placeholder="seu@email.com">
-              <span class="field-error">E-mail inválido</span>
-            </div>
-            <div class="field" id="field-cadCPF">
-              <label>CPF</label>
-              <input type="text" id="cadCPF" placeholder="000.000.000-00" maxlength="14">
-              <span class="field-error">CPF inválido</span>
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field" id="field-cadNasc">
-              <label>Nascimento</label>
-              <input type="date" id="cadNasc">
-              <span class="field-error">Informe a data</span>
-            </div>
-            <div class="field" id="field-cadTel">
-              <label>Telefone</label>
-              <input type="tel" id="cadTel" placeholder="(43) 9 9999-9999">
-              <span class="field-error">Telefone inválido</span>
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field" id="field-cadSenha">
-              <label>Senha</label>
-              <div class="field-pw">
-                <input type="password" id="cadSenha" placeholder="Mín. 8 caracteres">
-                <button type="button" class="toggle-pw" onclick="togglePw('cadSenha')"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+ 
+            <form id="loginForm" novalidate style="display:flex;flex-direction:column;gap:1.1rem">
+ 
+              <div class="field" id="field-loginEmail">
+                <label>E-mail</label>
+                <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="email">
+                <span class="field-error">E-mail inválido</span>
               </div>
-              <span class="field-error">Mínimo 8 caracteres</span>
-            </div>
-            <div class="field" id="field-cadConf">
-              <label>Confirmar senha</label>
-              <div class="field-pw">
-                <input type="password" id="cadConf" placeholder="Repita a senha">
-                <button type="button" class="toggle-pw" onclick="togglePw('cadConf')"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+ 
+              <div class="field" id="field-loginSenha">
+                <label>Senha</label>
+                <div class="field-pw">
+                  <input type="password" id="loginSenha" placeholder="••••••••" autocomplete="current-password">
+                  <button type="button" class="toggle-pw" onclick="togglePw('loginSenha')" aria-label="Mostrar senha">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+                <span class="field-error">Senha incorreta</span>
               </div>
-              <span class="field-error">Senhas não conferem</span>
-            </div>
+ 
+              <div class="login-extras">
+                <label class="remember-label">
+                  <input type="checkbox" id="loginRemember"> Lembrar acesso
+                </label>
+                <a href="#" class="forgot-link" onclick="event.preventDefault()">Esqueci a senha</a>
+              </div>
+ 
+              <button type="submit" class="btn-auth">Entrar na Arena</button>
+ 
+            </form>
+ 
+            <div class="auth-divider">ou</div>
+ 
+            <button class="btn-google" onclick="alert('Login social em breve!')">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Continuar com Google
+            </button>
+ 
+            <p class="auth-terms">
+              Ao entrar, você aceita os <a href="#">Termos de Uso</a> e a
+              <a href="#">Política de Privacidade</a> da Podium Arena.
+            </p>
           </div>
-          <button type="submit" class="btn-auth">Criar Conta Grátis</button>
-          <p class="auth-terms">Ao cadastrar, você aceita os <a href="#">Termos de Uso</a> da Podium Arena.</p>
-        </form>
-      </div>
-
-    </div>
-  </div>
-</div>
+ 
+          <!-- ── CADASTRO ── -->
+          <div class="auth-panel" id="panel-cadastro">
+            <div class="panel-heading">
+              <h2>CADASTRO</h2>
+              <p>Junte-se à arena — é gratuito</p>
+            </div>
+ 
+            <form id="cadForm" novalidate style="display:flex;flex-direction:column;gap:1.1rem">
+ 
+              <div class="field" id="field-cadNome">
+                <label>Nome Completo</label>
+                <input type="text" id="cadNome" placeholder="João da Silva" autocomplete="name">
+                <span class="field-error">Nome muito curto</span>
+              </div>
+ 
+              <div class="field-row">
+                <div class="field" id="field-cadEmail">
+                  <label>E-mail</label>
+                  <input type="email" id="cadEmail" placeholder="seu@email.com">
+                  <span class="field-error">E-mail inválido</span>
+                </div>
+                <div class="field" id="field-cadTel">
+                  <label>Telefone</label>
+                  <input type="tel" id="cadTel" placeholder="(43) 9 9000-0000">
+                  <span class="field-error">Telefone inválido</span>
+                </div>
+              </div>
+ 
+              <div class="field-row">
+                <div class="field" id="field-cadCPF">
+                  <label>CPF</label>
+                  <input type="text" id="cadCPF" placeholder="000.000.000-00" maxlength="14">
+                  <span class="field-error">CPF inválido (11 dígitos)</span>
+                </div>
+                <div class="field" id="field-cadNasc">
+                  <label>Nascimento</label>
+                  <input type="date" id="cadNasc">
+                  <span class="field-error">Informe a data</span>
+                </div>
+              </div>
+ 
+              <div class="field-row">
+                <div class="field" id="field-cadSenha">
+                  <label>Senha</label>
+                  <div class="field-pw">
+                    <input type="password" id="cadSenha" placeholder="Mín. 8 chars">
+                    <button type="button" class="toggle-pw" onclick="togglePw('cadSenha')" aria-label="Mostrar senha">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <span class="field-error">Mínimo 8 caracteres</span>
+                </div>
+                <div class="field" id="field-cadConf">
+                  <label>Confirmar</label>
+                  <div class="field-pw">
+                    <input type="password" id="cadConf" placeholder="Repetir senha">
+                    <button type="button" class="toggle-pw" onclick="togglePw('cadConf')" aria-label="Mostrar senha">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <span class="field-error">Senhas não conferem</span>
+                </div>
+              </div>
+ 
+              <button type="submit" class="btn-auth">Criar Conta Grátis</button>
+ 
+            </form>
+ 
+            <p class="auth-terms">
+              Ao cadastrar, você aceita os <a href="#">Termos de Uso</a> e a
+              <a href="#">Política de Privacidade</a>.
+            </p>
+          </div>
+ 
+        </div><!-- /authPanelsInner -->
+      </div><!-- /auth-panels-track -->
+ 
+    </div><!-- /auth-form-panel -->
+  </div><!-- /auth-modal -->
+</div><!-- /authOverlay -->
 
 <!-- MOBILE MENU -->
 <div class="mobile-menu" id="mobileMenu">
