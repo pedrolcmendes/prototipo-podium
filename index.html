@@ -16,6 +16,15 @@
 </head>
 <body>
 
+<!-- PRELOADER -->
+<div id="preloader">
+  <div class="pre-inner">
+    <div class="pre-logo-wrap"><img data-logo src="img/logo.png" alt="Podium Arena" id="preloader-logo"></div>
+    <div class="pre-bar"><div class="pre-fill"></div></div>
+    <p class="pre-text">Carregando a arena...</p>
+  </div>
+</div>
+
 <!-- AUTH MODAL -->
 <div class="modal-overlay" id="authOverlay">
   <div class="auth-modal">
@@ -554,7 +563,7 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <p class="footer-copy">© 2026 Podium Arena · Rua Manaus, 321 · Telêmaco Borba – PR</p>
+      <p class="footer-copy">© 2026 Podium Arena · Rua Manaus, 321 · Telêmaco Borba – PR &nbsp;·&nbsp; <a href="../pages/privacidade.html" style="color:var(--gray);transition:color .2s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--gray)'">Privacidade</a></p>
       <div class="footer-logo-small"><img data-logo src="img/logo.png" alt="Podium Arena"></div>
     </div>
   </footer>
@@ -563,5 +572,6 @@
 <script src="js/logo.js"></script>
 <script src="js/main.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/cookie.js"></script>
 </body>
 </html>
