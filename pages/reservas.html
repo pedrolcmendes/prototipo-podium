@@ -16,430 +16,611 @@
   <link rel="stylesheet" href="../css/calendar.css">
   <link rel="stylesheet" href="../css/footer.css">
   <style>
+    /* ══════════════════════════════════════
+       PAGE HERO
+    ══════════════════════════════════════ */
     .page-hero {
       padding: 3rem 2rem 2rem;
       max-width: var(--max-w);
       margin: 0 auto
     }
-
-    .page-hero .section-eyebrow {
-      margin-bottom: .5rem
-    }
-
+    .page-hero .section-eyebrow { margin-bottom: .5rem }
     .page-hero h1 {
       font-family: var(--font-display);
       font-size: clamp(2rem, 5vw, 3.5rem);
-      letter-spacing: 2px;
-      line-height: 1;
-      margin-bottom: 1rem
+      letter-spacing: 2px; line-height: 1; margin-bottom: 1rem
     }
+    .page-hero p { color: var(--gray); font-size: 1rem; max-width: 600px }
 
-    .page-hero p {
-      color: var(--gray);
-      font-size: 1rem;
-      max-width: 600px
-    }
-
-    /* Container principal */
+    /* ══════════════════════════════════════
+       CONTAINER
+    ══════════════════════════════════════ */
     .reservas-container {
       max-width: var(--max-w);
       margin: 0 auto;
       padding: 0 2rem 5rem;
     }
 
-    /* Modal confirmação */
-    .conf-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 9000;
-      background: rgba(0, 0, 0, .88);
-      backdrop-filter: blur(12px);
+    /* ══════════════════════════════════════
+       STEPPER
+    ══════════════════════════════════════ */
+    .bk-stepper-wrap {
+      margin-bottom: 2.5rem;
+    }
+    .bk-stepper {
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 1.5rem;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity .4s, visibility .4s
+      gap: 0;
     }
-
-    .conf-overlay.open {
-      opacity: 1;
-      visibility: visible
+    .bk-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .45rem;
+      flex: 1;
+      position: relative;
     }
+    .bk-step-circle {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: var(--dark);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-cond);
+      font-size: .8rem; font-weight: 700;
+      color: var(--gray);
+      transition: all var(--trans-fast);
+      position: relative; z-index: 1;
+    }
+    .bk-step.active .bk-step-circle {
+      border-color: var(--gold);
+      background: var(--gold);
+      color: var(--black);
+      box-shadow: 0 0 16px var(--gold-glow);
+    }
+    .bk-step.done .bk-step-circle {
+      border-color: var(--gold);
+      background: transparent;
+      color: var(--gold);
+    }
+    .bk-step-label {
+      font-family: var(--font-cond);
+      font-size: .65rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--gray);
+      text-align: center;
+      transition: color var(--trans-fast);
+    }
+    .bk-step.active .bk-step-label { color: var(--gold); }
+    .bk-step.done .bk-step-label  { color: var(--gray-light); }
 
-    .conf-modal {
+    .bk-step-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 1.1rem; /* alinha com os círculos */
+      transition: background var(--trans-med);
+    }
+    .bk-step-line.done { background: var(--gold); }
+
+    /* ══════════════════════════════════════
+       CARD PRINCIPAL
+    ══════════════════════════════════════ */
+    .bk-card {
       background: var(--card);
       border: 1px solid var(--border);
-      max-width: 460px;
-      width: 100%;
-      padding: 2.5rem;
-      text-align: center;
-      transform: scale(.95);
-      transition: transform .4s var(--ease-out)
     }
-
-    .conf-overlay.open .conf-modal {
-      transform: none
+    .bk-card-header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(224,172,107,.05), transparent);
     }
-
-    .conf-icon {
-      font-size: 4rem;
-      margin-bottom: 1rem
-    }
-
-    .conf-title {
+    .bk-card-header h2 {
       font-family: var(--font-display);
-      font-size: 2rem;
-      letter-spacing: 2px;
-      margin-bottom: .5rem;
-      color: var(--gold)
+      font-size: 1.6rem; letter-spacing: 2px; color: var(--white);
+    }
+    .bk-card-header p {
+      font-size: .85rem; color: var(--gray); margin-top: .25rem;
+    }
+    .bk-card-body {
+      padding: 2rem;
     }
 
-    .conf-sub {
-      color: var(--gray);
-      font-size: .9rem;
-      margin-bottom: 2rem
-    }
+    /* Panels */
+    .bk-panel { display: none; }
+    .bk-panel.active { display: block; }
 
-    .conf-details {
-      background: var(--dark);
-      border: 1px solid var(--border);
-      padding: 1.2rem;
-      margin-bottom: 2rem;
-      display: flex;
-      flex-direction: column;
-      gap: .7rem
-    }
-
-    .conf-row {
-      display: flex;
-      justify-content: space-between
-    }
-
-    .conf-label {
-      font-family: var(--font-cond);
-      font-size: .8rem;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--gray)
-    }
-
-    .conf-val {
-      font-family: var(--font-cond);
-      font-size: .95rem;
-      font-weight: 600
-    }
-
-    .conf-id {
-      font-family: var(--font-display);
-      font-size: 1.2rem;
-      color: var(--gold);
-      margin-bottom: 1.5rem
-    }
-
-    .times-section {
-      margin-top: 2rem
-    }
-
-    .times-section h4 {
-      font-family: var(--font-cond);
-      font-size: .85rem;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--gray);
-      margin-bottom: 1rem
-    }
-
-    .conf-check-wrap {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: rgba(197, 160, 40, .1);
-      border: 1.5px solid var(--gold);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 1.5rem;
-      animation: checkPop .5s cubic-bezier(.34, 1.56, .64, 1) both
-    }
-
-    @keyframes checkPop {
-      0% {
-        transform: scale(0);
-        opacity: 0
-      }
-
-      100% {
-        transform: scale(1);
-        opacity: 1
-      }
-    }
-
-    .conf-check-svg {
-      width: 34px;
-      height: 34px;
-      stroke: var(--gold);
-      stroke-dasharray: 60;
-      stroke-dashoffset: 60;
-      animation: drawCheck .5s .3s ease forwards
-    }
-
-    @keyframes drawCheck {
-      to {
-        stroke-dashoffset: 0
-      }
-    }
-
-    .conf-actions {
+    /* ══════════════════════════════════════
+       OPÇÕES (Modalidade / Quadra)
+    ══════════════════════════════════════ */
+    .bk-option-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: .8rem;
-      margin-top: 1.5rem
-    }
-
-    .conf-btn-secondary {
-      font-family: var(--font-cond);
-      font-size: .85rem;
-      font-weight: 600;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--gray);
-      padding: .9rem 1rem;
-      cursor: pointer;
-      transition: all .25s
-    }
-
-    .conf-btn-secondary:hover {
-      border-color: var(--white);
-      color: var(--white)
-    }
-
-    .conf-btn-primary {
-      font-family: var(--font-cond);
-      font-size: .85rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      background: linear-gradient(135deg, var(--gold-dark), var(--gold), var(--gold-light));
-      color: var(--black);
-      border: none;
-      padding: .9rem 1rem;
-      cursor: pointer;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: .5rem;
-      transition: all .3s
-    }
-
-    .conf-btn-primary:hover {
-      box-shadow: 0 0 30px rgba(197, 160, 40, .4);
-      transform: translateY(-1px)
-    }
-
-    .event-banner {
-      display: flex;
-      align-items: center;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 1rem;
-      background: rgba(255, 160, 0, .08);
-      border: 1px solid rgba(255, 160, 0, .3);
+      margin-bottom: 1.5rem;
+    }
+    .bk-option-card {
+      border: 1px solid var(--border);
+      background: var(--dark);
+      padding: 1.6rem 1.2rem;
+      cursor: pointer;
+      transition: all var(--trans-fast);
+      position: relative;
+      text-align: center;
+    }
+    .bk-option-card::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px; background: transparent;
+      transition: background var(--trans-fast);
+    }
+    .bk-option-card:hover {
+      border-color: rgba(224,172,107,.4);
+      background: var(--gold-faint);
+    }
+    .bk-option-card:hover::before { background: rgba(224,172,107,.5); }
+    .bk-option-card.active {
+      border-color: var(--gold);
+      background: var(--gold-faint);
+      box-shadow: 0 0 20px rgba(224,172,107,.1);
+    }
+    .bk-option-card.active::before { background: var(--gold); }
+
+    .bk-option-icon {
+      width: 42px; height: 42px;
+      background: rgba(224,172,107,.08);
+      border: 1px solid rgba(224,172,107,.15);
+      border-radius: 2px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto .9rem;
+    }
+    .bk-option-icon svg { width: 20px; height: 20px; stroke: var(--gold); }
+    .bk-option-card.active .bk-option-icon {
+      background: rgba(224,172,107,.18);
+      border-color: rgba(224,172,107,.4);
+    }
+    .bk-option-name {
+      font-family: var(--font-cond);
+      font-size: 1rem; font-weight: 700;
+      letter-spacing: 1px; color: var(--white);
+      margin-bottom: .3rem;
+    }
+    .bk-option-desc {
+      font-size: .78rem; color: var(--gray); line-height: 1.4;
+    }
+
+    /* Badge Day Use */
+    .bk-badge-dayuse {
+      position: absolute; top: -10px; right: 12px;
+      font-family: var(--font-cond);
+      font-size: .62rem; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      background: var(--amber); color: #000;
+      padding: .15rem .6rem;
+    }
+
+    /* Aviso Pickleball */
+    .bk-pickleball-notice {
+      display: none;
+      align-items: flex-start;
+      gap: .9rem;
+      background: rgba(245,158,11,.06);
+      border: 1px solid rgba(245,158,11,.25);
       border-left: 3px solid var(--amber);
       padding: 1rem 1.2rem;
-      margin-top: 1rem;
-      animation: slideDown .3s ease
+      margin-bottom: 1.5rem;
     }
+    .bk-pickleball-notice svg { flex-shrink: 0; color: var(--amber); margin-top: 1px; }
+    .bk-pickleball-notice p { font-size: .85rem; color: var(--gray); line-height: 1.5; }
+    .bk-pickleball-notice strong { color: var(--amber); }
 
-    @keyframes slideDown {
-      from {
-        opacity: 0;
-        transform: translateY(-8px)
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0)
-      }
+    /* ══════════════════════════════════════
+       TABELA DE PREÇOS (etapa 2)
+    ══════════════════════════════════════ */
+    #bk-quadra-priceinfo { display: none; margin-bottom: 1.5rem; }
+    .bk-price-table {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      background: var(--dark);
+      border: 1px solid var(--border);
+      padding: 1.2rem 1.4rem;
     }
-
-    .event-banner-icon {
-      color: var(--amber);
-      flex-shrink: 0
-    }
-
-    .event-banner-text {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: .2rem
-    }
-
-    .event-banner-text strong {
+    .bk-price-col-title {
       font-family: var(--font-cond);
-      font-size: .95rem;
-      font-weight: 700;
+      font-size: .7rem; font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); margin-bottom: .7rem;
+    }
+    .bk-price-row {
+      display: flex; justify-content: space-between;
+      font-family: var(--font-cond); font-size: .82rem;
+      color: var(--gray-light); padding: .25rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .bk-price-row:last-child { border-bottom: none; }
+    .bk-price-row span:last-child { color: var(--gold); font-weight: 600; }
+
+    /* ══════════════════════════════════════
+       ETAPA 3 — layout cal + painel
+    ══════════════════════════════════════ */
+    .bk-step3-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    /* Seção de horários */
+    #bk-times-section { display: none; margin-top: 1.5rem; }
+    .bk-times-wrap {
+      background: var(--dark);
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+    }
+    .bk-times-label {
+      font-family: var(--font-cond);
+      font-size: .75rem; font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gray); margin-bottom: 1rem;
+      display: flex; align-items: center; gap: .6rem;
+    }
+    .bk-times-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .bk-times-label span { color: var(--gold-light); font-weight: 400; font-size: .7rem; letter-spacing: 1px; }
+
+    /* Reaproveitamos .times-grid e .time-slot do calendar.css */
+    .time-slot {
+      display: flex; flex-direction: column;
+      align-items: center; gap: .2rem;
+    }
+    .ts-hour {
+      font-family: var(--font-cond);
+      font-size: .82rem; font-weight: 700;
       letter-spacing: 1px;
-      color: var(--amber)
     }
-
-    .event-banner-text span {
-      font-size: .82rem;
-      color: var(--gray)
+    .ts-price {
+      font-family: var(--font-cond);
+      font-size: .65rem; color: var(--gray);
+      letter-spacing: .5px;
     }
+    .time-slot.selected .ts-price { color: var(--black); }
+    .time-slot.taken .ts-price { color: var(--muted); }
 
-    .event-banner-close {
-      background: none;
-      border: none;
+    /* Day Use toggle */
+    .bk-dayuse-btn {
+      display: flex; align-items: center; gap: 1rem;
+      background: var(--dark);
+      border: 1px solid var(--border);
+      padding: 1rem 1.2rem;
       cursor: pointer;
-      color: var(--gray);
-      padding: .3rem;
-      transition: color .2s;
-      flex-shrink: 0
+      transition: all var(--trans-fast);
+      margin-top: 1rem;
+      width: 100%;
+      text-align: left;
+    }
+    .bk-dayuse-btn:hover { border-color: rgba(224,172,107,.35); background: var(--gold-faint); }
+    .bk-dayuse-btn.active { border-color: var(--gold); background: var(--gold-faint); }
+    .bk-dayuse-check {
+      width: 20px; height: 20px;
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      border-radius: 2px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; color: transparent;
+      flex-shrink: 0;
+      transition: all var(--trans-fast);
+    }
+    .bk-dayuse-btn.active .bk-dayuse-check {
+      background: var(--gold); border-color: var(--gold); color: var(--black);
+      font-weight: 700;
+    }
+    .bk-dayuse-info strong {
+      font-family: var(--font-cond); font-size: .9rem;
+      font-weight: 700; letter-spacing: 1px; color: var(--white);
+    }
+    .bk-dayuse-info p { font-size: .78rem; color: var(--gray); margin-top: .1rem; }
+
+    /* Painel lateral etapa 3 */
+    .bk-sidebar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      position: sticky;
+      top: calc(var(--nav-h) + 1.5rem);
+    }
+    .bk-sidebar-head {
+      padding: 1.2rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(224,172,107,.06), transparent);
+    }
+    .bk-sidebar-head h4 {
+      font-family: var(--font-display);
+      font-size: 1.3rem; letter-spacing: 2px; color: var(--white);
+    }
+    .bk-sidebar-head p { font-size: .8rem; color: var(--gray); margin-top: .2rem; }
+    .bk-sidebar-body { padding: 1.2rem 1.5rem; }
+
+    /* Resumo compartilhado */
+    .bk-summary {
+      background: var(--dark);
+      border: 1px solid var(--border);
+      padding: 1.1rem 1.2rem;
+      display: none;
+    }
+    .bk-sum-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .45rem 0;
+      border-bottom: 1px solid rgba(36,36,36,.8);
+    }
+    .bk-sum-row:last-child { border-bottom: none; }
+    .bk-sum-row.indent { padding-left: .8rem; }
+    .bk-sum-row.indent .bk-sum-label { font-size: .7rem; color: var(--muted); }
+    .bk-sum-row.indent .bk-sum-val   { font-size: .78rem; color: var(--gray-light); }
+    .bk-sum-label {
+      font-family: var(--font-cond);
+      font-size: .72rem; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--gray);
+    }
+    .bk-sum-val {
+      font-family: var(--font-cond);
+      font-size: .88rem; font-weight: 600; color: var(--white);
+    }
+    .bk-sum-divider { height: 1px; background: var(--border); margin: .4rem 0; }
+    .bk-sum-total {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: .8rem; padding-top: .8rem;
+      border-top: 1px solid var(--border);
+    }
+    .bk-sum-total-label {
+      font-family: var(--font-cond); font-size: .78rem;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--white); font-weight: 700;
+    }
+    .bk-sum-total-val {
+      font-family: var(--font-display); font-size: 1.8rem;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold), var(--gold-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
-    .event-banner-close:hover {
-      color: var(--white)
+    /* ══════════════════════════════════════
+       ETAPA 4 — Pagamento
+    ══════════════════════════════════════ */
+    .bk-pay-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 2rem;
+      align-items: start;
+    }
+    .bk-pay-methods {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: .7rem;
+      margin-bottom: 1.5rem;
+    }
+    .bk-pay-method {
+      border: 1px solid var(--border);
+      background: var(--dark);
+      padding: 1.1rem;
+      cursor: pointer;
+      transition: all var(--trans-fast);
+      display: flex; align-items: center; gap: .9rem;
+      position: relative;
+    }
+    .bk-pay-method::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px; background: transparent;
+      transition: background var(--trans-fast);
+    }
+    .bk-pay-method:hover { border-color: rgba(224,172,107,.35); background: var(--gold-faint); }
+    .bk-pay-method:hover::before { background: rgba(224,172,107,.5); }
+    .bk-pay-method.active { border-color: var(--gold); background: var(--gold-faint); }
+    .bk-pay-method.active::before { background: var(--gold); }
+    .bk-pay-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .bk-pay-label {
+      font-family: var(--font-cond);
+      font-size: .88rem; font-weight: 700;
+      letter-spacing: 1px; color: var(--white);
+    }
+    .bk-pay-sub { font-size: .72rem; color: var(--gray); margin-top: .1rem; }
+
+    /* PIX block */
+    .bk-pix-block {
+      display: none;
+      background: var(--dark);
+      border: 1px dashed var(--border);
+      padding: 1.5rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .bk-pix-qr {
+      width: 110px; height: 110px;
+      background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto .9rem;
+      font-size: .65rem; color: #333;
+    }
+    .bk-pix-key {
+      font-family: var(--font-cond); font-size: .85rem; color: var(--gray);
+    }
+    .bk-pix-key strong { color: var(--gold); }
+    .bk-pix-note { font-size: .75rem; color: var(--muted); margin-top: .6rem; }
+
+    /* Card form */
+    .bk-card-form {
+      display: none;
+      background: var(--dark);
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .bk-field { margin-bottom: 1rem; }
+    .bk-field label {
+      display: block;
+      font-family: var(--font-cond); font-size: .72rem;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--gray); margin-bottom: .5rem;
+    }
+    .bk-field input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: .75rem 1rem;
+      color: var(--white);
+      font-family: var(--font-cond); font-size: .9rem;
+      outline: none;
+      transition: border var(--trans-fast);
+    }
+    .bk-field input:focus { border-color: var(--gold); }
+    .bk-field input::placeholder { color: var(--muted); }
+    .bk-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+
+    /* ══════════════════════════════════════
+       BOTÕES DE NAV
+    ══════════════════════════════════════ */
+    .bk-nav {
+      display: flex; gap: .8rem;
+      margin-top: 1.8rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .bk-nav .btn-ghost { flex-shrink: 0; }
+    .bk-nav .btn-gold  { flex: 1; justify-content: center; }
+    .btn-gold:disabled, .bk-nav .btn-gold:disabled {
+      opacity: .35; cursor: not-allowed;
+      pointer-events: none;
     }
 
-    /* ── RESPONSIVO ── */
+    /* ══════════════════════════════════════
+       MODAL CONFIRMAÇÃO (mantido original)
+    ══════════════════════════════════════ */
+    .conf-overlay {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(0,0,0,.88); backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem; opacity: 0; visibility: hidden;
+      transition: opacity .4s, visibility .4s;
+    }
+    .conf-overlay.open { opacity: 1; visibility: visible; }
+    .conf-modal {
+      background: var(--card); border: 1px solid var(--border);
+      max-width: 460px; width: 100%; padding: 2.5rem;
+      text-align: center;
+      transform: scale(.95); transition: transform .4s var(--ease-out);
+    }
+    .conf-overlay.open .conf-modal { transform: none; }
+    .conf-check-wrap {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: rgba(197,160,40,.1); border: 1.5px solid var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.5rem;
+      animation: checkPop .5s cubic-bezier(.34,1.56,.64,1) both;
+    }
+    @keyframes checkPop {
+      0%  { transform: scale(0); opacity: 0; }
+      100%{ transform: scale(1); opacity: 1; }
+    }
+    .conf-check-svg {
+      width: 34px; height: 34px; stroke: var(--gold);
+      stroke-dasharray: 60; stroke-dashoffset: 60;
+      animation: drawCheck .5s .3s ease forwards;
+    }
+    @keyframes drawCheck { to { stroke-dashoffset: 0; } }
+    .conf-title {
+      font-family: var(--font-display); font-size: 2rem;
+      letter-spacing: 2px; margin-bottom: .5rem; color: var(--gold);
+    }
+    .conf-sub { color: var(--gray); font-size: .9rem; margin-bottom: 2rem; }
+    .conf-id {
+      font-family: var(--font-display); font-size: 1.2rem;
+      color: var(--gold); margin-bottom: 1.5rem;
+    }
+    .conf-details {
+      background: var(--dark); border: 1px solid var(--border);
+      padding: 1.2rem; margin-bottom: 2rem;
+      display: flex; flex-direction: column; gap: .7rem;
+    }
+    .conf-row { display: flex; justify-content: space-between; }
+    .conf-label {
+      font-family: var(--font-cond); font-size: .8rem;
+      letter-spacing: 2px; text-transform: uppercase; color: var(--gray);
+    }
+    .conf-val {
+      font-family: var(--font-cond); font-size: .95rem; font-weight: 600;
+    }
+    .conf-actions {
+      display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin-top: 1.5rem;
+    }
+    .conf-btn-secondary {
+      font-family: var(--font-cond); font-size: .85rem; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--gray); padding: .9rem 1rem; cursor: pointer;
+      transition: all .25s;
+    }
+    .conf-btn-secondary:hover { border-color: var(--white); color: var(--white); }
+    .conf-btn-primary {
+      font-family: var(--font-cond); font-size: .85rem; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      background: linear-gradient(135deg, var(--gold-dark), var(--gold), var(--gold-light));
+      color: var(--black); border: none; padding: .9rem 1rem; cursor: pointer;
+      text-decoration: none;
+      display: flex; align-items: center; justify-content: center; gap: .5rem;
+      transition: all .3s;
+    }
+    .conf-btn-primary:hover { box-shadow: 0 0 30px rgba(197,160,40,.4); transform: translateY(-1px); }
+
+    /* Banner de evento */
+    .event-banner {
+      display: flex; align-items: center; gap: 1rem;
+      background: rgba(255,160,0,.08); border: 1px solid rgba(255,160,0,.3);
+      border-left: 3px solid var(--amber); padding: 1rem 1.2rem;
+      margin-top: 1rem; animation: slideDown .3s ease;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .event-banner-icon { color: var(--amber); flex-shrink: 0; }
+    .event-banner-text { flex: 1; display: flex; flex-direction: column; gap: .2rem; }
+    .event-banner-text strong {
+      font-family: var(--font-cond); font-size: .95rem;
+      font-weight: 700; letter-spacing: 1px; color: var(--amber);
+    }
+    .event-banner-text span { font-size: .82rem; color: var(--gray); }
+    .event-banner-close {
+      background: none; border: none; cursor: pointer;
+      color: var(--gray); padding: .3rem; transition: color .2s; flex-shrink: 0;
+    }
+    .event-banner-close:hover { color: var(--white); }
+
+    /* ══════════════════════════════════════
+       RESPONSIVO
+    ══════════════════════════════════════ */
+    @media (max-width: 1000px) {
+      .bk-step3-layout,
+      .bk-pay-layout { grid-template-columns: 1fr; }
+      .bk-sidebar { position: static; }
+    }
     @media (max-width: 768px) {
-      .page-hero {
-        padding: 2rem 1rem 1.5rem
-      }
-
-      .reservas-container {
-        padding: 0 1rem 3rem
-      }
-
-      /* Calendário */
-      .cal-wrap {
-        padding: 1rem
-      }
-
-      .cal-title {
-        font-size: 1.2rem;
-        letter-spacing: 1px
-      }
-
-      .cal-day-name {
-        font-size: .6rem;
-        letter-spacing: 1px
-      }
-
-      .cal-cell {
-        font-size: .78rem
-      }
-
-      .cal-cell.today::after {
-        font-size: .36rem;
-        bottom: 2px
-      }
-
-      .cal-grid {
-        gap: 2px
-      }
-
-      .cal-legend {
-        gap: .8rem;
-        flex-wrap: wrap
-      }
-
-      .legend-item {
-        font-size: .65rem
-      }
-
-      /* Horários */
-      .times-grid {
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: .4rem
-      }
-
-      .time-slot {
-        padding: .6rem .3rem;
-        font-size: .78rem
-      }
-
-      .times-section h4 {
-        font-size: .72rem
-      }
-
-      /* Painel reserva */
-      .booking-header {
-        padding: 1rem 1.2rem
-      }
-
-      .booking-body {
-        padding: 1rem 1.2rem
-      }
-
-      .booking-header h3 {
-        font-size: 1.2rem
-      }
-
-      /* Quadras */
-      .court-option {
-        padding: .65rem .8rem;
-        gap: .6rem
-      }
-
-      .court-icon {
-        width: 28px;
-        height: 28px
-      }
-
-      .court-icon svg {
-        width: 14px;
-        height: 14px
-      }
-
-      .court-name {
-        font-size: .82rem
-      }
-
-      .court-type {
-        font-size: .68rem
-      }
-
-      .court-badge {
-        font-size: .6rem;
-        padding: .15rem .4rem
-      }
-
-      /* Resumo */
-      .summary-val {
-        font-size: .82rem
-      }
-
-      .summary-total .summary-val {
-        font-size: 1.2rem
-      }
-
-      /* Modal confirmação */
-      .conf-modal {
-        padding: 1.5rem 1.2rem
-      }
-
-      .conf-title {
-        font-size: 1.5rem
-      }
-
-      .conf-actions {
-        grid-template-columns: 1fr
-      }
+      .page-hero { padding: 2rem 1rem 1.5rem; }
+      .reservas-container { padding: 0 1rem 3rem; }
+      .bk-card-header, .bk-card-body { padding: 1.2rem 1rem; }
+      .bk-option-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; }
+      .bk-option-card { padding: 1.2rem .9rem; }
+      .bk-price-table { grid-template-columns: 1fr; }
+      .bk-pay-methods { grid-template-columns: 1fr 1fr; }
+      .bk-field-row { grid-template-columns: 1fr; }
+      .bk-step-label { font-size: .58rem; letter-spacing: 1px; }
+      .cal-wrap { padding: 1rem; }
+      .times-grid { grid-template-columns: repeat(3, 1fr) !important; }
+      .conf-modal { padding: 1.5rem 1.2rem; }
+      .conf-title { font-size: 1.5rem; }
+      .conf-actions { grid-template-columns: 1fr; }
     }
-
-    @media (max-width: 400px) {
-      .times-grid {
-        grid-template-columns: repeat(2, 1fr) !important
-      }
-
-      .cal-cell {
-        font-size: .7rem
-      }
+    @media (max-width: 420px) {
+      .bk-pay-methods { grid-template-columns: 1fr; }
+      .times-grid { grid-template-columns: repeat(2, 1fr) !important; }
     }
   </style>
   <link rel="stylesheet" href="../css/mobile.css">
@@ -450,19 +631,16 @@
   <!-- AUTH MODAL -->
   <div class="modal-overlay" id="authOverlay">
     <div class="auth-modal">
-
       <button class="modal-close" onclick="closeAuthModal()" aria-label="Fechar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
-
       <div class="auth-visual">
         <svg class="visual-arcs" viewBox="0 0 400 600" preserveAspectRatio="none">
-          <circle cx="200" cy="-80" r="260" stroke-width="1" />
-          <circle cx="200" cy="-80" r="340" stroke-width=".5" />
-          <circle cx="380" cy="700" r="300" stroke-width=".7" />
+          <circle cx="200" cy="-80" r="260" stroke-width="1"/>
+          <circle cx="200" cy="-80" r="340" stroke-width=".5"/>
+          <circle cx="380" cy="700" r="300" stroke-width=".7"/>
         </svg>
         <div class="visual-glow-bl"></div>
         <div class="visual-brand">
@@ -482,7 +660,6 @@
           </div>
         </div>
       </div>
-
       <div class="auth-form-panel">
         <div class="auth-tabs">
           <button class="auth-tab active" data-tab="login">Entrar</button>
@@ -490,157 +667,87 @@
         </div>
         <div class="auth-panels-track">
           <div class="auth-panels-inner" id="authPanelsInner">
-
             <div class="auth-panel" id="panel-login">
-              <div class="panel-heading">
-                <h2>ACESSO</h2>
-                <p>Bem-vindo de volta à arena</p>
-              </div>
+              <div class="panel-heading"><h2>ACESSO</h2><p>Bem-vindo de volta à arena</p></div>
               <form id="loginForm" novalidate style="display:flex;flex-direction:column;gap:1.1rem">
-                <div class="field" id="field-loginEmail"><label>E-mail</label><input type="email" id="loginEmail"
-                    placeholder="seu@email.com" autocomplete="email"><span class="field-error">E-mail inválido</span>
-                </div>
+                <div class="field" id="field-loginEmail"><label>E-mail</label><input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="email"><span class="field-error">E-mail inválido</span></div>
                 <div class="field" id="field-loginSenha"><label>Senha</label>
-                  <div class="field-pw"><input type="password" id="loginSenha" placeholder="••••••••"
-                      autocomplete="current-password"><button type="button" class="toggle-pw"
-                      onclick="togglePw('loginSenha')" aria-label="Mostrar senha"><svg viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg></button></div><span class="field-error">Senha incorreta</span>
+                  <div class="field-pw"><input type="password" id="loginSenha" placeholder="••••••••" autocomplete="current-password"><button type="button" class="toggle-pw" onclick="togglePw('loginSenha')" aria-label="Mostrar senha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div><span class="field-error">Senha incorreta</span>
                 </div>
-                <div class="login-extras"><label class="remember-label"><input type="checkbox" id="loginRemember">
-                    Lembrar acesso</label><a href="#" class="forgot-link" onclick="event.preventDefault()">Esqueci a
-                    senha</a></div>
+                <div class="login-extras"><label class="remember-label"><input type="checkbox" id="loginRemember"> Lembrar acesso</label><a href="#" class="forgot-link" onclick="event.preventDefault()">Esqueci a senha</a></div>
                 <button type="submit" class="btn-auth">Entrar na Arena</button>
               </form>
               <div class="auth-divider">ou</div>
               <button class="btn-google" onclick="alert('Login social em breve!')">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    fill="#4285F4" />
-                  <path
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    fill="#34A853" />
-                  <path
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    fill="#FBBC05" />
-                  <path
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    fill="#EA4335" />
-                </svg>
+                <svg viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                 Continuar com Google
               </button>
-              <p class="auth-terms">Ao entrar, você aceita os <a href="#">Termos de Uso</a> e a <a href="#">Política de
-                  Privacidade</a> da Podium Arena.</p>
+              <p class="auth-terms">Ao entrar, você aceita os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>.</p>
             </div>
-
             <div class="auth-panel" id="panel-cadastro">
-              <div class="panel-heading">
-                <h2>CADASTRO</h2>
-                <p>Junte-se à arena — é gratuito</p>
-              </div>
+              <div class="panel-heading"><h2>CADASTRO</h2><p>Junte-se à arena — é gratuito</p></div>
               <form id="cadForm" novalidate style="display:flex;flex-direction:column;gap:1.1rem">
-                <div class="field" id="field-cadNome"><label>Nome Completo</label><input type="text" id="cadNome"
-                    placeholder="João da Silva" autocomplete="name"><span class="field-error">Nome muito curto</span>
+                <div class="field" id="field-cadNome"><label>Nome Completo</label><input type="text" id="cadNome" placeholder="João da Silva" autocomplete="name"><span class="field-error">Nome muito curto</span></div>
+                <div class="field-row">
+                  <div class="field" id="field-cadEmail"><label>E-mail</label><input type="email" id="cadEmail" placeholder="seu@email.com"><span class="field-error">E-mail inválido</span></div>
+                  <div class="field" id="field-cadTel"><label>Telefone</label><input type="tel" id="cadTel" placeholder="(43) 9 9000-0000"><span class="field-error">Telefone inválido</span></div>
                 </div>
                 <div class="field-row">
-                  <div class="field" id="field-cadEmail"><label>E-mail</label><input type="email" id="cadEmail"
-                      placeholder="seu@email.com"><span class="field-error">E-mail inválido</span></div>
-                  <div class="field" id="field-cadTel"><label>Telefone</label><input type="tel" id="cadTel"
-                      placeholder="(43) 9 9000-0000"><span class="field-error">Telefone inválido</span></div>
-                </div>
-                <div class="field-row">
-                  <div class="field" id="field-cadCPF"><label>CPF</label><input type="text" id="cadCPF"
-                      placeholder="000.000.000-00" maxlength="14"><span class="field-error">CPF inválido (11
-                      dígitos)</span></div>
-                  <div class="field" id="field-cadNasc"><label>Nascimento</label><input type="date" id="cadNasc"><span
-                      class="field-error">Informe a data</span></div>
+                  <div class="field" id="field-cadCPF"><label>CPF</label><input type="text" id="cadCPF" placeholder="000.000.000-00" maxlength="14"><span class="field-error">CPF inválido (11 dígitos)</span></div>
+                  <div class="field" id="field-cadNasc"><label>Nascimento</label><input type="date" id="cadNasc"><span class="field-error">Informe a data</span></div>
                 </div>
                 <div class="field-row">
                   <div class="field" id="field-cadSenha"><label>Senha</label>
-                    <div class="field-pw"><input type="password" id="cadSenha" placeholder="Mín. 6"><button
-                        type="button" class="toggle-pw" onclick="togglePw('cadSenha')" aria-label="Mostrar senha"><svg
-                          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                          stroke-linecap="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg></button></div><span class="field-error">Mínimo 6 caracteres</span>
+                    <div class="field-pw"><input type="password" id="cadSenha" placeholder="Mín. 6"><button type="button" class="toggle-pw" onclick="togglePw('cadSenha')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div><span class="field-error">Mínimo 6 caracteres</span>
                   </div>
                   <div class="field" id="field-cadConf"><label>Confirmar</label>
-                    <div class="field-pw"><input type="password" id="cadConf" placeholder="Repetir senha"><button
-                        type="button" class="toggle-pw" onclick="togglePw('cadConf')" aria-label="Mostrar senha"><svg
-                          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                          stroke-linecap="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg></button></div><span class="field-error">Senhas não conferem</span>
+                    <div class="field-pw"><input type="password" id="cadConf" placeholder="Repetir senha"><button type="button" class="toggle-pw" onclick="togglePw('cadConf')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div><span class="field-error">Senhas não conferem</span>
                   </div>
                 </div>
                 <button type="submit" class="btn-auth">Criar Conta Grátis</button>
               </form>
-              <p class="auth-terms">Ao cadastrar, você aceita os <a href="#">Termos de Uso</a> e a <a href="#">Política
-                  de Privacidade</a>.</p>
+              <p class="auth-terms">Ao cadastrar, você aceita os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a>.</p>
             </div>
-
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
   <!-- CONFIRMAÇÃO MODAL -->
   <div class="conf-overlay" id="confOverlay">
     <div class="conf-modal">
-
-      <!-- Ícone de Check -->
       <div class="conf-check-wrap">
         <svg class="conf-check-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-          <polyline points="22 4 12 14.01 9 11.01" />
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
       </div>
-
       <div class="conf-title">RESERVADO!</div>
       <p class="conf-sub">Sua quadra está reservada. Nos vemos na arena!</p>
       <div class="conf-id" id="confId">#PD-000000</div>
-
       <div class="conf-details">
-        <div class="conf-row">
-          <span class="conf-label">Data</span>
-          <span class="conf-val" id="confDate">—</span>
-        </div>
-        <div class="conf-row">
-          <span class="conf-label">Horário</span>
-          <span class="conf-val" id="confTime">—</span>
-        </div>
-        <div class="conf-row">
-          <span class="conf-label">Quadra</span>
-          <span class="conf-val" id="confCourt">—</span>
-        </div>
-        <div class="conf-row">
-          <span class="conf-label">Valor</span>
-          <span class="conf-val" id="confPrice">—</span>
-        </div>
+        <div class="conf-row"><span class="conf-label">Modalidade</span><span class="conf-val" id="confModality">—</span></div>
+        <div class="conf-row"><span class="conf-label">Data</span><span class="conf-val" id="confDate">—</span></div>
+        <div class="conf-row"><span class="conf-label">Horário</span><span class="conf-val" id="confTime">—</span></div>
+        <div class="conf-row"><span class="conf-label">Quadra</span><span class="conf-val" id="confCourt">—</span></div>
+        <div class="conf-row"><span class="conf-label">Pagamento</span><span class="conf-val" id="confPayment">—</span></div>
+        <div class="conf-row"><span class="conf-label">Valor</span><span class="conf-val" id="confPrice">—</span></div>
       </div>
-
       <div class="conf-actions">
         <button class="conf-btn-secondary" id="btnFecharConf">Fechar</button>
         <a href="painel.html" class="conf-btn-primary">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect width="7" height="9" x="3" y="3" rx="1" />
-            <rect width="7" height="5" x="14" y="3" rx="1" />
-            <rect width="7" height="9" x="14" y="12" rx="1" />
-            <rect width="7" height="5" x="3" y="16" rx="1" />
+            <rect width="7" height="9" x="3" y="3" rx="1"/>
+            <rect width="7" height="5" x="14" y="3" rx="1"/>
+            <rect width="7" height="9" x="14" y="12" rx="1"/>
+            <rect width="7" height="5" x="3" y="16" rx="1"/>
           </svg>
           Minhas Reservas
         </a>
       </div>
-
     </div>
   </div>
 
@@ -675,126 +782,281 @@
   <!-- PAGE HERO -->
   <div class="page-hero">
     <p class="section-eyebrow">Podium Arena</p>
-    <h1>RESERVE SUA <span
-        style="background:linear-gradient(135deg,var(--gold-dark),var(--gold),var(--gold-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">QUADRA</span>
-    </h1>
-    <p>Escolha a quadra, selecione a data e o horário. Dias marcados com <svg xmlns="http://www.w3.org/2000/svg"
-        width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
-        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-        <path d="M12 9v4" />
-        <path d="M12 17h.01" />
-      </svg>️ têm eventos e podem ter disponibilidade limitada.</p>
+    <h1>RESERVE SUA <span style="background:linear-gradient(135deg,var(--gold-dark),var(--gold),var(--gold-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">QUADRA</span></h1>
+    <p>Escolha a modalidade, quadra e horários. Dias marcados com
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;color:var(--amber)"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      têm eventos e podem ter disponibilidade limitada.
+    </p>
   </div>
 
-  <!-- RESERVAS LAYOUT -->
+  <!-- ════════════════════════════════════════
+       RESERVAS — CONTEÚDO PRINCIPAL
+  ════════════════════════════════════════ -->
   <div class="reservas-container">
-    <div class="reservas-layout">
 
-      <!-- Calendário + Horários -->
-      <div>
-        <div class="cal-wrap">
-          <div class="cal-header">
-            <div class="cal-title" id="calTitle">—</div>
-            <div class="cal-nav">
-              <button id="prevMonth">&#8249;</button>
-              <button id="nextMonth">&#8250;</button>
-            </div>
-          </div>
-          <div class="cal-days-header">
-            <div class="cal-day-name">Dom</div>
-            <div class="cal-day-name">Seg</div>
-            <div class="cal-day-name">Ter</div>
-            <div class="cal-day-name">Qua</div>
-            <div class="cal-day-name">Qui</div>
-            <div class="cal-day-name">Sex</div>
-            <div class="cal-day-name">Sáb</div>
-          </div>
-          <div class="cal-grid" id="calGrid"></div>
-          <div class="cal-legend">
-            <div class="legend-item">
-              <div class="legend-dot today"></div> Hoje
-            </div>
-            <div class="legend-item">
-              <div class="legend-dot event" style="background:var(--amber)"></div> Evento programado
-            </div>
-            <div class="legend-item">
-              <div class="legend-dot" style="background:var(--gold)"></div> Dia selecionado
-            </div>
-          </div>
+    <!-- STEPPER -->
+    <div class="bk-stepper-wrap">
+      <div class="bk-stepper">
+        <div class="bk-step active" id="bk-step-1" data-step="1">
+          <div class="bk-step-circle">1</div>
+          <div class="bk-step-label">Modalidade</div>
         </div>
-
-        <div class="times-section" id="timesSection">
-          <div style="margin-top:1.5rem;padding:1.5rem;background:var(--card);border:1px solid var(--border)">
-            <h4>Horários disponíveis</h4>
-            <div class="times-grid" id="timesGrid"></div>
-          </div>
+        <div class="bk-step-line" id="bk-line-1" data-after="1"></div>
+        <div class="bk-step" id="bk-step-2" data-step="2">
+          <div class="bk-step-circle">2</div>
+          <div class="bk-step-label">Quadra</div>
+        </div>
+        <div class="bk-step-line" id="bk-line-2" data-after="2"></div>
+        <div class="bk-step" id="bk-step-3" data-step="3">
+          <div class="bk-step-circle">3</div>
+          <div class="bk-step-label">Data & Hora</div>
+        </div>
+        <div class="bk-step-line" id="bk-line-3" data-after="3"></div>
+        <div class="bk-step" id="bk-step-4" data-step="4">
+          <div class="bk-step-circle">4</div>
+          <div class="bk-step-label">Pagamento</div>
         </div>
       </div>
-
-      <!-- Painel Lateral -->
-      <div class="booking-panel">
-        <div class="booking-header">
-          <h3>Sua Reserva</h3>
-          <p>Selecione data, horário e quadra</p>
-        </div>
-        <div class="booking-body">
-
-          <div style="margin-bottom:1.5rem">
-            <p
-              style="font-family:var(--font-cond);font-size:.78rem;letter-spacing:3px;text-transform:uppercase;color:var(--gray);margin-bottom:.8rem">
-              Escolha a Quadra</p>
-            <div class="court-select-grid" id="courtGrid"></div>
-          </div>
-
-          <div class="booking-summary">
-            <div class="summary-row">
-              <span class="summary-label" style="display:inline-flex;align-items:center;gap:.4rem"><svg
-                  xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                  <line x1="16" x2="16" y1="2" y2="6" />
-                  <line x1="8" x2="8" y1="2" y2="6" />
-                  <line x1="3" x2="21" y1="10" y2="10" />
-                </svg> Data</span>
-              <span class="summary-val" id="sumDate">—</span>
-            </div>
-            <div class="summary-row">
-              <span class="summary-label" style="display:inline-flex;align-items:center;gap:.4rem"><svg
-                  xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg> Horário</span>
-              <span class="summary-val" id="sumTime">—</span>
-            </div>
-            <div class="summary-row">
-              <span class="summary-label"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                  stroke-linejoin="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>️ Quadra</span>
-              <span class="summary-val" id="sumCourt">—</span>
-            </div>
-            <div class="summary-divider"></div>
-            <div class="summary-row summary-total">
-              <span class="summary-label">Total / hora</span>
-              <span class="summary-val" id="sumPrice">—</span>
-            </div>
-          </div>
-
-          <button class="btn-gold" id="btnConfirmar" style="width:100%;margin-top:1.5rem;justify-content:center"
-            disabled>
-            Confirmar Reserva
-          </button>
-          <p style="font-size:.78rem;color:var(--gray);text-align:center;margin-top:.8rem">É necessário estar logado
-            para confirmar</p>
-        </div>
-      </div>
-
     </div>
-  </div>
+
+    <!-- CARD -->
+    <div class="bk-card">
+
+      <!-- ══ ETAPA 1 – MODALIDADE ══ -->
+      <div class="bk-panel active" id="bk-panel-1">
+        <div class="bk-card-header">
+          <h2>ESCOLHA A MODALIDADE</h2>
+          <p>Selecione o esporte que deseja praticar</p>
+        </div>
+        <div class="bk-card-body">
+
+          <!-- aviso pickleball -->
+          <div class="bk-pickleball-notice" id="bk-pickleball-notice">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <p>O <strong>Pickleball</strong> funciona apenas no modelo <strong>Day Use</strong> (R$ 25/pessoa). Não é possível reservar quadra avulsa. Você será encaminhado direto para o pagamento.</p>
+          </div>
+
+          <div class="bk-option-grid" id="bk-modal-grid">
+            <!-- preenchido por JS -->
+          </div>
+
+          <div class="bk-nav" style="justify-content:flex-end">
+            <button class="btn-gold" id="bk-btn-modal-next" disabled>
+              Continuar
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ETAPA 2 – QUADRA ══ -->
+      <div class="bk-panel" id="bk-panel-2">
+        <div class="bk-card-header">
+          <h2>TIPO DE QUADRA</h2>
+          <p>Coberta ou descoberta — confira os valores por faixa de horário</p>
+        </div>
+        <div class="bk-card-body">
+
+          <div class="bk-option-grid" id="bk-quadra-grid">
+            <!-- preenchido por JS -->
+          </div>
+
+          <div id="bk-quadra-priceinfo"></div>
+
+          <div class="bk-nav">
+            <button class="btn-ghost" id="bk-btn-quadra-back">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              Voltar
+            </button>
+            <button class="btn-gold" id="bk-btn-quadra-next" disabled>
+              Continuar
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ETAPA 3 – DATA & HORA ══ -->
+      <div class="bk-panel" id="bk-panel-3">
+        <div class="bk-card-header">
+          <h2>DATA E HORÁRIOS</h2>
+          <p>Selecione a data no calendário e um ou mais horários consecutivos</p>
+        </div>
+        <div class="bk-card-body">
+          <div class="bk-step3-layout">
+
+            <!-- coluna esquerda: calendário + horários -->
+            <div>
+              <!-- Calendário -->
+              <div class="cal-wrap">
+                <div class="cal-header">
+                  <div class="cal-title" id="bk-cal-title">—</div>
+                  <div class="cal-nav">
+                    <button id="bk-prev-month">&#8249;</button>
+                    <button id="bk-next-month">&#8250;</button>
+                  </div>
+                </div>
+                <div class="cal-days-header">
+                  <div class="cal-day-name">Dom</div>
+                  <div class="cal-day-name">Seg</div>
+                  <div class="cal-day-name">Ter</div>
+                  <div class="cal-day-name">Qua</div>
+                  <div class="cal-day-name">Qui</div>
+                  <div class="cal-day-name">Sex</div>
+                  <div class="cal-day-name">Sáb</div>
+                </div>
+                <div class="cal-grid" id="bk-cal-grid"></div>
+                <div class="cal-legend">
+                  <div class="legend-item"><div class="legend-dot today"></div> Hoje</div>
+                  <div class="legend-item"><div class="legend-dot event" style="background:var(--amber)"></div> Evento</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div> Selecionado</div>
+                </div>
+              </div>
+
+              <!-- Horários -->
+              <div id="bk-times-section">
+                <div class="bk-times-wrap">
+                  <div class="bk-times-label">
+                    Horários disponíveis
+                    <span>· selecione um ou mais</span>
+                  </div>
+                  <div class="times-grid" id="bk-times-grid"></div>
+                </div>
+
+                <!-- Day Use toggle -->
+                <button class="bk-dayuse-btn" id="bk-dayuse-btn" type="button">
+                  <div class="bk-dayuse-check"></div>
+                  <div class="bk-dayuse-info">
+                    <strong>Adicionar Day Use — R$ 25/pessoa</strong>
+                    <p>Acesso às áreas comuns do arena durante o período da reserva</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- coluna direita: sidebar resumo -->
+            <div class="bk-sidebar">
+              <div class="bk-sidebar-head">
+                <h4>Sua Reserva</h4>
+                <p>Resumo da seleção atual</p>
+              </div>
+              <div class="bk-sidebar-body">
+                <div class="bk-summary" id="bk-step3-summary">
+                  <div id="bk-step3-rows"></div>
+                  <div class="bk-sum-total">
+                    <span class="bk-sum-total-label">Total</span>
+                    <span class="bk-sum-total-val" id="bk-step3-total">R$ 0</span>
+                  </div>
+                </div>
+                <p style="font-size:.78rem;color:var(--muted);margin-top:1rem;line-height:1.5">
+                  Valores variam por faixa de horário e tipo de quadra conforme a tabela oficial Podium Arena.
+                </p>
+              </div>
+            </div>
+
+          </div><!-- /bk-step3-layout -->
+
+          <div class="bk-nav">
+            <button class="btn-ghost" id="bk-btn-time-back">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              Voltar
+            </button>
+            <button class="btn-gold" id="bk-btn-time-next" disabled>
+              Ir para Pagamento
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ETAPA 4 – PAGAMENTO ══ -->
+      <div class="bk-panel" id="bk-panel-4">
+        <div class="bk-card-header">
+          <h2>PAGAMENTO</h2>
+          <p>Revise sua reserva e escolha como pagar</p>
+        </div>
+        <div class="bk-card-body">
+          <div class="bk-pay-layout">
+
+            <!-- coluna esquerda: métodos -->
+            <div>
+              <p style="font-family:var(--font-cond);font-size:.72rem;letter-spacing:3px;text-transform:uppercase;color:var(--gray);margin-bottom:.9rem">Forma de Pagamento</p>
+
+              <div class="bk-pay-methods">
+                <div class="bk-pay-method" data-method="pix">
+                  <span class="bk-pay-icon">📱</span>
+                  <div><div class="bk-pay-label">PIX</div><div class="bk-pay-sub">Aprovação imediata</div></div>
+                </div>
+                <div class="bk-pay-method" data-method="credito">
+                  <span class="bk-pay-icon">💳</span>
+                  <div><div class="bk-pay-label">Crédito</div><div class="bk-pay-sub">Até 3x sem juros</div></div>
+                </div>
+                <div class="bk-pay-method" data-method="debito">
+                  <span class="bk-pay-icon">🏦</span>
+                  <div><div class="bk-pay-label">Débito</div><div class="bk-pay-sub">Aprovação na hora</div></div>
+                </div>
+                <div class="bk-pay-method" data-method="dinheiro">
+                  <span class="bk-pay-icon">💵</span>
+                  <div><div class="bk-pay-label">Dinheiro</div><div class="bk-pay-sub">Pague na chegada</div></div>
+                </div>
+              </div>
+
+              <!-- PIX -->
+              <div class="bk-pix-block" id="bk-pix-block">
+                <div class="bk-pix-qr">QR Code PIX</div>
+                <div class="bk-pix-key">Chave PIX: <strong>podiumarena@pix.com.br</strong></div>
+                <p class="bk-pix-note">Após o pagamento, envie o comprovante via WhatsApp para confirmar.</p>
+              </div>
+
+              <!-- Cartão -->
+              <div class="bk-card-form" id="bk-card-block">
+                <div class="bk-field">
+                  <label>Número do cartão</label>
+                  <input type="tel" placeholder="0000 0000 0000 0000" maxlength="19">
+                </div>
+                <div class="bk-field-row">
+                  <div class="bk-field"><label>Validade</label><input type="tel" placeholder="MM/AA" maxlength="5"></div>
+                  <div class="bk-field"><label>CVV</label><input type="tel" placeholder="123" maxlength="4"></div>
+                </div>
+                <div class="bk-field"><label>Nome no cartão</label><input type="text" placeholder="Como aparece no cartão"></div>
+              </div>
+            </div>
+
+            <!-- coluna direita: resumo final -->
+            <div class="bk-sidebar">
+              <div class="bk-sidebar-head">
+                <h4>Resumo Final</h4>
+                <p>Sua reserva em detalhes</p>
+              </div>
+              <div class="bk-sidebar-body">
+                <div class="bk-summary" id="bk-pay-summary" style="display:block">
+                  <div id="bk-pay-summary-rows"></div>
+                  <div class="bk-sum-total">
+                    <span class="bk-sum-total-label">Total</span>
+                    <span class="bk-sum-total-val" id="bk-pay-total">—</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /bk-pay-layout -->
+
+          <div class="bk-nav">
+            <button class="btn-ghost" id="bk-btn-pay-back">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+              Voltar
+            </button>
+            <button class="btn-gold" id="bk-btn-confirmar" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Confirmar Reserva
+            </button>
+          </div>
+          <p style="font-size:.78rem;color:var(--gray);text-align:center;margin-top:.8rem">É necessário estar logado para confirmar</p>
+        </div>
+      </div>
+
+    </div><!-- /bk-card -->
+  </div><!-- /reservas-container -->
 
   <!-- FOOTER -->
   <div class="footer-wrap">
@@ -804,18 +1066,8 @@
           <img data-logo src="../img/logo.png" alt="Podium Arena">
           <p>A arena de Beach Sports premium de Telêmaco Borba — Rua Manaus, 321.</p>
           <div class="footer-social">
-            <a href="https://www.instagram.com/podiumarena/" class="soc-link" target="_blank"><svg
-                xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-              </svg></a>
-            <a href="https://wa.me/5543999999999" class="soc-link" target="_blank"><svg
-                xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-              </svg></a>
+            <a href="https://www.instagram.com/podiumarena/" class="soc-link" target="_blank"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg></a>
+            <a href="https://wa.me/5543999999999" class="soc-link" target="_blank"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></a>
           </div>
         </div>
         <div class="footer-col">
@@ -829,22 +1081,8 @@
         </div>
         <div class="footer-col">
           <h4>Contato</h4>
-          <div class="footer-contact-item"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="14"
-                height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg></span>
-            <p>Rua Manaus, 321<br>Telêmaco Borba – PR</p>
-          </div>
-          <div class="footer-contact-item"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="14"
-                height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                stroke-linecap="round" stroke-linejoin="round">
-                <path
-                  d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 2.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6.91 6.91l.44-.44a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-              </svg></span>
-            <p><a href="https://wa.me/5543999999999">(43) 9 9999-9999</a></p>
-          </div>
+          <div class="footer-contact-item"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span><p>Rua Manaus, 321<br>Telêmaco Borba – PR</p></div>
+          <div class="footer-contact-item"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 2.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6.91 6.91l.44-.44a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span><p><a href="https://wa.me/5543999999999">(43) 9 9999-9999</a></p></div>
         </div>
       </div>
       <div class="footer-bottom">
@@ -859,5 +1097,4 @@
   <script src="../js/reservas.js"></script>
   <script src="../js/cookie.js"></script>
 </body>
-
 </html>

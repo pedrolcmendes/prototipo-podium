@@ -1,436 +1,586 @@
 /* ═══════════════════════════════════════════
-   RESERVAS.JS — Calendário + Agendamento
+   RESERVAS.JS — Fluxo em 4 Etapas
+   Podium Arena
    ═══════════════════════════════════════════ */
 
-// ─── Config ──────────────────────────────
-const COURTS = [
+// ─── Tabela de preços ─────────────────────
+const PRICE_TABLE = {
+  coberta: {
+    weekday: [
+      { from: 8,  to: 16, price: 60 },
+      { from: 16, to: 18, price: 80 },
+      { from: 18, to: 21, price: 100 },
+      { from: 21, to: 23, price: 80 },
+    ],
+    weekend: [
+      { from: 8,  to: 11, price: 80 },
+      { from: 11, to: 14, price: 60 },
+      { from: 14, to: 22, price: 100 },
+    ],
+  },
+  descoberta: {
+    weekday: [
+      { from: 8,  to: 16, price: 50 },
+      { from: 16, to: 18, price: 60 },
+      { from: 18, to: 21, price: 80 },
+      { from: 21, to: 23, price: 60 },
+    ],
+    weekend: [
+      { from: 8,  to: 11, price: 60 },
+      { from: 11, to: 14, price: 50 },
+      { from: 14, to: 22, price: 80 },
+    ],
+  },
+};
+
+const MODALIDADES = [
   {
-    id: "Q1",
-    name: "Quadra 1",
-    type: "Beach Tennis / Vôlei",
-    icon: "tennis",
-    price: 60,
+    id: 'beach-tennis',
+    label: 'Beach Tennis',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M6.3 6.3a8 8 0 0 1 11.4 0"/><path d="M6.3 17.7a8 8 0 0 0 11.4 0"/><path d="M12 2v20"/></svg>`,
+    desc: 'Quadra coberta ou descoberta',
+    dayUseOnly: false,
   },
   {
-    id: "Q2",
-    name: "Quadra 2",
-    type: "Beach Tennis / Vôlei",
-    icon: "tennis",
-    price: 60,
+    id: 'futevolei',
+    label: 'Futevôlei',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`,
+    desc: 'Quadra coberta ou descoberta',
+    dayUseOnly: false,
   },
   {
-    id: "Q3",
-    name: "Quadra 3",
-    type: "Futevôlei / Vôlei",
-    icon: "soccer",
-    price: 55,
-  },
-  { id: "Q4", name: "Quadra 4", type: "Futevôlei", icon: "soccer", price: 55 },
-  {
-    id: "Q5",
-    name: "Quadra 5",
-    type: "Pickleball",
-    icon: "pickleball",
-    price: 50,
+    id: 'volei',
+    label: 'Vôlei',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12c-2-2.5-2-5.5 0-8"/><path d="M12 12c2.5-1.5 5-1 7.5.5"/><path d="M12 12c-.5 2.5-2.5 4.5-5 5.5"/></svg>`,
+    desc: 'Quadra coberta ou descoberta',
+    dayUseOnly: false,
   },
   {
-    id: "Q6",
-    name: "Quadra 6",
-    type: "Poliesportiva",
-    icon: "volei",
-    price: 50,
+    id: 'pickleball',
+    label: 'Pickleball',
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/><path d="M12 7a5 5 0 0 1 5 5"/></svg>`,
+    desc: 'Somente Day Use · R$ 25/pessoa',
+    dayUseOnly: true,
   },
 ];
 
-// Eventos especiais (bloqueiam o dia)
+const QUADRAS = [
+  { id: 'coberta',    label: 'Coberta',    sub: 'Quadras 1 e 2', icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>` },
+  { id: 'descoberta', label: 'Descoberta', sub: 'Quadras 3 a 8',  icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>` },
+];
+
+// Eventos que bloqueiam dias
 const EVENTS = {
-  "2026-05-22": "Torneio Aberto Beach Tennis",
-  "2026-05-29": "Liga Futevôlei — Etapa TB",
-  "2026-06-06": "Clínica Pickleball",
-  "2026-06-15": "Campeonato Master Vôlei",
-  "2026-06-26": "Torneio Taekwondo",
-  "2026-07-04": "Copa Podium Arena",
+  '2026-05-22': 'Torneio Aberto Beach Tennis',
+  '2026-05-29': 'Liga Futevôlei — Etapa TB',
+  '2026-06-06': 'Clínica Pickleball',
+  '2026-06-15': 'Campeonato Master Vôlei',
+  '2026-06-26': 'Torneio Taekwondo',
+  '2026-07-04': 'Copa Podium Arena',
 };
 
-const TIME_SLOTS = [
-  "06:00",
-  "07:00",
-  "08:00",
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "13:00",
-  "14:00",
-  "15:00",
-  "16:00",
-  "17:00",
-  "18:00",
-  "19:00",
-  "20:00",
-  "21:00",
-  "22:00",
-];
-
-// ─── Estado ───────────────────────────────
+// ─── Estado global ────────────────────────
 let state = {
-  year: new Date().getFullYear(),
-  month: new Date().getMonth(),
+  step: 1,
+  modalidade: null,
+  quadra: null,
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
   selectedDate: null,
-  selectedTime: null,
-  selectedCourt: COURTS[0],
-  bookings: JSON.parse(localStorage.getItem("podium_bookings") || "[]"),
+  selectedSlots: [],   // array de horas ex: [9, 10]
+  dayUse: false,
+  payment: null,
+  bookings: JSON.parse(localStorage.getItem('podium_bookings') || '[]'),
 };
 
-// ─── Utilitários ──────────────────────────
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-function dateKey(y, m, d) {
-  return `${y}-${pad(m + 1)}-${pad(d)}`;
-}
-function today() {
+// ─── Utils ────────────────────────────────
+function pad(n) { return String(n).padStart(2, '0'); }
+function dateKey(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
+function todayKey() {
   const t = new Date();
   return dateKey(t.getFullYear(), t.getMonth(), t.getDate());
 }
-function isBooked(date, time, courtId) {
-  return state.bookings.some(
-    (b) => b.date === date && b.time === time && b.courtId === courtId,
-  );
+function isWeekend(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.getDay() === 0 || d.getDay() === 6;
 }
-function isEvent(date) {
-  return !!EVENTS[date];
+function getPriceForHour(hour, quadra, weekend) {
+  const table = PRICE_TABLE[quadra][weekend ? 'weekend' : 'weekday'];
+  const band = table.find(b => hour >= b.from && hour < b.to);
+  return band ? band.price : 0;
+}
+function formatDatePT(dateStr) {
+  if (!dateStr) return '—';
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const [y, m, d] = dateStr.split('-');
+  return `${d} ${months[parseInt(m) - 1]} ${y}`;
+}
+function formatDateLong(dateStr) {
+  if (!dateStr) return '—';
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const [y, m, d] = dateStr.split('-');
+  return `${d} de ${months[parseInt(m) - 1]} de ${y}`;
 }
 
-// ─── Calendário ───────────────────────────
+// ─── Stepper ──────────────────────────────
+function updateStepper() {
+  document.querySelectorAll('.bk-step').forEach(el => {
+    const s = parseInt(el.dataset.step);
+    el.classList.remove('active', 'done');
+    if (s === state.step) el.classList.add('active');
+    if (s < state.step)  el.classList.add('done');
+  });
+  // conectores
+  document.querySelectorAll('.bk-step-line').forEach(el => {
+    const s = parseInt(el.dataset.after);
+    el.classList.toggle('done', s < state.step);
+  });
+}
+
+function goToStep(n) {
+  if (n < 1 || n > 4) return;
+  state.step = n;
+  updateStepper();
+  document.querySelectorAll('.bk-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('bk-panel-' + n)?.classList.add('active');
+  if (n === 3) buildCalendar();
+  if (n === 4) buildPaymentSummary();
+  window.scrollTo({ top: document.querySelector('.bk-stepper-wrap')?.offsetTop - 90 || 0, behavior: 'smooth' });
+}
+
+// ─── ETAPA 1 – Modalidade ─────────────────
+function renderModalidades() {
+  const grid = document.getElementById('bk-modal-grid');
+  if (!grid) return;
+  grid.innerHTML = MODALIDADES.map(m => `
+    <div class="bk-option-card ${m.dayUseOnly ? 'dayuse-only' : ''}" data-id="${m.id}" onclick="selectModalidade('${m.id}')">
+      ${m.dayUseOnly ? '<div class="bk-badge-dayuse">Day Use</div>' : ''}
+      <div class="bk-option-icon">${m.icon}</div>
+      <div class="bk-option-name">${m.label}</div>
+      <div class="bk-option-desc">${m.desc}</div>
+    </div>
+  `).join('');
+}
+
+function selectModalidade(id) {
+  state.modalidade = id;
+  state.quadra = null;
+  state.selectedDate = null;
+  state.selectedSlots = [];
+  state.dayUse = false;
+
+  document.querySelectorAll('#bk-modal-grid .bk-option-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.id === id);
+  });
+
+  const pickNotice = document.getElementById('bk-pickleball-notice');
+  pickNotice.style.display = id === 'pickleball' ? 'flex' : 'none';
+
+  document.getElementById('bk-btn-modal-next').disabled = false;
+}
+
+// ─── ETAPA 2 – Quadra ─────────────────────
+function renderQuadras() {
+  const grid = document.getElementById('bk-quadra-grid');
+  if (!grid) return;
+  grid.innerHTML = QUADRAS.map(q => `
+    <div class="bk-option-card" data-id="${q.id}" onclick="selectQuadra('${q.id}')">
+      <div class="bk-option-icon">${q.icon}</div>
+      <div class="bk-option-name">${q.label}</div>
+      <div class="bk-option-desc">${q.sub}</div>
+    </div>
+  `).join('');
+}
+
+function selectQuadra(id) {
+  state.quadra = id;
+  state.selectedDate = null;
+  state.selectedSlots = [];
+
+  document.querySelectorAll('#bk-quadra-grid .bk-option-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.id === id);
+  });
+
+  // Exibe tabela de preços
+  const info = document.getElementById('bk-quadra-priceinfo');
+  const table = PRICE_TABLE[id];
+  info.innerHTML = `
+    <div class="bk-price-table">
+      <div class="bk-price-col">
+        <div class="bk-price-col-title">Seg – Sex</div>
+        ${table.weekday.map(b => `<div class="bk-price-row"><span>${pad(b.from)}h–${pad(b.to)}h</span><span>R$ ${b.price}/h</span></div>`).join('')}
+      </div>
+      <div class="bk-price-col">
+        <div class="bk-price-col-title">Sáb · Dom · Feriados</div>
+        ${table.weekend.map(b => `<div class="bk-price-row"><span>${pad(b.from)}h–${pad(b.to)}h</span><span>R$ ${b.price}/h</span></div>`).join('')}
+      </div>
+    </div>
+  `;
+  info.style.display = 'block';
+
+  document.getElementById('bk-btn-quadra-next').disabled = false;
+}
+
+// ─── ETAPA 3 – Calendário + Horários ──────
+function buildCalendar() {
+  renderCalendar();
+  renderTimeSlots();
+  updateStep3Summary();
+}
+
 function renderCalendar() {
-  const year = state.year,
-    month = state.month;
-  const months = [
-    "Janeiro",
-    "Fevereiro",
-    "Março",
-    "Abril",
-    "Maio",
-    "Junho",
-    "Julho",
-    "Agosto",
-    "Setembro",
-    "Outubro",
-    "Novembro",
-    "Dezembro",
-  ];
+  const y = state.calYear, m = state.calMonth;
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  document.getElementById('bk-cal-title').textContent = `${months[m]} ${y}`;
 
-  document.getElementById("calTitle").textContent = `${months[month]} ${year}`;
+  const firstDay    = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const today       = todayKey();
 
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayKey = today();
-
-  let html = "";
-  for (let i = 0; i < firstDay; i++)
-    html += `<div class="cal-cell empty"></div>`;
+  let html = '';
+  for (let i = 0; i < firstDay; i++) html += `<div class="cal-cell empty"></div>`;
 
   for (let d = 1; d <= daysInMonth; d++) {
-    const key = dateKey(year, month, d);
-    const isPast = key < todayKey;
-    const isToday = key === todayKey;
-    const isSelected = key === state.selectedDate;
-    const isEventDay = isEvent(key);
+    const key       = dateKey(y, m, d);
+    const isPast    = key < today;
+    const isToday   = key === today;
+    const isSel     = key === state.selectedDate;
+    const isEvt     = !!EVENTS[key];
 
-    let cls = "cal-cell";
-    if (isPast) cls += " past";
-    else if (isEventDay) cls += " event-day";
-    if (isToday) cls += " today";
-    if (isSelected) cls += " selected";
+    let cls = 'cal-cell';
+    if (isPast)   cls += ' past';
+    if (isEvt && !isPast)    cls += ' event-day';
+    if (isToday)  cls += ' today';
+    if (isSel)    cls += ' selected';
 
-    const click =
-      !isPast && !isEventDay
-        ? `onclick="selectDate('${key}')"`
-        : isEventDay
-          ? `title="${EVENTS[key]}" onclick="showEventBanner('${key}')"`
-          : "";
+    const click = !isPast && !isEvt
+      ? `onclick="selectDate('${key}')"`
+      : isEvt && !isPast
+        ? `onclick="showEventBanner('${key}')" title="${EVENTS[key]}"`
+        : '';
 
     html += `<div class="${cls}" ${click}>${d}</div>`;
   }
 
-  document.getElementById("calGrid").innerHTML = html;
+  document.getElementById('bk-cal-grid').innerHTML = html;
 }
 
-function prevMonth() {
-  state.month--;
-  if (state.month < 0) {
-    state.month = 11;
-    state.year--;
-  }
-  renderCalendar();
-}
-function nextMonth() {
-  state.month++;
-  if (state.month > 11) {
-    state.month = 0;
-    state.year++;
-  }
-  renderCalendar();
-}
-
-// ─── Selecionar data ─────────────────────
-function selectDate(dateKey) {
-  state.selectedDate = dateKey;
-  state.selectedTime = null;
+function selectDate(key) {
+  state.selectedDate = key;
+  state.selectedSlots = [];
   renderCalendar();
   renderTimeSlots();
-  updateSummary();
-  document.getElementById("timesSection")?.classList.remove("hidden");
+  updateStep3Summary();
 }
 
-// ─── Slots de horário ─────────────────────
 function renderTimeSlots() {
-  const container = document.getElementById("timesGrid");
-  if (!container) return;
-  if (!state.selectedDate) {
-    container.innerHTML = "";
+  const grid = document.getElementById('bk-times-grid');
+  const wrap = document.getElementById('bk-times-section');
+  if (!grid) return;
+
+  if (!state.selectedDate || !state.quadra) {
+    grid.innerHTML = '';
+    wrap.style.display = 'none';
     return;
   }
 
-  const todayKey = today();
-  const now = new Date();
-  const nowHour = now.getHours();
+  wrap.style.display = 'block';
 
-  container.innerHTML = TIME_SLOTS.map((t) => {
-    const hour = parseInt(t);
-    const isPast = state.selectedDate === todayKey && hour <= nowHour;
-    const taken =
-      isBooked(state.selectedDate, t, state.selectedCourt.id) || isPast;
-    const selected = t === state.selectedTime;
+  const weekend   = isWeekend(state.selectedDate);
+  const today     = todayKey();
+  const nowHour   = state.selectedDate === today ? new Date().getHours() : -1;
+  const maxHour   = weekend ? 22 : 23;
 
-    let cls = "time-slot";
-    if (taken) cls += " taken";
-    if (selected) cls += " selected";
-
-    return `<div class="${cls}" ${!taken ? `onclick="selectTime('${t}')"` : ""}>${t}</div>`;
-  }).join("");
+  let html = '';
+  for (let h = 8; h < maxHour; h++) {
+    const price   = getPriceForHour(h, state.quadra, weekend);
+    const isPast  = h <= nowHour;
+    const isSel   = state.selectedSlots.includes(h);
+    let cls = 'time-slot';
+    if (isPast)  cls += ' taken';
+    if (isSel)   cls += ' selected';
+    const click = !isPast ? `onclick="toggleSlot(${h})"` : '';
+    html += `<div class="${cls}" ${click}><span class="ts-hour">${pad(h)}:00</span><span class="ts-price">R$${price}</span></div>`;
+  }
+  grid.innerHTML = html;
 }
 
-// ─── Selecionar horário ───────────────────
-function selectTime(time) {
-  state.selectedTime = time;
+function toggleSlot(h) {
+  const idx = state.selectedSlots.indexOf(h);
+  if (idx === -1) state.selectedSlots.push(h);
+  else            state.selectedSlots.splice(idx, 1);
+  state.selectedSlots.sort((a, b) => a - b);
   renderTimeSlots();
-  updateSummary();
+  updateStep3Summary();
 }
 
-// ─── Selecionar quadra ────────────────────
-function selectCourt(courtId) {
-  state.selectedCourt = COURTS.find((c) => c.id === courtId) || COURTS[0];
-  renderCourts();
-  renderTimeSlots();
-  updateSummary();
+function toggleDayUse() {
+  state.dayUse = !state.dayUse;
+  const btn = document.getElementById('bk-dayuse-btn');
+  btn.classList.toggle('active', state.dayUse);
+  btn.querySelector('.bk-dayuse-check').textContent = state.dayUse ? '✓' : '';
+  updateStep3Summary();
 }
 
-const COURT_ICONS = {
-  tennis: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M6.3 6.3a8 8 0 0 1 11.4 0"/><path d="M6.3 17.7a8 8 0 0 0 11.4 0"/><path d="M12 2v20"/></svg>`,
-  soccer: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`,
-  pickleball: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/><path d="M12 7a5 5 0 0 1 5 5"/></svg>`,
-  volei: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 12c-2-2.5-2-5.5 0-8"/><path d="M12 12c2.5-1.5 5-1 7.5.5"/><path d="M12 12c-.5 2.5-2.5 4.5-5 5.5"/></svg>`,
-};
+function updateStep3Summary() {
+  const summary  = document.getElementById('bk-step3-summary');
+  const rowsEl   = document.getElementById('bk-step3-rows');
+  const totalEl  = document.getElementById('bk-step3-total');
+  const nextBtn  = document.getElementById('bk-btn-time-next');
 
-function renderCourts() {
-  const container = document.getElementById("courtGrid");
-  if (!container) return;
+  const weekend   = state.selectedDate ? isWeekend(state.selectedDate) : false;
+  let total = 0;
+  let rows  = '';
 
-  container.innerHTML = COURTS.map((c) => {
-    const active = c.id === state.selectedCourt.id;
-    const icon = COURT_ICONS[c.icon] || COURT_ICONS.tennis;
-    return `
-      <div class="court-option ${active ? "active" : ""}" onclick="selectCourt('${c.id}')">
-        <div class="court-icon">${icon}</div>
-        <div class="court-info">
-          <div class="court-name">${c.name}</div>
-          <div class="court-type">${c.type}</div>
-        </div>
-        <div class="court-badge">R$ ${c.price}/h</div>
-      </div>
-    `;
-  }).join("");
+  if (state.selectedDate) {
+    rows += `<div class="bk-sum-row"><span class="bk-sum-label">Data</span><span class="bk-sum-val">${formatDatePT(state.selectedDate)}</span></div>`;
+  }
+
+  if (state.selectedSlots.length) {
+    state.selectedSlots.forEach(h => {
+      const price = getPriceForHour(h, state.quadra, weekend);
+      total += price;
+      rows += `<div class="bk-sum-row"><span class="bk-sum-label">${pad(h)}:00 – ${pad(h + 1)}:00</span><span class="bk-sum-val">R$ ${price}</span></div>`;
+    });
+  }
+
+  if (state.dayUse) {
+    total += 25;
+    rows += `<div class="bk-sum-row"><span class="bk-sum-label">Day Use</span><span class="bk-sum-val">R$ 25</span></div>`;
+  }
+
+  const canProceed = state.selectedDate && state.selectedSlots.length > 0;
+  nextBtn.disabled = !canProceed;
+
+  if (!rows) { summary.style.display = 'none'; return; }
+  rowsEl.innerHTML = rows;
+  totalEl.textContent = `R$ ${total}`;
+  summary.style.display = 'block';
 }
 
-// ─── Atualizar resumo ─────────────────────
-function updateSummary() {
-  const d = document.getElementById("sumDate");
-  const t = document.getElementById("sumTime");
-  const c = document.getElementById("sumCourt");
-  const p = document.getElementById("sumPrice");
-
-  const months = [
-    "Jan",
-    "Fev",
-    "Mar",
-    "Abr",
-    "Mai",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Set",
-    "Out",
-    "Nov",
-    "Dez",
-  ];
-
-  if (d)
-    d.textContent = state.selectedDate
-      ? (() => {
-          const [y, m, day] = state.selectedDate.split("-");
-          return `${day} ${months[parseInt(m) - 1]} ${y}`;
-        })()
-      : "—";
-  if (t) t.textContent = state.selectedTime || "—";
-  if (c) c.textContent = state.selectedCourt.name;
-  if (p) p.textContent = `R$ ${state.selectedCourt.price},00`;
-
-  const btn = document.getElementById("btnConfirmar");
-  if (btn) btn.disabled = !(state.selectedDate && state.selectedTime);
+function calcTotal() {
+  if (!state.selectedDate || !state.quadra) return state.dayUse ? 25 : 0;
+  const weekend = isWeekend(state.selectedDate);
+  let total = 0;
+  state.selectedSlots.forEach(h => { total += getPriceForHour(h, state.quadra, weekend); });
+  if (state.dayUse || state.modalidade === 'pickleball') total += 25;
+  return total;
 }
 
-// ─── Confirmar reserva ────────────────────
+// ─── ETAPA 4 – Pagamento ──────────────────
+function buildPaymentSummary() {
+  const rows  = document.getElementById('bk-pay-summary-rows');
+  const total = document.getElementById('bk-pay-total');
+  if (!rows) return;
+
+  const modalLabels = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };
+  const quadraLabels = { coberta: 'Coberta (Q1 e Q2)', descoberta: 'Descoberta (Q3–Q8)' };
+  const weekend = state.selectedDate ? isWeekend(state.selectedDate) : false;
+
+  let html = '';
+  html += `<div class="bk-sum-row"><span class="bk-sum-label">Modalidade</span><span class="bk-sum-val">${modalLabels[state.modalidade] || '—'}</span></div>`;
+
+  if (state.modalidade !== 'pickleball') {
+    html += `<div class="bk-sum-row"><span class="bk-sum-label">Quadra</span><span class="bk-sum-val">${quadraLabels[state.quadra] || '—'}</span></div>`;
+    html += `<div class="bk-sum-row"><span class="bk-sum-label">Data</span><span class="bk-sum-val">${formatDatePT(state.selectedDate)}</span></div>`;
+    if (state.selectedSlots.length) {
+      const s = state.selectedSlots;
+      html += `<div class="bk-sum-row"><span class="bk-sum-label">Horário</span><span class="bk-sum-val">${pad(s[0])}:00 – ${pad(s[s.length - 1] + 1)}:00</span></div>`;
+      s.forEach(h => {
+        const price = getPriceForHour(h, state.quadra, weekend);
+        html += `<div class="bk-sum-row indent"><span class="bk-sum-label">${pad(h)}:00–${pad(h+1)}:00</span><span class="bk-sum-val">R$ ${price}</span></div>`;
+      });
+    }
+  }
+
+  if (state.dayUse || state.modalidade === 'pickleball') {
+    html += `<div class="bk-sum-row"><span class="bk-sum-label">Day Use</span><span class="bk-sum-val">R$ 25</span></div>`;
+  }
+
+  rows.innerHTML = html;
+  total.textContent = `R$ ${calcTotal()}`;
+}
+
+function selectPayment(method) {
+  state.payment = method;
+  document.querySelectorAll('.bk-pay-method').forEach(el => {
+    el.classList.toggle('active', el.dataset.method === method);
+  });
+  document.getElementById('bk-pix-block').style.display   = method === 'pix'     ? 'block' : 'none';
+  document.getElementById('bk-card-block').style.display  = (method === 'credito' || method === 'debito') ? 'block' : 'none';
+  document.getElementById('bk-btn-confirmar').disabled = false;
+}
+
+// ─── Confirmar ────────────────────────────
 function confirmarReserva() {
   const user = window.Auth?.getUser();
   if (!user) {
-    window.openAuthModal?.("login");
-    showToast("Faça login para confirmar sua reserva.", "error");
+    window.openAuthModal?.('login');
+    showToast('Faça login para confirmar sua reserva.', 'error');
     return;
   }
-  if (!state.selectedDate || !state.selectedTime) return;
 
   const booking = {
     id: Date.now().toString(),
     userId: user.id,
     userName: user.nome,
-    courtId: state.selectedCourt.id,
-    courtName: state.selectedCourt.name,
+    modalidade: state.modalidade,
+    quadra: state.quadra,
     date: state.selectedDate,
-    time: state.selectedTime,
-    price: state.selectedCourt.price,
-    status: "confirmada",
+    slots: [...state.selectedSlots],
+    dayUse: state.dayUse,
+    payment: state.payment,
+    total: calcTotal(),
+    status: 'confirmada',
     criadaEm: new Date().toISOString(),
   };
 
   state.bookings.push(booking);
-  localStorage.setItem("podium_bookings", JSON.stringify(state.bookings));
+  localStorage.setItem('podium_bookings', JSON.stringify(state.bookings));
 
-  // Mostrar modal de confirmação
-  const [y, m, d] = state.selectedDate.split("-");
-  const months = [
-    "Jan",
-    "Fev",
-    "Mar",
-    "Abr",
-    "Mai",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Set",
-    "Out",
-    "Nov",
-    "Dez",
-  ];
-  document.getElementById("confDate").textContent =
-    `${d} de ${months[parseInt(m) - 1]} de ${y}`;
-  document.getElementById("confTime").textContent = state.selectedTime;
-  document.getElementById("confCourt").textContent = state.selectedCourt.name;
-  document.getElementById("confPrice").textContent =
-    `R$ ${state.selectedCourt.price},00`;
-  document.getElementById("confId").textContent =
-    `#PD-${booking.id.slice(-6).toUpperCase()}`;
-  document.getElementById("confOverlay").classList.add("open");
+  // Preenche modal de confirmação
+  const modalLabels = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };
+  const quadraLabels = { coberta: 'Coberta (Q1–Q2)', descoberta: 'Descoberta (Q3–Q8)' };
+  const payLabels = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro' };
 
-  // Reset
-  state.selectedDate = null;
-  state.selectedTime = null;
-  renderCalendar();
-  renderTimeSlots();
-  updateSummary();
+  document.getElementById('confDate').textContent    = formatDateLong(state.selectedDate) || 'Day Use';
+  document.getElementById('confTime').textContent    = state.selectedSlots.length
+    ? `${pad(state.selectedSlots[0])}:00 – ${pad(state.selectedSlots[state.selectedSlots.length - 1] + 1)}:00`
+    : 'Day Use';
+  document.getElementById('confCourt').textContent   = quadraLabels[state.quadra] || '—';
+  document.getElementById('confModality').textContent = modalLabels[state.modalidade];
+  document.getElementById('confPrice').textContent   = `R$ ${calcTotal()},00`;
+  document.getElementById('confPayment').textContent = payLabels[state.payment] || '—';
+  document.getElementById('confId').textContent      = `#PD-${booking.id.slice(-6).toUpperCase()}`;
+  document.getElementById('confOverlay').classList.add('open');
+
+  resetBooking();
 }
 
-// ─── Toast / Banner de evento ──────────────
-function showEventBanner(dateKey) {
-  const eventName = EVENTS[dateKey];
-  const [y, m, d] = dateKey.split("-");
-  const months = [
-    "Jan",
-    "Fev",
-    "Mar",
-    "Abr",
-    "Mai",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Set",
-    "Out",
-    "Nov",
-    "Dez",
-  ];
-  const dateFormatted = `${d} de ${months[parseInt(m) - 1]} de ${y}`;
+function resetBooking() {
+  state.modalidade = null;
+  state.quadra = null;
+  state.selectedDate = null;
+  state.selectedSlots = [];
+  state.dayUse = false;
+  state.payment = null;
+  goToStep(1);
+  renderModalidades();
+  renderQuadras();
+}
 
-  // Remove banner anterior se existir
-  document.getElementById("eventBanner")?.remove();
-
-  const banner = document.createElement("div");
-  banner.id = "eventBanner";
+// ─── Event banner ─────────────────────────
+function showEventBanner(key) {
+  const eventName = EVENTS[key];
+  document.getElementById('eventBanner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'eventBanner';
+  banner.className = 'event-banner';
   banner.innerHTML = `
     <div class="event-banner-icon">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
-        fill="none" stroke="currentColor" stroke-width="1.5"
-        stroke-linecap="round" stroke-linejoin="round">
-        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-        <path d="M12 9v4"/><path d="M12 17h.01"/>
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>
       </svg>
     </div>
     <div class="event-banner-text">
       <strong>${eventName}</strong>
-      <span>${dateFormatted} · Quadras reservadas para o evento</span>
+      <span>${formatDatePT(key)} · Quadras reservadas para o evento</span>
     </div>
     <button class="event-banner-close" onclick="document.getElementById('eventBanner').remove()">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-        fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 6 6 18M6 6l12 12"/>
-      </svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
   `;
-  banner.className = "event-banner";
-
-  // Insere após o calendário
-  const calWrap = document.querySelector(".cal-wrap");
-  calWrap?.insertAdjacentElement("afterend", banner);
-
-  // Remove automaticamente após 5s
+  document.querySelector('.cal-wrap')?.insertAdjacentElement('afterend', banner);
   setTimeout(() => banner.remove(), 5000);
 }
 window.showEventBanner = showEventBanner;
 
-// ─── Inicialização ────────────────────────
-document.addEventListener("DOMContentLoaded", () => {
+// ─── Nav meses ────────────────────────────
+function prevMonth() {
+  state.calMonth--;
+  if (state.calMonth < 0) { state.calMonth = 11; state.calYear--; }
   renderCalendar();
-  renderCourts();
-  updateSummary();
+}
+function nextMonth() {
+  state.calMonth++;
+  if (state.calMonth > 11) { state.calMonth = 0; state.calYear++; }
+  renderCalendar();
+}
+window.prevMonth = prevMonth;
+window.nextMonth = nextMonth;
+window.selectDate = selectDate;
 
-  document.getElementById("prevMonth")?.addEventListener("click", prevMonth);
-  document.getElementById("nextMonth")?.addEventListener("click", nextMonth);
-  document
-    .getElementById("btnConfirmar")
-    ?.addEventListener("click", confirmarReserva);
+// ─── Init ─────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderModalidades();
+  renderQuadras();
+  updateStepper();
 
-  document.getElementById("confOverlay")?.addEventListener("click", (e) => {
-    if (e.target.id === "confOverlay") e.target.classList.remove("open");
+  // Nav meses
+  document.getElementById('bk-prev-month')?.addEventListener('click', prevMonth);
+  document.getElementById('bk-next-month')?.addEventListener('click', nextMonth);
+
+  // Step 1 → 2
+  document.getElementById('bk-btn-modal-next')?.addEventListener('click', () => {
+    if (state.modalidade === 'pickleball') {
+      // Pickleball: pula para pagamento
+      state.quadra = 'n/a';
+      state.dayUse = true;
+      state.selectedDate = 'day-use';
+      state.step = 3; // hack para ir ao 4 mostrando "done" nos anteriores
+      goToStep(4);
+      // marca steps 1,2,3 como done
+      [1, 2, 3].forEach(s => {
+        const el = document.getElementById('bk-step-' + s);
+        if (el) { el.classList.remove('active'); el.classList.add('done'); }
+      });
+      const l1 = document.getElementById('bk-line-1');
+      const l2 = document.getElementById('bk-line-2');
+      const l3 = document.getElementById('bk-line-3');
+      if (l1) l1.classList.add('done');
+      if (l2) l2.classList.add('done');
+      if (l3) l3.classList.add('done');
+      document.getElementById('bk-step-4')?.classList.add('active');
+    } else {
+      goToStep(2);
+    }
   });
-  document.getElementById("btnFecharConf")?.addEventListener("click", () => {
-    document.getElementById("confOverlay").classList.remove("open");
+
+  // Step 2 → 3
+  document.getElementById('bk-btn-quadra-next')?.addEventListener('click', () => goToStep(3));
+  document.getElementById('bk-btn-quadra-back')?.addEventListener('click', () => goToStep(1));
+
+  // Step 3 → 4
+  document.getElementById('bk-btn-time-next')?.addEventListener('click', () => goToStep(4));
+  document.getElementById('bk-btn-time-back')?.addEventListener('click', () => goToStep(2));
+
+  // Step 4
+  document.getElementById('bk-btn-pay-back')?.addEventListener('click', () => {
+    if (state.modalidade === 'pickleball') goToStep(1);
+    else goToStep(3);
+  });
+  document.getElementById('bk-btn-confirmar')?.addEventListener('click', confirmarReserva);
+
+  // Day Use toggle
+  document.getElementById('bk-dayuse-btn')?.addEventListener('click', toggleDayUse);
+
+  // Fechar modal confirmação
+  document.getElementById('confOverlay')?.addEventListener('click', e => {
+    if (e.target.id === 'confOverlay') e.target.classList.remove('open');
+  });
+  document.getElementById('btnFecharConf')?.addEventListener('click', () => {
+    document.getElementById('confOverlay').classList.remove('open');
+  });
+
+  // Payment methods
+  document.querySelectorAll('.bk-pay-method').forEach(el => {
+    el.addEventListener('click', () => selectPayment(el.dataset.method));
   });
 });
 
-window.selectDate = selectDate;
-window.selectTime = selectTime;
-window.selectCourt = selectCourt;
-window.prevMonth = prevMonth;
-window.nextMonth = nextMonth;
+window.selectModalidade = selectModalidade;
+window.selectQuadra = selectQuadra;
+window.toggleSlot = toggleSlot;
+window.toggleDayUse = toggleDayUse;
+window.selectPayment = selectPayment;
 window.confirmarReserva = confirmarReserva;
