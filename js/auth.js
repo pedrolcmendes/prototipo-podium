@@ -289,7 +289,7 @@ function handleLogin(e) {
     fieldError("loginEmail", "E-mail inválido");
     valid = false;
   }
-  if (!senha || senha.length < 6) {
+  if (!senha || senha.length < 4) {
     fieldError("loginSenha", "Senha muito curta");
     valid = false;
   }
@@ -351,8 +351,8 @@ function handleCadastro(e) {
     fieldError("cadNasc", "Informe sua data de nascimento");
     valid = false;
   }
-  if (!senha || senha.length < 8) {
-    fieldError("cadSenha", "Mínimo 8 caracteres");
+  if (!senha || senha.length < 6) {
+    fieldError("cadSenha", "Mínimo 6 caracteres");
     valid = false;
   }
   if (senha !== conf) {
