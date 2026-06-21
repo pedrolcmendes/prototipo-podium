@@ -472,7 +472,7 @@ function salvarSenha(e) {
     return;
   }
   if (!nova || nova.length < 8) {
-    showToast("Nova senha deve ter mínimo 8 caracteres.", "error");
+    showToast("Nova senha deve ter mínimo 6 caracteres.", "error");
     return;
   }
   if (nova !== conf) {
