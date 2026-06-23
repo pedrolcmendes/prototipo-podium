@@ -122,6 +122,9 @@ function formatDateLong(dateStr) {
   return `${d} de ${months[parseInt(m) - 1]} de ${y}`;
 }
 
+// Conflito de horários: ver js/booking-utils.js (getOccupiedHours, hasConflitoHorario),
+// carregado antes deste script — lógica compartilhada com o painel admin.
+
 // ─── Stepper ──────────────────────────────
 function updateStepper() {
   document.querySelectorAll('.bk-step').forEach(el => {
@@ -290,17 +293,24 @@ function renderTimeSlots() {
   const today     = todayKey();
   const nowHour   = state.selectedDate === today ? new Date().getHours() : -1;
   const maxHour   = weekend ? 22 : 23;
+  const occupied  = getOccupiedHours(state.quadra, state.selectedDate);
+
+  // Horário já reservado por outra pessoa não pode permanecer selecionado
+  state.selectedSlots = state.selectedSlots.filter(h => !occupied.has(h));
 
   let html = '';
   for (let h = 8; h < maxHour; h++) {
-    const price   = getPriceForHour(h, state.quadra, weekend);
-    const isPast  = h <= nowHour;
-    const isSel   = state.selectedSlots.includes(h);
+    const price      = getPriceForHour(h, state.quadra, weekend);
+    const isPast     = h <= nowHour;
+    const isOccupied = occupied.has(h);
+    const isBlocked  = isPast || isOccupied;
+    const isSel      = state.selectedSlots.includes(h);
     let cls = 'time-slot';
-    if (isPast)  cls += ' taken';
-    if (isSel)   cls += ' selected';
-    const click = !isPast ? `onclick="toggleSlot(${h})"` : '';
-    html += `<div class="${cls}" ${click}><span class="ts-hour">${pad(h)}:00</span><span class="ts-price">R$${price}</span></div>`;
+    if (isBlocked) cls += ' taken';
+    if (isSel)     cls += ' selected';
+    const click = !isBlocked ? `onclick="toggleSlot(${h})"` : '';
+    const title = isOccupied && !isPast ? 'title="Horário já reservado"' : '';
+    html += `<div class="${cls}" ${click} ${title}><span class="ts-hour">${pad(h)}:00</span><span class="ts-price">R$${price}</span></div>`;
   }
   grid.innerHTML = html;
 }
@@ -420,6 +430,17 @@ function confirmarReserva() {
     return;
   }
 
+  // Revalida disponibilidade com os dados mais recentes (protege contra
+  // outra reserva conflitante criada enquanto esta tela estava aberta).
+  const isQuadraReal = state.quadra && state.quadra !== 'n/a';
+  if (isQuadraReal && hasConflitoHorario(state.quadra, state.selectedDate, state.selectedSlots)) {
+    showToast('Esse horário acabou de ser reservado. Escolha outro horário disponível.', 'error');
+    goToStep(3);
+    return;
+  }
+
+  const freshBookings = JSON.parse(localStorage.getItem('podium_bookings') || '[]');
+
   const booking = {
     id: Date.now().toString(),
     userId: user.id,
@@ -435,8 +456,9 @@ function confirmarReserva() {
     criadaEm: new Date().toISOString(),
   };
 
-  state.bookings.push(booking);
-  localStorage.setItem('podium_bookings', JSON.stringify(state.bookings));
+  freshBookings.push(booking);
+  localStorage.setItem('podium_bookings', JSON.stringify(freshBookings));
+  state.bookings = freshBookings;
 
   // Preenche modal de confirmação
   const modalLabels = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };

@@ -38,16 +38,17 @@ function saveBookings(d) { localStorage.setItem('podium_bookings', JSON.stringif
 // Mock de dados para demo (só cria se não existir)
 function seedMockData() {
   const users = getUsers();
-  if (users.length === 0) {
-    const mockUsers = [
-      { id:'a1', nome:'Administrador',   email:'admin@email.com',   cpf:'000.000.000-00', tel:'(43) 9 9000-0000', nasc:'1990-01-01', senha: btoa('senha123'), criadoEm:'2025-10-01T12:00:00Z', ativo:true, admin:true },  
+  // auth.js já garante a existência do usuário admin antes deste ponto;
+  // aqui só completamos com clientes de demonstração, se nenhum existir ainda.
+  if (!users.some(u => !u.admin)) {
+    const mockClients = [
       { id:'u1', nome:'Carlos Pereira',  email:'carlos@email.com', cpf:'111.111.111-11', tel:'(43) 9 9111-1111', nasc:'1990-05-12', senha: btoa('senha123'), criadoEm:'2025-11-10T10:00:00Z', ativo:true },
       { id:'u2', nome:'Ana Beatriz Lima',email:'ana@email.com',    cpf:'222.222.222-22', tel:'(43) 9 9222-2222', nasc:'1995-08-20', senha: btoa('senha123'), criadoEm:'2025-12-01T09:00:00Z', ativo:true },
       { id:'u3', nome:'Rafael Souza',    email:'rafael@email.com', cpf:'333.333.333-33', tel:'(43) 9 9333-3333', nasc:'1988-03-15', senha: btoa('senha123'), criadoEm:'2026-01-05T08:00:00Z', ativo:true },
       { id:'u4', nome:'Fernanda Costa',  email:'fernanda@email.com',cpf:'444.444.444-44', tel:'(43) 9 9444-4444', nasc:'1993-11-30', senha: btoa('senha123'), criadoEm:'2026-02-14T11:00:00Z', ativo:false },
       { id:'u5', nome:'Lucas Martins',   email:'lucas@email.com',  cpf:'555.555.555-55', tel:'(43) 9 9555-5555', nasc:'1997-07-07', senha: btoa('senha123'), criadoEm:'2026-03-20T15:00:00Z', ativo:true },
     ];
-    saveUsers(mockUsers);
+    saveUsers([...users, ...mockClients]);
   }
 
   const bookings = getBookings();
@@ -324,6 +325,7 @@ function renderUsuarios() {
           </td>
           <td>${ativo ? '<span class="badge badge-green">Ativo</span>' : '<span class="badge badge-red">Bloqueado</span>'}</td>
           <td class="admin-row-actions">
+            <button class="admin-action-btn" title="Ver perfil" onclick="verPerfilUsuario('${u.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
             <button class="admin-action-btn" title="Editar" onclick="editarUsuario('${u.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
             <button class="admin-action-btn ${ativo?'danger':'success'}" title="${ativo?'Bloquear':'Desbloquear'}" onclick="toggleUsuario('${u.id}')">
               ${ativo
@@ -361,6 +363,59 @@ function editarUsuario(id) {
   set('editEmail',   u.email, 'v');
   set('editTel',     u.tel||'','v');
   openModal('modalEditUser');
+}
+
+function verPerfilUsuario(id) {
+  const u = getUsers().find(u => u.id === id);
+  if (!u) return;
+  const ativo = u.ativo !== false;
+
+  set('vuAvatar', initials(u.nome));
+  set('vuNome', u.nome || '—');
+  set('vuEmail', u.email || '—');
+  document.getElementById('vuStatus').innerHTML = ativo ? '<span class="badge badge-green">Ativo</span>' : '<span class="badge badge-red">Bloqueado</span>';
+  set('vuCPF', u.cpf || '—', 'v');
+  set('vuTel', u.tel || '—', 'v');
+  set('vuNasc', u.nasc ? fmtDate(u.nasc) : '—', 'v');
+  set('vuCadastro', u.criadoEm ? fmtDate(u.criadoEm.slice(0,10)) : '—', 'v');
+
+  const reservas = getBookings().filter(b => b.userId === id).sort((a,b) => b.date.localeCompare(a.date));
+  set('vuResCount', reservas.length);
+  const resEl = document.getElementById('vuReservasList');
+  if (resEl) resEl.innerHTML = reservas.length === 0
+    ? '<p style="color:var(--gray);font-size:.85rem">Nenhuma reserva.</p>'
+    : reservas.map(b => `
+      <div class="finance-row" style="padding:.6rem 0">
+        <div class="finance-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg></div>
+        <div>
+          <div class="finance-desc">${b.courtName||'—'}</div>
+          <div class="finance-meta">${fmtDate(b.date)} às ${b.time||'—'}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="finance-value">${fmtMoney(b.price)}</div>
+          <div style="margin-top:.2rem">${badgeHTML(b.status)}</div>
+        </div>
+      </div>`).join('');
+
+  const eventos = getInscricoes().filter(i => i.userId === id).sort((a,b) => (b.eventData||'').localeCompare(a.eventData||''));
+  set('vuEvCount', eventos.length);
+  const evEl = document.getElementById('vuEventosList');
+  if (evEl) evEl.innerHTML = eventos.length === 0
+    ? '<p style="color:var(--gray);font-size:.85rem">Nenhuma inscrição.</p>'
+    : eventos.map(i => `
+      <div class="finance-row" style="padding:.6rem 0">
+        <div class="finance-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
+        <div>
+          <div class="finance-desc">${i.eventNome||'—'}</div>
+          <div class="finance-meta">${fmtDate(i.eventData)}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="finance-value">${fmtMoney(i.preco)}</div>
+          <div style="margin-top:.2rem"><span class="badge badge-gold">Inscrito</span></div>
+        </div>
+      </div>`).join('');
+
+  openModal('modalViewUser');
 }
 
 function salvarEdicaoUsuario() {
@@ -682,7 +737,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.admin-nav-item').forEach(item => {
     item.addEventListener('click', () => {
       adminTab(item.dataset.tab);
-      toggleAdminMenu();
+      // Só fecha o menu mobile se ele estiver aberto (evita "embaçar" a tela no desktop)
+      if (document.getElementById('adminSidebar')?.classList.contains('open')) {
+        toggleAdminMenu();
+      }
     });
   });
 
@@ -775,6 +833,7 @@ window.confirmarReserva  = confirmarReserva;
 window.cancelarReservaAdmin = cancelarReservaAdmin;
 window.toggleUsuario     = toggleUsuario;
 window.editarUsuario     = editarUsuario;
+window.verPerfilUsuario  = verPerfilUsuario;
 window.salvarEdicaoUsuario = salvarEdicaoUsuario;
 window.removerInscricao  = removerInscricao;
 window.verInscricoes     = verInscricoes;

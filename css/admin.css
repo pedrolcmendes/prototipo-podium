@@ -474,15 +474,15 @@ body.admin-page {
 #admin-reservas .admin-table th:nth-child(2) { width: auto; }
 #admin-reservas .admin-table th:nth-child(3) { width: 200px; }
 #admin-reservas .admin-table th:nth-child(4) { width: 100px; }
-#admin-reservas .admin-table th:nth-child(5) { width: 120px; }
+#admin-reservas .admin-table th:nth-child(5) { width: 145px; }
 #admin-reservas .admin-table th:nth-child(6) { width: 90px; }
 /* Usuários table */
 #admin-usuarios .admin-table th:nth-child(1) { width: auto; }
 #admin-usuarios .admin-table th:nth-child(2) { width: 160px; }
 #admin-usuarios .admin-table th:nth-child(3) { width: 120px; }
 #admin-usuarios .admin-table th:nth-child(4) { width: 100px; }
-#admin-usuarios .admin-table th:nth-child(5) { width: 90px; }
-#admin-usuarios .admin-table th:nth-child(6) { width: 80px; }
+#admin-usuarios .admin-table th:nth-child(5) { width: 125px; }
+#admin-usuarios .admin-table th:nth-child(6) { width: 150px; }
 .admin-table td {
   padding: .9rem 1.2rem;
   font-size: .88rem;
