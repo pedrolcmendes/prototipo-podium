@@ -304,10 +304,10 @@ function renderReservas() {
         <td>${bookingLabel(b)}</td>
         <td>${fmtMoney(bookingPrice(b))}</td>
         <td>${badgeHTML(b.status)}</td>
-        <td class="admin-row-actions">
+        <td><div class="admin-row-actions">
           ${b.status==='confirmada' ? `<button class="admin-action-btn success" title="Confirmar" onclick="confirmarReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>` : ''}
           ${b.status==='confirmada' ? `<button class="admin-action-btn danger" title="Cancelar" onclick="cancelarReservaAdmin('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>` : ''}
-        </td>
+        </div></td>
       </tr>`).join('');
 
   renderPagination('reservasPag', cur, pages, total, (p) => {
@@ -415,13 +415,13 @@ function renderUsuarios() {
             <span style="font-family:var(--font-cond);font-size:.8rem">${nRes} res. · ${nEv} ev.</span>
           </td>
           <td>${statusBadgeHTML(status)}</td>
-          <td class="admin-row-actions">
+          <td><div class="admin-row-actions">
             <button class="admin-action-btn" title="Ver perfil" onclick="verPerfilUsuario('${u.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
             <button class="admin-action-btn" title="Editar" onclick="editarUsuario('${u.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
             <button class="admin-action-btn ${action.cls}" title="${action.title}" onclick="setUsuarioStatus('${u.id}','${action.status}')">
               ${action.status==='ativo' ? ICON_CHECK : ICON_BAN}
             </button>
-          </td>
+          </div></td>
         </tr>`;
       }).join('');
 
@@ -592,11 +592,11 @@ function renderEventos() {
           : ev.status==='encerrado'
             ? '<span class="badge badge-gray">Encerrado</span>'
             : '<span class="badge badge-amber">Em Breve</span>'}</td>
-        <td class="admin-row-actions">
+        <td><div class="admin-row-actions">
           <button class="admin-action-btn" title="Ver inscrições" onclick="verInscricoes('${ev.id}','${ev.nome}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
           <button class="admin-action-btn" title="Editar evento" onclick="editarEvento('${ev.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
           <button class="admin-action-btn danger" title="Excluir evento" onclick="excluirEvento('${ev.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
-        </td>
+        </div></td>
       </tr>`;
     }).join('');
   }
@@ -634,9 +634,9 @@ function renderEventos() {
             </td>
             <td>${fmtMoney(i.preco)}</td>
             <td><span class="badge badge-gold">Inscrito</span></td>
-            <td class="admin-row-actions">
+            <td><div class="admin-row-actions">
               <button class="admin-action-btn danger" title="Remover inscrição" onclick="removerInscricao('${i.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
-            </td>
+            </div></td>
           </tr>`;
         }).join('');
   }
