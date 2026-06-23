@@ -450,6 +450,22 @@ body.admin-page {
 .admin-filter-select:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(197,160,40,.1); color: var(--white); }
 .admin-filter-select option { background: #1a1a0e; color: var(--white); }
 
+.admin-filter-date {
+  background: var(--dark);
+  border: 1px solid rgba(197,160,40,.2);
+  color: var(--gray-light);
+  font-family: var(--font-cond);
+  font-size: .78rem;
+  letter-spacing: .5px;
+  padding: .42rem .7rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+  color-scheme: dark;
+}
+.admin-filter-date:hover { border-color: rgba(197,160,40,.45); color: var(--white); }
+.admin-filter-date:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(197,160,40,.1); color: var(--white); }
+
 /* Tabela */
 .admin-table-wrap { overflow-x: auto; }
 .admin-table {

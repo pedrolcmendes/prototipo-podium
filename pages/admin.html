@@ -52,9 +52,21 @@
           <label>E-mail (não editável)</label>
           <input type="email" id="editEmail" readonly style="opacity:.45;cursor:not-allowed">
         </div>
-        <div class="admin-field" style="grid-column:1/-1">
+        <div class="admin-field">
           <label>Telefone</label>
           <input type="tel" id="editTel" placeholder="(43) 9 9999-9999">
+        </div>
+        <div class="admin-field">
+          <label>Gênero</label>
+          <div class="custom-select-wrap">
+            <select id="editGenero" class="custom-select">
+              <option value="nao_informado">Não informado</option>
+              <option value="feminino">Feminino</option>
+              <option value="masculino">Masculino</option>
+              <option value="outro">Outro</option>
+            </select>
+            <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          </div>
         </div>
       </div>
     </div>
@@ -94,12 +106,39 @@
           <input type="text" id="vuTel" readonly style="opacity:.7;cursor:not-allowed">
         </div>
         <div class="admin-field" style="margin:0">
-          <label>Data de Nascimento</label>
+          <label>Data de Nascimento / Idade</label>
           <input type="text" id="vuNasc" readonly style="opacity:.7;cursor:not-allowed">
+        </div>
+        <div class="admin-field" style="margin:0">
+          <label>Gênero</label>
+          <input type="text" id="vuGenero" readonly style="opacity:.7;cursor:not-allowed">
         </div>
         <div class="admin-field" style="margin:0">
           <label>Cliente desde</label>
           <input type="text" id="vuCadastro" readonly style="opacity:.7;cursor:not-allowed">
+        </div>
+        <div class="admin-field" style="margin:0">
+          <label>Último acesso</label>
+          <input type="text" id="vuUltimoAcesso" readonly style="opacity:.7;cursor:not-allowed">
+        </div>
+        <div class="admin-field" style="margin:0">
+          <label>Créditos disponíveis</label>
+          <input type="text" id="vuCreditos" readonly style="opacity:.7;cursor:not-allowed">
+        </div>
+        <div class="admin-field" style="margin:0">
+          <label>Alterar status</label>
+          <div style="display:flex;gap:.5rem">
+            <div class="custom-select-wrap" style="flex:1">
+              <select id="vuStatusSelect" class="custom-select">
+                <option value="pendente">Pendente de verificação</option>
+                <option value="ativo">Ativo</option>
+                <option value="bloqueado">Bloqueado</option>
+                <option value="inativo">Inativo</option>
+              </select>
+              <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </div>
+            <button class="btn-admin-secondary" onclick="aplicarStatusUsuario()">Aplicar</button>
+          </div>
         </div>
       </div>
 
@@ -175,6 +214,7 @@
               <option value="futevolei">Futevôlei</option>
               <option value="volei">Vôlei de Praia</option>
               <option value="pickleball">Pickleball</option>
+              <option value="taekwondo">Taekwondo</option>
               <option value="geral">Geral</option>
             </select>
             <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
@@ -190,6 +230,10 @@
             </select>
             <span class="custom-select-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
           </div>
+        </div>
+        <div class="admin-field" style="grid-column:1/-1">
+          <label>Nível</label>
+          <input type="text" id="evNivel" placeholder="Ex: Todos os níveis, Intermediário / Avançado...">
         </div>
         <div class="admin-field" style="grid-column:1/-1">
           <label>Descrição</label>
@@ -415,6 +459,17 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               Relatório Financeiro
             </button>
+            <div style="display:flex;gap:.7rem">
+              <button class="btn-admin-secondary" style="justify-content:center;flex:1" onclick="exportarBackupAdmin()" title="Baixa um arquivo .json com todos os dados (usuários, reservas, eventos, ranking)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                Exportar Backup
+              </button>
+              <button class="btn-admin-secondary" style="justify-content:center;flex:1" onclick="document.getElementById('importBackupInput').click()" title="Restaura os dados a partir de um backup .json exportado anteriormente">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                Importar Backup
+              </button>
+              <input type="file" id="importBackupInput" accept="application/json" style="display:none" onchange="importarBackupAdmin(this.files[0]); this.value=''">
+            </div>
           </div>
         </div>
       </div>
@@ -453,6 +508,23 @@
               <option value="concluidas">Concluídas</option>
               <option value="canceladas">Canceladas</option>
             </select>
+            <select class="admin-filter-select" id="reservasQuadraFilter">
+              <option value="todas">Toda Quadra</option>
+              <option value="coberta">Coberta</option>
+              <option value="descoberta">Descoberta</option>
+            </select>
+            <select class="admin-filter-select" id="reservasModalidadeFilter">
+              <option value="todas">Toda Modalidade</option>
+              <option value="beach-tennis">Beach Tennis</option>
+              <option value="futevolei">Futevôlei</option>
+              <option value="volei">Vôlei</option>
+              <option value="pickleball">Pickleball</option>
+            </select>
+            <div style="display:flex;align-items:center;gap:.4rem">
+              <input type="date" id="reservasDataDe" class="admin-filter-date" title="De">
+              <span style="color:var(--gray);font-size:.78rem">até</span>
+              <input type="date" id="reservasDataAte" class="admin-filter-date" title="Até">
+            </div>
           </div>
         </div>
         <div class="admin-table-wrap">
@@ -488,12 +560,14 @@
           <div class="admin-card-toolbar">
             <div class="admin-search">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input type="text" id="usuariosSearch" placeholder="Buscar nome ou e-mail…">
+              <input type="text" id="usuariosSearch" placeholder="Buscar nome, e-mail, CPF ou telefone…">
             </div>
             <select class="admin-filter-select" id="usuariosFilter">
               <option value="todos">Todos</option>
+              <option value="pendentes">Pendentes</option>
               <option value="ativos">Ativos</option>
               <option value="bloqueados">Bloqueados</option>
+              <option value="inativos">Inativos</option>
             </select>
           </div>
         </div>
@@ -693,6 +767,8 @@
 <script src="../js/logo.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/booking-utils.js"></script>
+<script src="../js/eventos-store.js"></script>
+<script src="../js/ranking-store.js"></script>
 <script src="../js/admin.js"></script>
 <script src="../js/cookie.js"></script>
 </body>

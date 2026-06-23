@@ -2,106 +2,21 @@
    EVENTOS.JS — Lista de Eventos + Inscrição
    ═══════════════════════════════════════════ */
 
-const EVENTS_DATA = [
-  {
-    id: 'evt001',
-    nome: 'Torneio Aberto de Beach Tennis',
-    data: '2026-05-22',
-    hora: '14h–18h',
-    local: 'Quadras de Areia — Podium Arena',
-    vagas: 64,
-    inscritos: 48,
-    preco: 80,
-    modalidade: 'Beach Tennis',
-    nivel: 'Todos os níveis',
-    status: 'aberto',
-    desc: 'O maior torneio de Beach Tennis de Telêmaco Borba retorna! Categorias A, B e C para todos os níveis. Premiação para os três primeiros colocados de cada categoria.',
-    categoria: 'beachtennis',
-    icon: 'tennis',
-  },
-  {
-    id: 'evt002',
-    nome: 'Liga Futevôlei — Etapa TB',
-    data: '2026-05-29',
-    hora: '19h–22h',
-    local: 'Arena Central — Podium Arena',
-    vagas: 32,
-    inscritos: 20,
-    preco: 60,
-    modalidade: 'Futevôlei',
-    nivel: 'Intermediário / Avançado',
-    status: 'aberto',
-    desc: 'A Liga Municipal de Futevôlei chega à sua 4ª etapa na Podium Arena. Duplas masculino e feminino. Pontos válidos para o ranking oficial.',
-    categoria: 'futevolei',
-    icon: 'soccer',
-  },
-  {
-    id: 'evt003',
-    nome: 'Clínica de Pickleball com Profissionais',
-    data: '2026-06-06',
-    hora: '09h–12h',
-    local: 'Quadra Premium — Podium Arena',
-    vagas: 40,
-    inscritos: 35,
-    preco: 120,
-    modalidade: 'Pickleball',
-    nivel: 'Iniciante / Intermediário',
-    status: 'aberto',
-    desc: 'Aprenda com campeões nacionais! A clínica cobre técnicas de saque, devolução, volleys e estratégia de jogo. Inclui material didático e lanche.',
-    categoria: 'pickleball',
-    icon: 'pickleball',
-  },
-  {
-    id: 'evt004',
-    nome: 'Campeonato Master — Vôlei de Areia',
-    data: '2026-06-15',
-    hora: '10h–20h',
-    local: 'Arena Principal — Podium Arena',
-    vagas: 128,
-    inscritos: 128,
-    preco: 90,
-    modalidade: 'Vôlei de Praia',
-    nivel: 'Avançado (35+)',
-    status: 'esgotado',
-    desc: 'O Campeonato Master reúne atletas acima de 35 anos para uma competição de alto nível. 32 duplas masculino + 32 duplas feminino.',
-    categoria: 'volei',
-    icon: 'volei',
-  },
-  {
-    id: 'evt005',
-    nome: 'Torneio de Taekwondo — Região Norte PR',
-    data: '2026-06-26',
-    hora: '08h–17h',
-    local: 'Área Coberta — Podium Arena',
-    vagas: 200,
-    inscritos: 120,
-    preco: 50,
-    modalidade: 'Taekwondo',
-    nivel: 'Todas as categorias',
-    status: 'aberto',
-    desc: 'Torneio regional de Taekwondo com categorias por faixa etária e graduação. Evento validado pela Federação Paranaense de Taekwondo.',
-    categoria: 'taekwondo',
-    icon: 'taekwondo',
-  },
-  {
-    id: 'evt006',
-    nome: 'Copa Podium Arena — Beach Tennis',
-    data: '2026-07-04',
-    hora: '08h–19h',
-    local: 'Todas as Quadras — Podium Arena',
-    vagas: 96,
-    inscritos: 30,
-    preco: 100,
-    modalidade: 'Beach Tennis',
-    nivel: 'Todos os níveis',
-    status: 'aberto',
-    desc: 'O grande evento anual da Podium Arena! Categorias A, B, C e D + infantil. Premiação de R$3.000 para a categoria A. Transmissão ao vivo.',
-    categoria: 'beachtennis',
-    icon: 'trophy',
-  },
-];
-
+// Dados vêm de js/eventos-store.js (getEventos), a mesma fonte que o
+// painel admin gerencia em admin.html → aba Eventos.
 let activeFilter = 'todos';
+
+// Monta o "view model" de exibição a partir do evento bruto salvo pelo
+// admin, derivando inscritos/modalidade/ícone em vez de duplicar dados.
+function toViewModel(ev) {
+  return {
+    ...ev,
+    inscritos:  contarInscritos(ev.nome),
+    modalidade: CATEGORIA_LABELS[ev.categoria] || 'Geral',
+    icon:       CATEGORIA_ICONS[ev.categoria] || 'trophy',
+    nivel:      ev.nivel || 'Todos os níveis',
+  };
+}
 
 function formatDate(dateStr) {
   const [y, m, d] = dateStr.split('-');
@@ -109,22 +24,28 @@ function formatDate(dateStr) {
   return { day: d, month: months[parseInt(m)-1], year: y };
 }
 
-function vagasPercent(inscritos, vagas) { return Math.min((inscritos / vagas) * 100, 100); }
+function vagasPercent(inscritos, vagas) { return Math.min((inscritos / (vagas||1)) * 100, 100); }
 
 function statusLabel(evt) {
-  if (evt.status === 'esgotado') return { text:'Esgotado', cls:'closed' };
+  if (evt.status === 'encerrado') return { text:'Encerrado', cls:'closed' };
+  if (evt.status === 'breve')     return { text:'Em Breve',  cls:'' };
+  if (evt.inscritos >= evt.vagas) return { text:'Esgotado',  cls:'closed' };
   const pct = vagasPercent(evt.inscritos, evt.vagas);
   if (pct >= 90) return { text:'Últimas vagas', cls:'last' };
   return { text:'Inscrições Abertas', cls:'open' };
+}
+function inscricoesFechadas(evt) {
+  return evt.status === 'encerrado' || evt.status === 'breve' || evt.inscritos >= evt.vagas;
 }
 
 function renderEvents(filter) {
   const container = document.getElementById('eventsList');
   if (!container) return;
 
+  const all = getEventos().map(toViewModel);
   const filtered = filter === 'todos'
-    ? EVENTS_DATA
-    : EVENTS_DATA.filter(e => e.categoria === filter);
+    ? all
+    : all.filter(e => e.categoria === filter);
 
   container.innerHTML = filtered.map(evt => {
     const date = formatDate(evt.data);
@@ -175,12 +96,14 @@ function renderEvents(filter) {
 }
 
 function openEventModal(id) {
-  const evt = EVENTS_DATA.find(e => e.id === id);
-  if (!evt) return;
+  const ev = getEventos().find(e => e.id === id);
+  if (!ev) return;
+  const evt = toViewModel(ev);
 
   const date = formatDate(evt.data);
   const sl = statusLabel(evt);
   const pct = vagasPercent(evt.inscritos, evt.vagas);
+  const fechado = inscricoesFechadas(evt);
 
   document.getElementById('evtModalTitle').textContent = evt.nome;
   document.getElementById('evtModalIcon').textContent = evt.icon;
@@ -196,8 +119,8 @@ function openEventModal(id) {
 
   const btn = document.getElementById('btnInscrever');
   if (btn) {
-    btn.disabled = evt.status === 'esgotado';
-    btn.textContent = evt.status === 'esgotado' ? 'Evento Esgotado' : 'Inscrever-se';
+    btn.disabled = fechado;
+    btn.textContent = fechado ? sl.text : 'Inscrever-se';
     btn.onclick = () => inscreverEvento(id);
   }
 
@@ -219,8 +142,10 @@ function inscreverEvento(id) {
     return;
   }
 
-  const evt = EVENTS_DATA.find(e => e.id === id);
-  if (!evt || evt.status === 'esgotado') return;
+  const ev = getEventos().find(e => e.id === id);
+  if (!ev) return;
+  const evt = toViewModel(ev);
+  if (inscricoesFechadas(evt)) return;
 
   // Verificar se já inscrito
   const inscricoes = JSON.parse(localStorage.getItem('podium_inscricoes') || '[]');
@@ -237,16 +162,13 @@ function inscreverEvento(id) {
     eventId: id,
     eventNome: evt.nome,
     eventData: evt.data,
+    categoria: evt.categoria,
     preco: evt.preco,
     status: 'confirmada',
     criadaEm: new Date().toISOString()
   };
   inscricoes.push(inscricao);
   localStorage.setItem('podium_inscricoes', JSON.stringify(inscricoes));
-
-  // Atualizar contador
-  evt.inscritos = Math.min(evt.inscritos + 1, evt.vagas);
-  if (evt.inscritos >= evt.vagas) evt.status = 'esgotado';
 
   closeEventModal();
   showToast(`Inscrição confirmada em "${evt.nome}"!`);

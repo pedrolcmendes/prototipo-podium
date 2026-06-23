@@ -303,6 +303,15 @@ function handleLogin(e) {
     return;
   }
 
+  const status = user.status || (user.ativo === false ? "bloqueado" : "ativo");
+  if (status === "bloqueado") {
+    fieldError("loginEmail", "Esta conta está bloqueada. Contate a administração.");
+    return;
+  }
+
+  user.ultimoAcessoEm = new Date().toISOString();
+  localStorage.setItem("podium_users", JSON.stringify(users));
+
   Auth.saveUser({
     email: user.email,
     nome: user.nome,
@@ -376,6 +385,10 @@ function handleCadastro(e) {
     tel,
     senha: btoa(senha),
     criadoEm: new Date().toISOString(),
+    status: "pendente", // aguarda verificação do administrador
+    genero: "nao_informado",
+    creditos: 0,
+    ultimoAcessoEm: new Date().toISOString(),
     reservas: [],
     inscricoes: [],
   };
@@ -414,6 +427,9 @@ document.addEventListener("DOMContentLoaded", () => {
       nasc: "1990-01-01",
       senha: btoa("senha123"),
       criadoEm: new Date().toISOString(),
+      status: "ativo",
+      genero: "nao_informado",
+      creditos: 0,
       ativo: true,
       admin: true,
     });
