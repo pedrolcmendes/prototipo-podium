@@ -3,35 +3,8 @@
    Podium Arena
    ═══════════════════════════════════════════ */
 
-// ─── Tabela de preços ─────────────────────
-const PRICE_TABLE = {
-  coberta: {
-    weekday: [
-      { from: 8,  to: 16, price: 60 },
-      { from: 16, to: 18, price: 80 },
-      { from: 18, to: 21, price: 100 },
-      { from: 21, to: 23, price: 80 },
-    ],
-    weekend: [
-      { from: 8,  to: 11, price: 80 },
-      { from: 11, to: 14, price: 60 },
-      { from: 14, to: 22, price: 100 },
-    ],
-  },
-  descoberta: {
-    weekday: [
-      { from: 8,  to: 16, price: 50 },
-      { from: 16, to: 18, price: 60 },
-      { from: 18, to: 21, price: 80 },
-      { from: 21, to: 23, price: 60 },
-    ],
-    weekend: [
-      { from: 8,  to: 11, price: 60 },
-      { from: 11, to: 14, price: 50 },
-      { from: 14, to: 22, price: 80 },
-    ],
-  },
-};
+// PRICE_TABLE, isWeekend e getPriceForHour vêm de js/booking-utils.js
+// (compartilhados com o painel admin), carregado antes deste script.
 
 const MODALIDADES = [
   {
@@ -64,10 +37,18 @@ const MODALIDADES = [
   },
 ];
 
-const QUADRAS = [
-  { id: 'coberta',    label: 'Coberta',    sub: 'Quadras 1 e 2', icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>` },
-  { id: 'descoberta', label: 'Descoberta', sub: 'Quadras 3 a 8',  icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>` },
-];
+// Cards da etapa 2 — uma quadra por card (COURTS vem de booking-utils.js).
+// Pickleball não aparece aqui: é day-use e pula direto para o pagamento.
+const QUADRA_ICONS = {
+  coberta: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  descoberta: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
+};
+const QUADRAS = COURTS.filter(c => !c.dayUse).map(c => ({
+  id: c.id,
+  label: c.label,
+  sub: c.tipo === 'coberta' ? 'Quadra coberta' : 'Quadra descoberta',
+  icon: QUADRA_ICONS[c.tipo],
+}));
 
 // Eventos que bloqueiam dias
 const EVENTS = {
@@ -83,7 +64,8 @@ const EVENTS = {
 let state = {
   step: 1,
   modalidade: null,
-  quadra: null,
+  quadra: null,    // tipo: 'coberta' | 'descoberta'
+  quadraId: null,  // id da quadra física (ver COURTS em booking-utils.js)
   calYear: new Date().getFullYear(),
   calMonth: new Date().getMonth(),
   selectedDate: null,
@@ -99,15 +81,6 @@ function dateKey(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
 function todayKey() {
   const t = new Date();
   return dateKey(t.getFullYear(), t.getMonth(), t.getDate());
-}
-function isWeekend(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00');
-  return d.getDay() === 0 || d.getDay() === 6;
-}
-function getPriceForHour(hour, quadra, weekend) {
-  const table = PRICE_TABLE[quadra][weekend ? 'weekend' : 'weekday'];
-  const band = table.find(b => hour >= b.from && hour < b.to);
-  return band ? band.price : 0;
 }
 function formatDatePT(dateStr) {
   if (!dateStr) return '—';
@@ -168,6 +141,7 @@ function renderModalidades() {
 function selectModalidade(id) {
   state.modalidade = id;
   state.quadra = null;
+  state.quadraId = null;
   state.selectedDate = null;
   state.selectedSlots = [];
   state.dayUse = false;
@@ -196,7 +170,9 @@ function renderQuadras() {
 }
 
 function selectQuadra(id) {
-  state.quadra = id;
+  const court = getCourtById(id);
+  state.quadraId = id;
+  state.quadra = court ? court.tipo : null;
   state.selectedDate = null;
   state.selectedSlots = [];
 
@@ -206,7 +182,7 @@ function selectQuadra(id) {
 
   // Exibe tabela de preços
   const info = document.getElementById('bk-quadra-priceinfo');
-  const table = PRICE_TABLE[id];
+  const table = PRICE_TABLE[state.quadra];
   info.innerHTML = `
     <div class="bk-price-table">
       <div class="bk-price-col">
@@ -281,7 +257,7 @@ function renderTimeSlots() {
   const wrap = document.getElementById('bk-times-section');
   if (!grid) return;
 
-  if (!state.selectedDate || !state.quadra) {
+  if (!state.selectedDate || !state.quadraId) {
     grid.innerHTML = '';
     wrap.style.display = 'none';
     return;
@@ -293,7 +269,7 @@ function renderTimeSlots() {
   const today     = todayKey();
   const nowHour   = state.selectedDate === today ? new Date().getHours() : -1;
   const maxHour   = weekend ? 22 : 23;
-  const occupied  = getOccupiedHours(state.quadra, state.selectedDate);
+  const occupied  = getOccupiedHours(state.quadraId, state.selectedDate);
 
   // Horário já reservado por outra pessoa não pode permanecer selecionado
   state.selectedSlots = state.selectedSlots.filter(h => !occupied.has(h));
@@ -384,14 +360,13 @@ function buildPaymentSummary() {
   if (!rows) return;
 
   const modalLabels = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };
-  const quadraLabels = { coberta: 'Coberta (Q1 e Q2)', descoberta: 'Descoberta (Q3–Q8)' };
   const weekend = state.selectedDate ? isWeekend(state.selectedDate) : false;
 
   let html = '';
   html += `<div class="bk-sum-row"><span class="bk-sum-label">Modalidade</span><span class="bk-sum-val">${modalLabels[state.modalidade] || '—'}</span></div>`;
 
   if (state.modalidade !== 'pickleball') {
-    html += `<div class="bk-sum-row"><span class="bk-sum-label">Quadra</span><span class="bk-sum-val">${quadraLabels[state.quadra] || '—'}</span></div>`;
+    html += `<div class="bk-sum-row"><span class="bk-sum-label">Quadra</span><span class="bk-sum-val">${getCourtById(state.quadraId)?.label || '—'}</span></div>`;
     html += `<div class="bk-sum-row"><span class="bk-sum-label">Data</span><span class="bk-sum-val">${formatDatePT(state.selectedDate)}</span></div>`;
     if (state.selectedSlots.length) {
       const s = state.selectedSlots;
@@ -432,8 +407,8 @@ function confirmarReserva() {
 
   // Revalida disponibilidade com os dados mais recentes (protege contra
   // outra reserva conflitante criada enquanto esta tela estava aberta).
-  const isQuadraReal = state.quadra && state.quadra !== 'n/a';
-  if (isQuadraReal && hasConflitoHorario(state.quadra, state.selectedDate, state.selectedSlots)) {
+  const isQuadraReal = state.quadraId && state.quadraId !== 'pickleball';
+  if (isQuadraReal && hasConflitoHorario(state.quadraId, state.selectedDate, state.selectedSlots)) {
     showToast('Esse horário acabou de ser reservado. Escolha outro horário disponível.', 'error');
     goToStep(3);
     return;
@@ -447,6 +422,7 @@ function confirmarReserva() {
     userName: user.nome,
     modalidade: state.modalidade,
     quadra: state.quadra,
+    quadraId: state.quadraId || 'pickleball',
     date: state.selectedDate,
     slots: [...state.selectedSlots],
     dayUse: state.dayUse,
@@ -462,14 +438,13 @@ function confirmarReserva() {
 
   // Preenche modal de confirmação
   const modalLabels = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };
-  const quadraLabels = { coberta: 'Coberta (Q1–Q2)', descoberta: 'Descoberta (Q3–Q8)' };
   const payLabels = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro' };
 
   document.getElementById('confDate').textContent    = formatDateLong(state.selectedDate) || 'Day Use';
   document.getElementById('confTime').textContent    = state.selectedSlots.length
     ? `${pad(state.selectedSlots[0])}:00 – ${pad(state.selectedSlots[state.selectedSlots.length - 1] + 1)}:00`
     : 'Day Use';
-  document.getElementById('confCourt').textContent   = quadraLabels[state.quadra] || '—';
+  document.getElementById('confCourt').textContent   = getCourtById(state.quadraId)?.label || 'Pickleball';
   document.getElementById('confModality').textContent = modalLabels[state.modalidade];
   document.getElementById('confPrice').textContent   = `R$ ${calcTotal()},00`;
   document.getElementById('confPayment').textContent = payLabels[state.payment] || '—';
@@ -482,6 +457,7 @@ function confirmarReserva() {
 function resetBooking() {
   state.modalidade = null;
   state.quadra = null;
+  state.quadraId = null;
   state.selectedDate = null;
   state.selectedSlots = [];
   state.dayUse = false;
@@ -547,6 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.modalidade === 'pickleball') {
       // Pickleball: pula para pagamento
       state.quadra = 'n/a';
+      state.quadraId = 'pickleball';
       state.dayUse = true;
       state.selectedDate = 'day-use';
       state.step = 3; // hack para ir ao 4 mostrando "done" nos anteriores

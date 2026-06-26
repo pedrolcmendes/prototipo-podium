@@ -3,6 +3,15 @@
    ═══════════════════════════════════════════ */
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MONTHS_LONG = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const WEEKDAYS_LONG = ['Domingo','Segunda-Feira','Terça-Feira','Quarta-Feira','Quinta-Feira','Sexta-Feira','Sábado'];
+const WEEKDAYS_SHORT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+// ─── Tema (claro/escuro, só no painel admin) ──
+function toggleAdminTheme() {
+  const light = document.body.classList.toggle('theme-light');
+  localStorage.setItem('podium_admin_theme', light ? 'light' : 'dark');
+}
 
 // ─── Utilitários ──────────────────────────
 function fmtDate(str) {
@@ -115,16 +124,18 @@ function seedMockData() {
   if (bookings.length === 0) {
     const today = new Date();
     const dd = (n) => new Date(today.getTime() + n*86400000).toISOString().slice(0,10);
-    // Mesmo formato gerado por reservas.js (quadra = tipo, slots = horas inteiras)
+    // Mesmo formato gerado por reservas.js (quadra = tipo, quadraId = quadra física, slots = horas inteiras)
     const mockBookings = [
-      { id:'b1', userId:'u1', userName:'Carlos Pereira',   modalidade:'beach-tennis', quadra:'coberta',    date: dd(2),  slots:[14,15], dayUse:false, payment:'pix',      total:160, status:'confirmada', criadaEm: dd(-5)+'T10:00:00Z' },
-      { id:'b2', userId:'u2', userName:'Ana Beatriz Lima', modalidade:'futevolei',    quadra:'descoberta', date: dd(3),  slots:[19],    dayUse:false, payment:'credito',  total:60,  status:'confirmada', criadaEm: dd(-4)+'T09:00:00Z' },
-      { id:'b3', userId:'u3', userName:'Rafael Souza',     modalidade:'beach-tennis', quadra:'coberta',    date: dd(5),  slots:[8,9],   dayUse:false, payment:'dinheiro', total:120, status:'confirmada', criadaEm: dd(-3)+'T08:00:00Z' },
-      { id:'b4', userId:'u5', userName:'Lucas Martins',    modalidade:'volei',        quadra:'descoberta', date: dd(1),  slots:[10],    dayUse:false, payment:'pix',      total:50,  status:'confirmada', criadaEm: dd(-2)+'T07:00:00Z' },
-      { id:'b5', userId:'u1', userName:'Carlos Pereira',   modalidade:'pickleball',   quadra:'n/a',        date: dd(-2), slots:[],      dayUse:true,  payment:'debito',   total:25,  status:'concluida',  criadaEm: dd(-10)+'T12:00:00Z'},
-      { id:'b6', userId:'u4', userName:'Fernanda Costa',   modalidade:'futevolei',    quadra:'descoberta', date: dd(-5), slots:[18],    dayUse:false, payment:'pix',      total:60,  status:'cancelada',  criadaEm: dd(-12)+'T11:00:00Z'},
-      { id:'b7', userId:'u2', userName:'Ana Beatriz Lima', modalidade:'beach-tennis', quadra:'coberta',    date: dd(-1), slots:[7],     dayUse:false, payment:'pix',      total:60,  status:'concluida',  criadaEm: dd(-8)+'T10:00:00Z' },
-      { id:'b8', userId:'u3', userName:'Rafael Souza',     modalidade:'volei',        quadra:'descoberta', date: dd(7),  slots:[9],     dayUse:false, payment:'credito',  total:50,  status:'confirmada', criadaEm: dd(-1)+'T09:00:00Z' },
+      { id:'b1', userId:'u1', userName:'Carlos Pereira',   modalidade:'beach-tennis', quadra:'coberta',    quadraId:'coberta-1', date: dd(2),  slots:[14,15], dayUse:false, payment:'pix',      total:160, status:'confirmada', criadaEm: dd(-5)+'T10:00:00Z' },
+      { id:'b2', userId:'u2', userName:'Ana Beatriz Lima', modalidade:'futevolei',    quadra:'descoberta', quadraId:'areia-1',   date: dd(3),  slots:[19],    dayUse:false, payment:'credito',  total:60,  status:'confirmada', criadaEm: dd(-4)+'T09:00:00Z' },
+      { id:'b3', userId:'u3', userName:'Rafael Souza',     modalidade:'beach-tennis', quadra:'coberta',    quadraId:'coberta-2', date: dd(5),  slots:[8,9],   dayUse:false, payment:'dinheiro', total:120, status:'confirmada', criadaEm: dd(-3)+'T08:00:00Z' },
+      { id:'b4', userId:'u5', userName:'Lucas Martins',    modalidade:'volei',        quadra:'descoberta', quadraId:'areia-2',   date: dd(1),  slots:[10],    dayUse:false, payment:'pix',      total:50,  status:'confirmada', criadaEm: dd(-2)+'T07:00:00Z' },
+      { id:'b5', userId:'u1', userName:'Carlos Pereira',   modalidade:'pickleball',   quadra:'n/a',        quadraId:'pickleball',date: dd(-2), slots:[],      dayUse:true,  payment:'debito',   total:25,  status:'concluida',  criadaEm: dd(-10)+'T12:00:00Z'},
+      { id:'b6', userId:'u4', userName:'Fernanda Costa',   modalidade:'futevolei',    quadra:'descoberta', quadraId:'areia-3',   date: dd(-5), slots:[18],    dayUse:false, payment:'pix',      total:60,  status:'cancelada',  criadaEm: dd(-12)+'T11:00:00Z'},
+      { id:'b7', userId:'u2', userName:'Ana Beatriz Lima', modalidade:'beach-tennis', quadra:'coberta',    quadraId:'coberta-1', date: dd(-1), slots:[7],     dayUse:false, payment:'pix',      total:60,  status:'concluida',  criadaEm: dd(-8)+'T10:00:00Z' },
+      { id:'b8', userId:'u3', userName:'Rafael Souza',     modalidade:'volei',        quadra:'descoberta', quadraId:'areia-1',   date: dd(7),  slots:[9],     dayUse:false, payment:'credito',  total:50,  status:'confirmada', criadaEm: dd(-1)+'T09:00:00Z' },
+      { id:'b9', userId:'u5', userName:'Lucas Martins',    modalidade:'beach-tennis', quadra:'coberta',    quadraId:'coberta-2', date: dd(0),  slots:[9,10],  dayUse:false, payment:'pix',      total:120, status:'confirmada', criadaEm: dd(-6)+'T08:00:00Z' },
+      { id:'b10',userId:'u4', userName:'Fernanda Costa',   modalidade:'futevolei',    quadra:'descoberta', quadraId:'areia-3',   date: dd(0),  slots:[16],    dayUse:false, payment:'pix',      total:60,  status:'confirmada', criadaEm: dd(-3)+'T09:00:00Z' },
     ];
     saveBookings(mockBookings);
   }
@@ -146,9 +157,10 @@ function seedMockData() {
 // ─── Estado da paginação ──────────────────
 const PAGE_SIZE = 8;
 let state = {
-  reservas: { page: 1, filter: 'todas', search: '', quadra: 'todas', modalidade: 'todas', de: '', ate: '' },
+  reservas: { page: 1, filter: 'todas', search: '', quadra: 'todas', modalidade: 'todas', de: '', ate: '', dow: 'all' },
   usuarios: { page: 1, filter: 'todos', search: '' },
   eventos:  { page: 1, filter: 'todos', search: '' },
+  grade:    { view: 'dia', date: hojeISO() },
 };
 
 // ─── Navegação ────────────────────────────
@@ -165,24 +177,64 @@ function adminTab(tab) {
 // ══════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════
+function calcReceitaMensal(bookings) {
+  const now = new Date().toISOString().slice(0,10);
+  const thisMonth = now.slice(0,7);
+  const lastMonth = (() => { const d = new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
+  const rec = b => b.status !== 'cancelada';
+  const mesAtual   = bookings.filter(b=>rec(b)&&(b.criadaEm||'').startsWith(thisMonth)).reduce((s,b)=>s+bookingPrice(b),0);
+  const mesPassado = bookings.filter(b=>rec(b)&&(b.criadaEm||'').startsWith(lastMonth)).reduce((s,b)=>s+bookingPrice(b),0);
+  const delta = mesPassado > 0 ? Math.round((mesAtual-mesPassado)/mesPassado*100) : (mesAtual>0 ? 100 : 0);
+  return { mesAtual, mesPassado, delta };
+}
+function calcReservasHoje(bookings) {
+  const hoje = hojeISO();
+  const nowHour = new Date().getHours();
+  const doDia = bookings.filter(b => b.date === hoje && b.status !== 'cancelada');
+  const concluidas = doDia.filter(b => Array.isArray(b.slots) && b.slots.length && Math.max(...b.slots) + 1 <= nowHour).length;
+  return { total: doDia.length, concluidas };
+}
+function calcOcupacaoPct(dateStr) {
+  const max = maxHourFor(dateStr);
+  const total = COURTS.length * (max - 8);
+  if (total <= 0) return 0;
+  let occ = 0;
+  COURTS.forEach(c => getOccupiedHours(c.id, dateStr).forEach(h => { if (h >= 8 && h < max) occ++; }));
+  return Math.round(occ / total * 100);
+}
+function setDelta(id, value, suffix='', countOnly=false) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const arrow = countOnly || value >= 0 ? '▲' : '▼';
+  const sign  = countOnly || value < 0 ? '' : '+';
+  el.textContent = `${arrow} ${sign}${value}${suffix}`;
+  el.classList.toggle('neg', !countOnly && value < 0);
+}
+
 function renderDashboard() {
   const users    = getUsers();
   const bookings = getBookings();
-  const insc     = getInscricoes();
-  const now      = new Date().toISOString().slice(0,10);
 
-  const totalRec = bookings.filter(b => b.status !== 'cancelada')
-                           .reduce((s,b) => s + bookingPrice(b), 0);
-  const proximas = bookings.filter(b => b.date >= now && b.status === 'confirmada').length;
-  const ativos   = users.filter(u => userStatus(u) === 'ativo').length;
+  const { mesAtual, delta: receitaDelta } = calcReceitaMensal(bookings);
+  const { total: reservasHoje, concluidas: concluidasHoje } = calcReservasHoje(bookings);
+  const ocupHoje  = calcOcupacaoPct(hojeISO());
+  const ocupOntem = calcOcupacaoPct(ontemISO());
+  const ativos    = users.filter(u => userStatus(u) === 'ativo').length;
+  const trintaDiasAtras = new Date(); trintaDiasAtras.setDate(trintaDiasAtras.getDate()-30);
+  const novosUsuarios = users.filter(u => u.criadoEm && new Date(u.criadoEm) >= trintaDiasAtras).length;
 
-  set('dashTotalRec',   fmtMoney(totalRec));
-  set('dashReservas',   bookings.length);
-  set('dashUsuarios',   ativos);
-  set('dashEventosInsc',insc.length);
+  set('dashReceitaMes', fmtMoney(mesAtual));
+  setDelta('dashReceitaDelta', receitaDelta, '%');
+  set('dashReservasHoje', reservasHoje);
+  set('dashReservasSub', `${concluidasHoje} concluída${concluidasHoje===1?'':'s'}`);
+  set('dashOcupacao', ocupHoje + '%');
+  setDelta('dashOcupacaoDelta', ocupHoje - ocupOntem, ' pts');
+  set('dashUsuarios', ativos);
+  setDelta('dashUsuariosDelta', novosUsuarios, '', true);
 
   // Mini gráfico de barras — últimos 7 meses
   renderMiniChart();
+  renderGradeOcupacao();
 
   // Últimas reservas
   const ultReservas = [...bookings]
@@ -245,10 +297,354 @@ function renderMiniChart() {
 }
 
 // ══════════════════════════════════════════
+// GRADE DE OCUPAÇÃO
+// ══════════════════════════════════════════
+function hojeISO() { return new Date().toISOString().slice(0,10); }
+function ontemISO() { return new Date(Date.now() - 86400000).toISOString().slice(0,10); }
+function maxHourFor(dateStr) { return isWeekend(dateStr) ? 22 : 23; }
+const GRADE_HOURS = Array.from({ length: 16 }, (_, i) => 7 + i); // 7h–22h
+const MODALIDADE_KEY = { 'beach-tennis': 'bt', futevolei: 'fv', volei: 'vl', pickleball: 'pb' };
+const ICON_CHECK_SM = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const ICON_PLAY_SM  = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>`;
+const ICON_LOCK_SM  = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+
+function weekRange(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const dow = d.getDay();
+  const diffToMonday = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d); monday.setDate(d.getDate() + diffToMonday);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const iso = x => x.toISOString().slice(0,10);
+  return { start: iso(monday), end: iso(sunday) };
+}
+
+function gradeDateLabel() {
+  const d = new Date(state.grade.date + 'T12:00:00');
+  if (state.grade.view === 'semana') {
+    const { start, end } = weekRange(state.grade.date);
+    const ds = new Date(start + 'T12:00:00'), de = new Date(end + 'T12:00:00');
+    return `${ds.getDate()} – ${de.getDate()} de ${MONTHS_LONG[de.getMonth()]}`;
+  }
+  if (state.grade.view === 'mes') return `${MONTHS_LONG[d.getMonth()]} de ${d.getFullYear()}`;
+  return `${WEEKDAYS_LONG[d.getDay()]} · ${d.getDate()} de ${MONTHS_LONG[d.getMonth()]}`;
+}
+
+function setGradeView(view) {
+  state.grade.view = view;
+  document.querySelectorAll('.grade-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  renderGradeOcupacao();
+}
+function gradePrev() {
+  const d = new Date(state.grade.date + 'T12:00:00');
+  if (state.grade.view === 'semana') d.setDate(d.getDate() - 7);
+  else if (state.grade.view === 'mes') d.setMonth(d.getMonth() - 1);
+  else d.setDate(d.getDate() - 1);
+  state.grade.date = d.toISOString().slice(0,10);
+  renderGradeOcupacao();
+}
+function gradeNext() {
+  const d = new Date(state.grade.date + 'T12:00:00');
+  if (state.grade.view === 'semana') d.setDate(d.getDate() + 7);
+  else if (state.grade.view === 'mes') d.setMonth(d.getMonth() + 1);
+  else d.setDate(d.getDate() + 1);
+  state.grade.date = d.toISOString().slice(0,10);
+  renderGradeOcupacao();
+}
+function gradeHoje() { state.grade.date = hojeISO(); renderGradeOcupacao(); }
+function gradeGoToDate(dateStr) {
+  state.grade.view = 'dia';
+  state.grade.date = dateStr;
+  document.querySelectorAll('.grade-view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === 'dia'));
+  renderGradeOcupacao();
+}
+
+function renderGradeOcupacao() {
+  set('gradeDateLabel', gradeDateLabel());
+  const badge = document.getElementById('gradeTodayBadge');
+  if (badge) badge.style.display = (state.grade.view === 'dia' && state.grade.date === hojeISO()) ? '' : 'none';
+  const body = document.getElementById('gradeBody');
+  if (!body) return;
+  if (state.grade.view === 'semana') renderGradeSemana(body);
+  else if (state.grade.view === 'mes') renderGradeMes(body);
+  else renderGradeDia(body);
+}
+
+function gradeCellStatus(courtId, dateStr, hour) {
+  const booking = getBookings().find(b =>
+    b.status !== 'cancelada' && b.date === dateStr && resolveCourtId(b) === courtId && (b.slots || []).includes(hour)
+  );
+  if (booking) {
+    const today = hojeISO();
+    let status;
+    if (dateStr < today) status = 'concluida';
+    else if (dateStr > today) status = 'confirmada';
+    else {
+      const nowHour = new Date().getHours();
+      status = hour < nowHour ? 'concluida' : hour === nowHour ? 'andamento' : 'confirmada';
+    }
+    return { status, booking };
+  }
+  if (isSlotBlocked(courtId, dateStr, hour)) return { status: 'bloqueado' };
+  return { status: 'livre' };
+}
+
+function renderGradeDia(body) {
+  const dateStr = state.grade.date;
+  const isPastDate = dateStr < hojeISO();
+
+  let html = `<div class="grade-grid" style="grid-template-columns:170px repeat(${GRADE_HOURS.length},1fr)">`;
+  html += `<div class="grade-corner"></div>`;
+  GRADE_HOURS.forEach(h => html += `<div class="grade-hour-head">${h}h</div>`);
+
+  COURTS.forEach(court => {
+    html += `<div class="grade-row-label">
+      <button class="grade-lock-btn" title="Bloquear/desbloquear horários livres" onclick="toggleBloqueioLinha('${court.id}')">${ICON_LOCK_SM}</button>
+      <div><strong>${court.label}</strong><span>${court.tag.toUpperCase()}</span></div>
+    </div>`;
+
+    GRADE_HOURS.forEach(hour => {
+      const { status, booking } = gradeCellStatus(court.id, dateStr, hour);
+      let cls = 'grade-cell', inner = '', click = '';
+      if (booking) {
+        cls += ` mod-${MODALIDADE_KEY[booking.modalidade] || 'bt'} st-${status}`;
+        inner = status === 'concluida' ? ICON_CHECK_SM : status === 'andamento' ? ICON_PLAY_SM : '';
+      } else if (status === 'bloqueado') {
+        cls += ' st-bloqueado';
+        inner = ICON_LOCK_SM;
+        click = `onclick="unblockSlotAdmin('${court.id}','${dateStr}',${hour})"`;
+      } else {
+        cls += ' st-livre';
+        click = isPastDate ? '' : `onclick="blockSlotAdmin('${court.id}','${dateStr}',${hour})"`;
+      }
+      html += `<div class="${cls}" data-court="${court.id}" data-hour="${hour}" ${click}>${inner}</div>`;
+    });
+  });
+  html += `</div>`;
+  body.innerHTML = html;
+
+  body.querySelectorAll('.grade-cell').forEach(cell => {
+    cell.addEventListener('mouseenter', showGradeTooltip);
+    cell.addEventListener('mousemove', positionGradeTooltip);
+    cell.addEventListener('mouseleave', hideGradeTooltip);
+  });
+}
+
+function renderGradeSemana(body) {
+  const { start } = weekRange(state.grade.date);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start + 'T12:00:00'); d.setDate(d.getDate() + i);
+    return d.toISOString().slice(0,10);
+  });
+
+  let html = `<div class="grade-grid" style="grid-template-columns:170px repeat(7,1fr)">`;
+  html += `<div class="grade-corner"></div>`;
+  days.forEach(d => {
+    const dt = new Date(d + 'T12:00:00');
+    html += `<div class="grade-hour-head ${d === hojeISO() ? 'is-today' : ''}">${WEEKDAYS_SHORT[dt.getDay()]}<br><span>${dt.getDate()}</span></div>`;
+  });
+
+  COURTS.forEach(court => {
+    html += `<div class="grade-row-label"><div><strong>${court.label}</strong><span>${court.tag.toUpperCase()}</span></div></div>`;
+    days.forEach(d => {
+      const max = maxHourFor(d);
+      const total = max - 8;
+      let occ = 0;
+      getOccupiedHours(court.id, d).forEach(h => { if (h >= 8 && h < max) occ++; });
+      const pct = total > 0 ? Math.round(occ / total * 100) : 0;
+      const op = (pct / 100 * 0.55 + 0.04).toFixed(2);
+      html += `<div class="grade-cell grade-cell-heat" style="background:rgba(224,172,107,${op})" onclick="gradeGoToDate('${d}')" title="${pct}% ocupado"><span>${pct}%</span></div>`;
+    });
+  });
+  html += `</div>`;
+  body.innerHTML = html;
+}
+
+function renderGradeMes(body) {
+  const d = new Date(state.grade.date + 'T12:00:00');
+  const year = d.getFullYear(), month = d.getMonth();
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  let html = `<div class="grade-month-head">${WEEKDAYS_SHORT.map(w => `<div>${w}</div>`).join('')}</div>`;
+  html += `<div class="grade-month-grid">`;
+  for (let i = 0; i < firstDow; i++) html += `<div class="grade-month-cell empty"></div>`;
+  for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+    const max = maxHourFor(dateStr);
+    const total = COURTS.length * (max - 8);
+    let occ = 0;
+    COURTS.forEach(c => getOccupiedHours(c.id, dateStr).forEach(h => { if (h >= 8 && h < max) occ++; }));
+    const pct = total > 0 ? Math.round(occ / total * 100) : 0;
+    html += `<div class="grade-month-cell ${dateStr === hojeISO() ? 'is-today' : ''}" onclick="gradeGoToDate('${dateStr}')">
+      <span class="gm-num">${dayNum}</span>
+      ${pct > 0 ? `<span class="gm-pct">${pct}%</span>` : ''}
+    </div>`;
+  }
+  html += `</div>`;
+  body.innerHTML = html;
+}
+
+const GRADE_STATUS_LABEL = { concluida:'Concluído', andamento:'Em quadra', confirmada:'Confirmada', bloqueado:'Bloqueado', livre:'Disponível' };
+const GRADE_STATUS_BADGE = { concluida:'badge-green', andamento:'badge-gold', confirmada:'badge-gold', bloqueado:'badge-red', livre:'badge-gray' };
+
+function showGradeTooltip(e) {
+  const cell = e.currentTarget;
+  const courtId = cell.dataset.court;
+  const hour = parseInt(cell.dataset.hour);
+  const dateStr = state.grade.date;
+  const court = getCourtById(courtId);
+  const { status, booking } = gradeCellStatus(courtId, dateStr, hour);
+  const tip = document.getElementById('gradeTooltip');
+  if (!tip) return;
+
+  let html = `<div class="grade-tip-time">${String(hour).padStart(2,'0')}H–${String(hour+1).padStart(2,'0')}H</div>
+    <span class="badge ${GRADE_STATUS_BADGE[status]}">${GRADE_STATUS_LABEL[status]}</span>
+    <div class="grade-tip-court">${court.label} · ${court.tag}</div>`;
+
+  if (booking) {
+    const u = getUsers().find(x => x.id === booking.userId);
+    const modKey = MODALIDADE_KEY[booking.modalidade] || 'bt';
+    const price = getPriceForHour(hour, court.tipo, isWeekend(dateStr));
+    const note = status === 'concluida' ? 'Sessão finalizada.' : status === 'andamento' ? 'Em andamento agora.' : 'Reserva confirmada.';
+    html += `
+      <div class="grade-tip-row"><span>Cliente</span><strong>${u?.nome || booking.userName || '—'}</strong></div>
+      <div class="grade-tip-row"><span>Modalidade</span><strong><i class="grade-dot mod-${modKey}"></i>${MODALIDADE_LABELS[booking.modalidade] || '—'}</strong></div>
+      <div class="grade-tip-row"><span>Valor</span><strong>${fmtMoney(price)}</strong></div>
+      <p class="grade-tip-note">${note}</p>`;
+  } else if (status === 'bloqueado') {
+    html += `<p class="grade-tip-note">Bloqueado pelo administrador.</p>`;
+  } else {
+    html += `<p class="grade-tip-note">Disponível para reserva.</p>`;
+  }
+
+  tip.innerHTML = html;
+  tip.classList.add('show');
+  positionGradeTooltip(e);
+}
+function positionGradeTooltip(e) {
+  const tip = document.getElementById('gradeTooltip');
+  if (!tip || !tip.classList.contains('show')) return;
+  const gap = 14;
+  let x = e.clientX + gap, y = e.clientY + gap;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  if (x + tw > window.innerWidth - 10) x = e.clientX - tw - gap;
+  if (y + th > window.innerHeight - 10) y = e.clientY - th - gap;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+function hideGradeTooltip() { document.getElementById('gradeTooltip')?.classList.remove('show'); }
+
+function blockSlotAdmin(courtId, dateStr, hour) {
+  blockSlot(courtId, dateStr, hour);
+  hideGradeTooltip();
+  renderDashboard();
+}
+function unblockSlotAdmin(courtId, dateStr, hour) {
+  unblockSlot(courtId, dateStr, hour);
+  hideGradeTooltip();
+  renderDashboard();
+}
+function toggleBloqueioLinha(courtId) {
+  const dateStr = state.grade.date;
+  const court = getCourtById(courtId);
+  if (!court) return;
+  const bookedHours = new Set();
+  getBookings().filter(b => b.status !== 'cancelada' && b.date === dateStr && resolveCourtId(b) === courtId)
+    .forEach(b => (b.slots || []).forEach(h => bookedHours.add(h)));
+  const blockedNow = getBlockedSlots().filter(b => b.courtId === courtId && b.date === dateStr);
+  const freeHours = GRADE_HOURS.filter(h => !bookedHours.has(h) && !blockedNow.some(b => b.hour === h));
+
+  if (freeHours.length) {
+    freeHours.forEach(h => blockSlot(courtId, dateStr, h));
+    adminToast(`${court.label}: horários livres bloqueados.`, 'warn');
+  } else if (blockedNow.length) {
+    blockedNow.forEach(b => unblockSlot(courtId, dateStr, b.hour));
+    adminToast(`${court.label}: bloqueios removidos.`);
+  }
+  renderDashboard();
+}
+
+// ══════════════════════════════════════════
+// CARTEIRA — ADICIONAR CRÉDITO
+// ══════════════════════════════════════════
+function userCode(u) {
+  const idx = getUsers().findIndex(x => x.id === u.id);
+  return '#U-' + String(idx + 1).padStart(3, '0');
+}
+function abrirModalCredito(preselectUserId) {
+  const users = getUsers();
+  const sel = document.getElementById('credCliente');
+  if (sel) {
+    sel.innerHTML = users.map(u => `<option value="${u.id}">${u.nome} — ${userCode(u)}</option>`).join('');
+    if (preselectUserId) sel.value = preselectUserId;
+  }
+  set('credValor', '', 'v');
+  set('credObs', '', 'v');
+  set('credMotivo', 'cancelamento', 'v');
+  atualizarSaldoCredito();
+  openModal('modalAddCredito');
+}
+function atualizarSaldoCredito() {
+  const id = document.getElementById('credCliente')?.value;
+  const u = getUsers().find(x => x.id === id);
+  set('credSaldoAtual', fmtMoney(u?.creditos || 0));
+}
+function salvarCredito() {
+  const id     = document.getElementById('credCliente')?.value;
+  const valor  = parseFloat(document.getElementById('credValor')?.value);
+  const motivo = document.getElementById('credMotivo')?.value;
+  const obs    = document.getElementById('credObs')?.value.trim();
+  if (!id) { adminToast('Selecione um cliente.', 'error'); return; }
+  if (!valor || valor <= 0) { adminToast('Informe um valor válido.', 'error'); return; }
+
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return;
+  users[idx].creditos = (users[idx].creditos || 0) + valor;
+  saveUsers(users);
+
+  const log = JSON.parse(localStorage.getItem('podium_credit_log') || '[]');
+  log.push({ id: 'cr_' + Date.now(), userId: id, valor, motivo, obs, criadaEm: new Date().toISOString(), saldoApos: users[idx].creditos });
+  localStorage.setItem('podium_credit_log', JSON.stringify(log));
+
+  adminToast(`Crédito de ${fmtMoney(valor)} adicionado para ${users[idx].nome}.`);
+  closeModal('modalAddCredito');
+  renderDashboard();
+  renderUsuarios();
+  if (document.getElementById('modalViewUser')?.classList.contains('open')) verPerfilUsuario(id);
+}
+
+// ══════════════════════════════════════════
 // RESERVAS
 // ══════════════════════════════════════════
+const DOW_SHORT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+function renderReservasDayStrip() {
+  const strip = document.getElementById('reservasDayStrip');
+  if (!strip) return;
+  strip.querySelectorAll('.admin-daychip').forEach(el => el.remove());
+  const todayDow = new Date().getDay();
+  for (let dow = 1; dow <= 7; dow++) {
+    const d = dow % 7; // 1..6,0 → Seg..Dom
+    const btn = document.createElement('button');
+    btn.className = 'admin-daychip' + (String(d) === state.reservas.dow ? ' is-on' : '') + (d === todayDow ? ' is-today' : '');
+    btn.dataset.dow = String(d);
+    btn.onclick = () => onDayFilter(String(d));
+    btn.innerHTML = `<span class="dc-ab">${DOW_SHORT[d]}</span><span class="dc-dot"></span>`;
+    strip.appendChild(btn);
+  }
+}
+function onDayFilter(dow) {
+  state.reservas.dow = dow;
+  state.reservas.page = 1;
+  document.querySelectorAll('#reservasDayStrip .admin-chip, #reservasDayStrip .admin-daychip').forEach(el => {
+    el.classList.toggle('is-on', (el.dataset.dow || 'all') === dow);
+  });
+  renderReservas();
+}
+
 function renderReservas() {
-  const { filter, search, page, quadra, modalidade, de, ate } = state.reservas;
+  const { filter, search, page, quadra, modalidade, de, ate, dow } = state.reservas;
   let data = getBookings();
   const now = new Date().toISOString().slice(0,10);
   const usersMap = Object.fromEntries(getUsers().map(u=>[u.id,u]));
@@ -268,6 +664,9 @@ function renderReservas() {
   // Filtro período
   if (de)  data = data.filter(b => b.date >= de);
   if (ate) data = data.filter(b => b.date <= ate);
+
+  // Filtro dia da semana
+  if (dow && dow !== 'all') data = data.filter(b => String(new Date(b.date + 'T12:00:00').getDay()) === dow);
 
   // Busca
   if (search) {
@@ -305,8 +704,9 @@ function renderReservas() {
         <td>${fmtMoney(bookingPrice(b))}</td>
         <td>${badgeHTML(b.status)}</td>
         <td><div class="admin-row-actions">
-          ${b.status==='confirmada' ? `<button class="admin-action-btn success" title="Confirmar" onclick="confirmarReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>` : ''}
-          ${b.status==='confirmada' ? `<button class="admin-action-btn danger" title="Cancelar" onclick="cancelarReservaAdmin('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>` : ''}
+          ${b.status==='confirmada' ? `<button class="admin-action-btn success" title="Marcar concluída" onclick="confirmarReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>` : ''}
+          <button class="admin-action-btn" title="Detalhes" onclick="verDetalhesReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button class="admin-action-btn" title="Editar" onclick="abrirEditarReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
         </div></td>
       </tr>`).join('');
 
@@ -314,6 +714,7 @@ function renderReservas() {
     state.reservas.page = p;
     renderReservas();
   });
+  renderReservasDayStrip();
 }
 
 function confirmarReserva(id) {
@@ -340,6 +741,164 @@ function cancelarReservaAdmin(id) {
       renderDashboard();
     }
   );
+}
+
+// ══════════════════════════════════════════
+// RESERVAS — Nova / Detalhes / Editar
+// ══════════════════════════════════════════
+const PAY_LABELS_ADMIN = { pix:'PIX', credito:'Crédito do cliente', debito:'Débito', dinheiro:'Dinheiro' };
+
+function courtOptionsHTML(selectedId) {
+  return COURTS.filter(c => !c.dayUse)
+    .map(c => `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.label}</option>`).join('');
+}
+
+function abrirNovaReserva() {
+  const users = getUsers();
+  const sel = document.getElementById('nrCliente');
+  if (sel) sel.innerHTML = users.map(u => `<option value="${u.id}">${u.nome} — ${userCode(u)}</option>`).join('');
+  document.getElementById('nrQuadra').innerHTML = courtOptionsHTML();
+  set('nrData', hojeISO(), 'v');
+  set('nrInicio', '09:00', 'v');
+  set('nrDuracao', '1', 'v');
+  set('nrValor', '', 'v');
+  set('nrModalidade', 'beach-tennis', 'v');
+  set('nrPagamento', 'pix', 'v');
+  set('nrStatus', 'confirmada', 'v');
+  set('nrObs', '', 'v');
+  openModal('modalNovaReserva');
+}
+
+function salvarNovaReserva() {
+  const userId   = document.getElementById('nrCliente')?.value;
+  const quadraId = document.getElementById('nrQuadra')?.value;
+  const modalidade = document.getElementById('nrModalidade')?.value;
+  const data     = document.getElementById('nrData')?.value;
+  const inicio   = document.getElementById('nrInicio')?.value;
+  const duracao  = parseInt(document.getElementById('nrDuracao')?.value) || 1;
+  const valor    = parseFloat(document.getElementById('nrValor')?.value) || 0;
+  const pagamento = document.getElementById('nrPagamento')?.value;
+  const status   = document.getElementById('nrStatus')?.value;
+  const obs      = document.getElementById('nrObs')?.value.trim();
+
+  if (!userId)  { adminToast('Selecione um cliente.', 'error'); return; }
+  if (!quadraId){ adminToast('Selecione uma quadra.', 'error'); return; }
+  if (!data)    { adminToast('Informe a data.', 'error'); return; }
+
+  const startHour = parseInt((inicio||'09:00').split(':')[0], 10);
+  const slots = Array.from({ length: duracao }, (_, i) => startHour + i);
+  const court = getCourtById(quadraId);
+
+  if (hasConflitoHorario(quadraId, data, slots)) {
+    adminToast('Esse horário já está ocupado nessa quadra.', 'error');
+    return;
+  }
+
+  const user = getUsers().find(u => u.id === userId);
+  const bookings = getBookings();
+  bookings.push({
+    id: Date.now().toString(),
+    userId, userName: user?.nome || 'Usuário',
+    modalidade, quadra: court.tipo, quadraId,
+    date: data, slots, dayUse: false,
+    payment: pagamento, total: valor, status, obs,
+    criadaEm: new Date().toISOString(),
+  });
+  saveBookings(bookings);
+
+  adminToast('Reserva criada com sucesso!');
+  closeModal('modalNovaReserva');
+  renderDashboard();
+  renderReservas();
+}
+
+function verDetalhesReserva(id) {
+  const b = getBookings().find(x => x.id === id);
+  if (!b) return;
+  const u = getUsers().find(x => x.id === b.userId);
+  const court = getCourtById(resolveCourtId(b));
+
+  set('drId', id, 'v');
+  set('drCodigo', `Reserva #PD-${id.slice(-6).toUpperCase()}`);
+  set('drTitulo', bookingLabel(b));
+  set('drAvatar', initials(u?.nome || b.userName || '?'));
+  set('drNome', u?.nome || b.userName || 'Usuário');
+  set('drContato', [u?.email, u?.tel].filter(Boolean).join(' · ') || '—');
+  document.getElementById('drStatus').innerHTML = badgeHTML(b.status);
+  set('drData', fmtDate(b.date));
+  set('drHorario', bookingTimeRange(b));
+  set('drQuadra', court ? `${court.label} · ${court.tag}` : bookingLabel(b));
+  set('drPagamento', PAY_LABELS_ADMIN[b.payment] || '—');
+  set('drValor', fmtMoney(bookingPrice(b)));
+
+  const cancelBtn = document.getElementById('drCancelBtn');
+  if (cancelBtn) cancelBtn.style.display = (b.status === 'cancelada') ? 'none' : '';
+
+  openModal('modalDetalhesReserva');
+}
+
+function abrirEditarReserva(id) {
+  const b = getBookings().find(x => x.id === id);
+  if (!b) return;
+  const u = getUsers().find(x => x.id === b.userId);
+
+  set('erId', id, 'v');
+  set('erCodigo', `Reserva #PD-${id.slice(-6).toUpperCase()}`);
+  set('erAvatar', initials(u?.nome || b.userName || '?'));
+  set('erNome', u?.nome || b.userName || 'Usuário');
+  set('erContato', [u?.email, u?.tel].filter(Boolean).join(' · ') || '—');
+  document.getElementById('erStatus').innerHTML = badgeHTML(b.status);
+
+  document.getElementById('erQuadra').innerHTML = courtOptionsHTML(resolveCourtId(b));
+  set('erModalidade', b.modalidade, 'v');
+  set('erData', b.date, 'v');
+  const slots = Array.isArray(b.slots) && b.slots.length ? [...b.slots].sort((a,c)=>a-c) : [9];
+  set('erInicio', `${String(slots[0]).padStart(2,'0')}:00`, 'v');
+  set('erDuracao', String(slots.length || 1), 'v');
+  set('erValor', bookingPrice(b), 'v');
+  set('erPagamento', b.payment || 'pix', 'v');
+  set('erStatusSelect', b.status || 'confirmada', 'v');
+  set('erObs', b.obs || '', 'v');
+
+  openModal('modalEditarReserva');
+}
+
+function salvarEdicaoReserva() {
+  const id = document.getElementById('erId')?.value;
+  const bookings = getBookings();
+  const idx = bookings.findIndex(b => b.id === id);
+  if (idx === -1) return;
+
+  const quadraId = document.getElementById('erQuadra')?.value;
+  const modalidade = document.getElementById('erModalidade')?.value;
+  const data = document.getElementById('erData')?.value;
+  const inicio = document.getElementById('erInicio')?.value;
+  const duracao = parseInt(document.getElementById('erDuracao')?.value) || 1;
+  const valor = parseFloat(document.getElementById('erValor')?.value) || 0;
+  const pagamento = document.getElementById('erPagamento')?.value;
+  const status = document.getElementById('erStatusSelect')?.value;
+  const obs = document.getElementById('erObs')?.value.trim();
+
+  const startHour = parseInt((inicio||'09:00').split(':')[0], 10);
+  const slots = Array.from({ length: duracao }, (_, i) => startHour + i);
+  const court = getCourtById(quadraId);
+
+  if (status !== 'cancelada' && hasConflitoHorario(quadraId, data, slots, id)) {
+    adminToast('Esse horário já está ocupado nessa quadra.', 'error');
+    return;
+  }
+
+  bookings[idx] = {
+    ...bookings[idx],
+    modalidade, quadra: court.tipo, quadraId,
+    date: data, slots, payment: pagamento, total: valor, status, obs,
+  };
+  saveBookings(bookings);
+
+  adminToast('Reserva atualizada com sucesso!');
+  closeModal('modalEditarReserva');
+  renderDashboard();
+  renderReservas();
 }
 
 // ══════════════════════════════════════════
@@ -468,19 +1027,31 @@ function verPerfilUsuario(id) {
   const status = userStatus(u);
   const idade = calcAge(u.nasc);
 
+  set('vuUserId', id, 'v');
   set('vuAvatar', initials(u.nome));
   set('vuNome', u.nome || '—');
   set('vuEmail', u.email || '—');
   document.getElementById('vuStatus').innerHTML = statusBadgeHTML(status);
   set('vuCPF', u.cpf || '—', 'v');
-  set('vuTel', u.tel || '—', 'v');
+  set('vuTel', u.tel || '', 'v');
   set('vuNasc', u.nasc ? `${fmtDate(u.nasc)}${idade!==null ? ' · '+idade+' anos' : ''}` : '—', 'v');
-  set('vuGenero', GENERO_LABELS[u.genero] || GENERO_LABELS.nao_informado, 'v');
   set('vuCadastro', u.criadoEm ? fmtDate(u.criadoEm.slice(0,10)) : '—', 'v');
   set('vuUltimoAcesso', u.ultimoAcessoEm ? fmtDate(u.ultimoAcessoEm.slice(0,10)) : 'Nunca acessou', 'v');
-  set('vuCreditos', fmtMoney(u.creditos||0), 'v');
-  set('vuStatusSelect', status, 'v');
-  _vuCurrentUserId = id;
+  set('vuNomeInput', u.nome || '', 'v');
+  set('vuEmailInput', u.email || '', 'v');
+  set('vuGeneroInput', u.genero || 'nao_informado', 'v');
+  set('vuNovaSenha', '', 'v');
+  set('vuConfirmaSenha', '', 'v');
+
+  const bookings  = getBookings().filter(b => b.userId === id && b.status !== 'cancelada');
+  const inscritos = getInscricoes().filter(i => i.userId === id);
+  const gasto = bookings.reduce((s,b)=>s+bookingPrice(b),0) + inscritos.reduce((s,i)=>s+(i.preco||0),0);
+  set('vuStatReservas', getBookings().filter(b=>b.userId===id).length);
+  set('vuStatEventos', inscritos.length);
+  set('vuStatGasto', fmtMoney(gasto));
+  set('vuStatCredito', fmtMoney(u.creditos||0));
+
+  document.querySelectorAll('#vuStatusGrp button').forEach(b => b.classList.toggle('is-on', b.dataset.st === status));
 
   const reservas = getBookings().filter(b => b.userId === id).sort((a,b) => b.date.localeCompare(a.date));
   set('vuResCount', reservas.length);
@@ -539,13 +1110,57 @@ function salvarEdicaoUsuario() {
   renderUsuarios();
 }
 
-// Troca de status feita diretamente no modal "Ver Perfil"
-let _vuCurrentUserId = null;
-function aplicarStatusUsuario() {
-  const novoStatus = document.getElementById('vuStatusSelect')?.value;
-  if (!_vuCurrentUserId || !novoStatus) return;
-  setUsuarioStatus(_vuCurrentUserId, novoStatus);
-  verPerfilUsuario(_vuCurrentUserId); // re-renderiza o modal com o status atualizado
+// Segmented control de status + edição completa, direto no modal "Ver Perfil"
+function onStatusPick(e) {
+  const grp = e.currentTarget.parentElement;
+  grp.querySelectorAll('button').forEach(b => b.classList.toggle('is-on', b === e.currentTarget));
+}
+
+function salvarPerfilUsuario() {
+  const id     = document.getElementById('vuUserId')?.value;
+  const nome   = document.getElementById('vuNomeInput')?.value.trim();
+  const tel    = document.getElementById('vuTel')?.value.trim();
+  const genero = document.getElementById('vuGeneroInput')?.value;
+  const statusBtn = document.querySelector('#vuStatusGrp button.is-on');
+  const status = statusBtn?.dataset.st || 'ativo';
+  if (!nome) { adminToast('Nome obrigatório.', 'error'); return; }
+
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return;
+  users[idx].nome   = nome;
+  users[idx].tel    = tel;
+  users[idx].genero = genero;
+  users[idx].status = status;
+  users[idx].ativo  = status !== 'bloqueado';
+  saveUsers(users);
+
+  adminToast('Perfil atualizado com sucesso.');
+  closeModal('modalViewUser');
+  renderUsuarios();
+  renderDashboard();
+}
+
+function definirNovaSenha() {
+  const id = document.getElementById('vuUserId')?.value;
+  const nova = document.getElementById('vuNovaSenha')?.value;
+  const conf = document.getElementById('vuConfirmaSenha')?.value;
+  if (!nova || nova.length < 6) { adminToast('A senha precisa ter ao menos 6 caracteres.', 'error'); return; }
+  if (nova !== conf) { adminToast('As senhas não coincidem.', 'error'); return; }
+
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return;
+  users[idx].senha = btoa(nova);
+  saveUsers(users);
+
+  set('vuNovaSenha', '', 'v');
+  set('vuConfirmaSenha', '', 'v');
+  adminToast(`Senha redefinida para ${users[idx].nome}.`);
+}
+
+function enviarLinkSenha() {
+  adminToast('Em um app real, um link de redefinição seria enviado por e-mail.', 'warn');
 }
 
 // ══════════════════════════════════════════
@@ -565,39 +1180,40 @@ function renderEventos() {
     eventos = eventos.filter(e => e.nome.toLowerCase().includes(q));
   }
 
-  // Tabela de eventos
-  const evEl = document.getElementById('eventosTableBody');
+  // Cards de eventos
+  const evEl = document.getElementById('eventosCardGrid');
   if (evEl) {
-    evEl.innerHTML = eventos.map(ev => {
+    evEl.innerHTML = eventos.length === 0
+      ? adminEmptyHTML('Nenhum evento encontrado')
+      : eventos.map(ev => {
       const nInsc = insc.filter(i => i.eventNome === ev.nome).length;
-      const pct   = Math.round(nInsc/ev.vagas*100);
+      const pct   = Math.min(100, Math.round(nInsc/ev.vagas*100));
+      const statusBadge = ev.status==='aberto'
+        ? '<span class="badge badge-green">Inscrições Abertas</span>'
+        : ev.status==='encerrado'
+          ? '<span class="badge badge-gray">Encerrado</span>'
+          : '<span class="badge badge-amber">Em Breve</span>';
       return `
-      <tr>
-        <td>
-          <div class="admin-table-name">${ev.nome}</div>
-          <div class="admin-table-sub">${fmtDate(ev.data)} · ${ev.hora}</div>
-        </td>
-        <td><span style="font-family:var(--font-cond);font-size:.8rem;color:var(--gray)">${ev.local}</span></td>
-        <td>
-          <div style="display:flex;align-items:center;gap:.5rem">
-            <div style="flex:1;height:4px;background:var(--border);max-width:80px">
-              <div style="width:${pct}%;height:100%;background:var(--gold)"></div>
-            </div>
-            <span style="font-family:var(--font-cond);font-size:.78rem;color:var(--gray-light)">${nInsc}/${ev.vagas}</span>
+      <div class="admin-event-card">
+        <div class="admin-event-banner">
+          ${statusBadge}
+          <span class="admin-event-cat">${CATEGORIA_LABELS[ev.categoria] || 'Geral'}</span>
+        </div>
+        <div class="admin-event-body">
+          <div class="admin-event-name">${ev.nome}</div>
+          <div class="admin-event-meta">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            ${fmtDate(ev.data)} · ${ev.local}
           </div>
-        </td>
-        <td>${fmtMoney(ev.preco)}</td>
-        <td>${ev.status==='aberto'
-          ? '<span class="badge badge-green">Aberto</span>'
-          : ev.status==='encerrado'
-            ? '<span class="badge badge-gray">Encerrado</span>'
-            : '<span class="badge badge-amber">Em Breve</span>'}</td>
-        <td><div class="admin-row-actions">
-          <button class="admin-action-btn" title="Ver inscrições" onclick="verInscricoes('${ev.id}','${ev.nome}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
-          <button class="admin-action-btn" title="Editar evento" onclick="editarEvento('${ev.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-          <button class="admin-action-btn danger" title="Excluir evento" onclick="excluirEvento('${ev.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
-        </div></td>
-      </tr>`;
+          <div class="admin-event-progress-row"><span>${nInsc}/${ev.vagas} vagas</span><b>${fmtMoney(ev.preco)}</b></div>
+          <div class="admin-event-progress"><span style="width:${pct}%"></span></div>
+          <div class="admin-event-actions">
+            <button class="btn-admin-secondary" onclick="verInscricoes('${ev.id}','${ev.nome}')">Inscrições</button>
+            <button class="btn-admin-secondary" onclick="editarEvento('${ev.id}')">Editar</button>
+            <button class="admin-action-btn danger" title="Excluir evento" onclick="excluirEvento('${ev.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+          </div>
+        </div>
+      </div>`;
     }).join('');
   }
 
@@ -683,19 +1299,11 @@ function removerInscricao(id) {
 function renderFinanceiro() {
   const bookings = getBookings();
   const insc     = getInscricoes();
-  const now      = new Date().toISOString().slice(0,10);
-  const thisMonth = now.slice(0,7);
-  const lastMonth = (() => {
-    const d = new Date(); d.setMonth(d.getMonth()-1);
-    return d.toISOString().slice(0,7);
-  })();
 
   const rec  = b => b.status !== 'cancelada';
   const total      = bookings.filter(rec).reduce((s,b)=>s+bookingPrice(b),0);
   const totalInsc  = insc.reduce((s,i)=>s+(i.preco||0),0);
-  const mesAtual   = bookings.filter(b=>rec(b)&&(b.criadaEm||'').startsWith(thisMonth)).reduce((s,b)=>s+bookingPrice(b),0);
-  const mesPassado = bookings.filter(b=>rec(b)&&(b.criadaEm||'').startsWith(lastMonth)).reduce((s,b)=>s+bookingPrice(b),0);
-  const delta      = mesPassado > 0 ? Math.round((mesAtual-mesPassado)/mesPassado*100) : 0;
+  const { mesAtual, delta } = calcReceitaMensal(bookings);
 
   set('finTotalGeral',  fmtMoney(total + totalInsc));
   set('finReservas',    fmtMoney(total));
@@ -718,8 +1326,11 @@ function renderFinanceiro() {
 
   // Transações recentes
   const usersMap = Object.fromEntries(getUsers().map(u=>[u.id,u]));
-  const reservasRec = bookings.map(b=>({...b, _type:'reserva', _user: usersMap[b.userId]?.nome||'Usuário', _date: b.criadaEm, _label: bookingLabel(b), _price: bookingPrice(b)}));
-  const inscRec     = insc.map(i=>({...i, _type:'evento', _user: usersMap[i.userId]?.nome||'Usuário', _date: i.criadaEm, _label: i.eventNome, _price: i.preco, status:'inscrito'}));
+  const catNorm = c => ({ beachtennis:'beach-tennis' }[c] || c);
+  const reservasRec = bookings.map(b=>({...b, _type:'reserva', _user: usersMap[b.userId]?.nome||'Usuário', _date: b.criadaEm, _label: bookingLabel(b), _price: bookingPrice(b),
+    _cat: `reserva ${b.dayUse ? 'dayuse' : catNorm(b.modalidade)}` }));
+  const inscRec     = insc.map(i=>({...i, _type:'evento', _user: usersMap[i.userId]?.nome||'Usuário', _date: i.criadaEm, _label: i.eventNome, _price: i.preco, status:'inscrito',
+    _cat: `evento ${catNorm(i.categoria)}` }));
   const all = [...reservasRec, ...inscRec]
     .sort((a,b)=>(b._date||'').localeCompare(a._date||''))
     .slice(0,12);
@@ -731,7 +1342,7 @@ function renderFinanceiro() {
       : all.map(t => {
           const isCanceled = t.status === 'cancelada';
           return `
-          <div class="finance-row">
+          <div class="finance-row" data-cat="${t._cat}">
             <div class="finance-icon">
               ${t._type==='evento'
                 ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`
@@ -751,17 +1362,102 @@ function renderFinanceiro() {
   }
 }
 
+function onFinFilter(fil) {
+  document.querySelectorAll('#finChipsRow .admin-chip').forEach(el => el.classList.toggle('is-on', el.dataset.fil === fil));
+  document.querySelectorAll('#finTransacoes .finance-row').forEach(row => {
+    const cats = (row.dataset.cat || '').split(' ');
+    row.style.display = (fil === 'tudo' || cats.includes(fil)) ? '' : 'none';
+  });
+}
+
+// ══════════════════════════════════════════
+// CONFIGURAÇÕES
+// ══════════════════════════════════════════
+const CONFIG_DEFAULT = {
+  nome: 'Podium Arena',
+  cnpj: '',
+  telefone: '(43) 9 9999-9999',
+  endereco: 'Rua Manaus, 321 — Telêmaco Borba/PR',
+  email: 'contato@podium.com',
+  abertura: '08:00',
+  fechamento: '23:00',
+  dias: [0,1,2,3,4,5], // Seg..Sáb ligados, Dom desligado
+  antecedencia: 14,
+  cancelamento: 6,
+  duracaoSlot: '60 min',
+  valorPadrao: 'R$ 90,00',
+  notifEmail: true,
+  notifWhatsapp: true,
+  notifCancelamento: false,
+  notifResumo: true,
+};
+function getConfig() {
+  const stored = localStorage.getItem('podium_config');
+  return stored ? { ...CONFIG_DEFAULT, ...JSON.parse(stored) } : { ...CONFIG_DEFAULT };
+}
+function saveConfig(cfg) { localStorage.setItem('podium_config', JSON.stringify(cfg)); }
+
+function toggleChip(el) { el.classList.toggle('is-on'); }
+function toggleSwitch(el) { el.classList.toggle('is-on'); }
+
+function renderConfiguracoes() {
+  const cfg = getConfig();
+  set('cfgNome', cfg.nome, 'v');
+  set('cfgCnpj', cfg.cnpj, 'v');
+  set('cfgTelefone', cfg.telefone, 'v');
+  set('cfgEndereco', cfg.endereco, 'v');
+  set('cfgEmail', cfg.email, 'v');
+  set('cfgAbertura', cfg.abertura, 'v');
+  set('cfgFechamento', cfg.fechamento, 'v');
+  set('cfgAntecedencia', cfg.antecedencia, 'v');
+  set('cfgCancelamento', cfg.cancelamento, 'v');
+  set('cfgDuracaoSlot', cfg.duracaoSlot, 'v');
+  set('cfgValorPadrao', cfg.valorPadrao, 'v');
+
+  document.querySelectorAll('#cfgDiasGrp .admin-daychip').forEach(el => {
+    el.classList.toggle('is-on', cfg.dias.includes(parseInt(el.dataset.day, 10)));
+  });
+  document.querySelectorAll('.admin-switch[data-cfg]').forEach(el => {
+    el.classList.toggle('is-on', !!cfg[el.dataset.cfg]);
+  });
+}
+
+function salvarConfiguracoes() {
+  const dias = [...document.querySelectorAll('#cfgDiasGrp .admin-daychip.is-on')].map(el => parseInt(el.dataset.day, 10));
+  const cfg = {
+    nome: document.getElementById('cfgNome')?.value.trim(),
+    cnpj: document.getElementById('cfgCnpj')?.value.trim(),
+    telefone: document.getElementById('cfgTelefone')?.value.trim(),
+    endereco: document.getElementById('cfgEndereco')?.value.trim(),
+    email: document.getElementById('cfgEmail')?.value.trim(),
+    abertura: document.getElementById('cfgAbertura')?.value.trim(),
+    fechamento: document.getElementById('cfgFechamento')?.value.trim(),
+    dias,
+    antecedencia: parseInt(document.getElementById('cfgAntecedencia')?.value) || 0,
+    cancelamento: parseInt(document.getElementById('cfgCancelamento')?.value) || 0,
+    duracaoSlot: document.getElementById('cfgDuracaoSlot')?.value.trim(),
+    valorPadrao: document.getElementById('cfgValorPadrao')?.value.trim(),
+    notifEmail: document.querySelector('.admin-switch[data-cfg="notifEmail"]')?.classList.contains('is-on') || false,
+    notifWhatsapp: document.querySelector('.admin-switch[data-cfg="notifWhatsapp"]')?.classList.contains('is-on') || false,
+    notifCancelamento: document.querySelector('.admin-switch[data-cfg="notifCancelamento"]')?.classList.contains('is-on') || false,
+    notifResumo: document.querySelector('.admin-switch[data-cfg="notifResumo"]')?.classList.contains('is-on') || false,
+  };
+  saveConfig(cfg);
+  adminToast('Configurações salvas com sucesso!');
+}
+
 // ══════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════
 function badgeHTML(status) {
   const map = {
     confirmada: 'badge-gold',
+    pendente:   'badge-amber',
     concluida:  'badge-green',
     cancelada:  'badge-red',
     inscrito:   'badge-gold',
   };
-  const label = { confirmada:'Confirmada', concluida:'Concluída', cancelada:'Cancelada', inscrito:'Inscrito' };
+  const label = { confirmada:'Confirmada', pendente:'Pendente', concluida:'Concluída', cancelada:'Cancelada', inscrito:'Inscrito' };
   return `<span class="badge ${map[status]||'badge-gray'}">${label[status]||status}</span>`;
 }
 
@@ -807,7 +1503,7 @@ function confirmAction() {
 }
 
 // ── Backup (exportar / importar) ─────────
-const BACKUP_KEYS = ['podium_users', 'podium_bookings', 'podium_inscricoes', 'podium_eventos', 'podium_ranking'];
+const BACKUP_KEYS = ['podium_users', 'podium_bookings', 'podium_inscricoes', 'podium_eventos', 'podium_ranking', 'podium_blocked_slots', 'podium_credit_log'];
 
 function exportarBackupAdmin() {
   const data = { _exportadoEm: new Date().toISOString() };
@@ -861,21 +1557,65 @@ function toggleAdminMenu() {
 }
 
 // ══════════════════════════════════════════
-// INICIALIZAÇÃO
+// GATE — ACESSO ADMINISTRATIVO
+// (separado do login público: ver pages/admin.html#adminGate.
+//  Mesma base de usuários, mas a sessão só dá acesso ao painel
+//  se for validada aqui, mesmo que já exista login no site público.)
 // ══════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-  // Guard: precisa estar logado e ter isAdmin
+function isValidAdminSession() {
   const session = typeof Auth !== 'undefined' ? Auth.getUser() : null;
-  if (!session) { window.location.href = '../index.html'; return; }
+  if (!session) return null;
+  const me = getUsers().find(u => u.id === session.id);
+  if (!me?.admin || userStatus(me) === 'bloqueado') return null;
+  return { session, me };
+}
 
-  const users  = getUsers();
-  const me     = users.find(u => u.id === session.id);
-    if (!me?.admin) {
-    alert('Acesso restrito. Você não tem permissão de administrador.');
-    window.location.href = '../index.html';
-    return;
-  }
+function showAdminGate() {
+  document.body.classList.add('gate-active');
+}
+function hideAdminGate() {
+  document.body.classList.remove('gate-active');
+  document.getElementById('gateError').style.display = 'none';
+  document.getElementById('gateForm')?.reset();
+}
+function showGateError(msg) {
+  const el = document.getElementById('gateError');
+  if (!el) return;
+  el.querySelector('span').textContent = msg;
+  el.style.display = 'flex';
+}
 
+function handleAdminGateLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('gateEmail')?.value.trim();
+  const senha = document.getElementById('gateSenha')?.value;
+  document.getElementById('gateError').style.display = 'none';
+
+  const users = getUsers();
+  const user = users.find(u => u.email === email && u.senha === btoa(senha || ''));
+  if (!user) { showGateError('E-mail ou senha incorretos.'); return; }
+  if (!user.admin) { showGateError('Esta conta não tem permissão de administrador.'); return; }
+  if (userStatus(user) === 'bloqueado') { showGateError('Esta conta está bloqueada.'); return; }
+
+  user.ultimoAcessoEm = new Date().toISOString();
+  saveUsers(users);
+  Auth.saveUser({ email: user.email, nome: user.nome, id: user.id, admin: true });
+
+  hideAdminGate();
+  initAdminApp({ email: user.email, nome: user.nome, id: user.id, admin: true });
+}
+
+function bootAdmin() {
+  const valid = isValidAdminSession();
+  if (!valid) { showAdminGate(); return; }
+  document.body.classList.remove('gate-active');
+  initAdminApp(valid.session);
+}
+
+// ══════════════════════════════════════════
+// INICIALIZAÇÃO DO PAINEL (pós-login)
+// ══════════════════════════════════════════
+function initAdminApp(session) {
   // Topbar
   const ini = initials(session.nome||'A');
   set('adminTopbarAvatar', ini);
@@ -906,6 +1646,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderEventos();
   renderFinanceiro();
   renderRankingAdmin();
+  renderConfiguracoes();
 
   // Aba inicial
   const params = new URLSearchParams(window.location.search);
@@ -946,6 +1687,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('eventosFilter')?.addEventListener('change', e => {
     state.eventos.filter = e.target.value; state.eventos.page = 1; renderEventos();
   });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('gateForm')?.addEventListener('submit', handleAdminGateLogin);
+  // O tooltip usa position:fixed, mas .admin-section.active deixa um
+  // transform residual (fill-mode:forwards da animação de entrada) que cria
+  // um novo containing block — isso fazia o tooltip "fugir" do cursor.
+  // Reparentar pro <body> evita esse problema independente de qualquer
+  // transform/filter em ancestrais.
+  const tip = document.getElementById('gradeTooltip');
+  if (tip) document.body.appendChild(tip);
+  bootAdmin();
 });
 
 
@@ -999,9 +1752,12 @@ window.confirmarReserva  = confirmarReserva;
 window.cancelarReservaAdmin = cancelarReservaAdmin;
 window.setUsuarioStatus  = setUsuarioStatus;
 window.editarUsuario     = editarUsuario;
-window.aplicarStatusUsuario = aplicarStatusUsuario;
 window.verPerfilUsuario  = verPerfilUsuario;
 window.salvarEdicaoUsuario = salvarEdicaoUsuario;
+window.onStatusPick      = onStatusPick;
+window.salvarPerfilUsuario = salvarPerfilUsuario;
+window.definirNovaSenha  = definirNovaSenha;
+window.enviarLinkSenha   = enviarLinkSenha;
 window.removerInscricao  = removerInscricao;
 window.verInscricoes     = verInscricoes;
 window.openModal         = openModal;
@@ -1019,6 +1775,28 @@ window.salvarRanking     = salvarRanking;
 window.addRankEntry      = addRankEntry;
 window.exportarBackupAdmin = exportarBackupAdmin;
 window.importarBackupAdmin = importarBackupAdmin;
+window.toggleAdminTheme  = toggleAdminTheme;
+window.setGradeView      = setGradeView;
+window.gradePrev         = gradePrev;
+window.gradeNext         = gradeNext;
+window.gradeHoje         = gradeHoje;
+window.gradeGoToDate     = gradeGoToDate;
+window.blockSlotAdmin    = blockSlotAdmin;
+window.unblockSlotAdmin  = unblockSlotAdmin;
+window.toggleBloqueioLinha = toggleBloqueioLinha;
+window.abrirModalCredito    = abrirModalCredito;
+window.atualizarSaldoCredito = atualizarSaldoCredito;
+window.salvarCredito     = salvarCredito;
+window.onDayFilter       = onDayFilter;
+window.abrirNovaReserva  = abrirNovaReserva;
+window.salvarNovaReserva = salvarNovaReserva;
+window.verDetalhesReserva = verDetalhesReserva;
+window.abrirEditarReserva = abrirEditarReserva;
+window.salvarEdicaoReserva = salvarEdicaoReserva;
+window.onFinFilter       = onFinFilter;
+window.toggleChip        = toggleChip;
+window.toggleSwitch      = toggleSwitch;
+window.salvarConfiguracoes = salvarConfiguracoes;
 
 // ══════════════════════════════════════════
 // NOVO EVENTO / EDITAR EVENTO
@@ -1103,34 +1881,47 @@ function excluirEvento(id) {
 // (getRanking/saveRanking vêm de js/ranking-store.js — fonte única
 //  compartilhada com o site público, ver pages/ranking.html)
 // ══════════════════════════════════════════
+const RANKING_MOD_LABELS = { beachtennis: 'Beach Tennis', futevolei: 'Futevôlei' };
+const RANKING_CAT_LABELS = { masculino: 'Masculino', feminino: 'Feminino' };
+const RANKING_COMBOS = [
+  ['beachtennis','masculino'], ['beachtennis','feminino'],
+  ['futevolei','masculino'],   ['futevolei','feminino'],
+];
+
 function renderRankingAdmin() {
   const data = getRanking();
   const posClass = i => i===0?'p1':i===1?'p2':i===2?'p3':'';
-  const renderList = (entries, elId) => {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    if (!entries || entries.length === 0) {
-      el.innerHTML = '<div style="padding:1rem 1.2rem;color:var(--gray);font-size:.85rem">Sem dados — clique em Editar para adicionar.</div>';
-      return;
-    }
-    el.innerHTML = entries.map((p,i) => `
-      <div class="rank-admin-row">
-        <div class="rank-admin-pos ${posClass(i)}">${p.pos}</div>
-        <div>
-          <div class="rank-admin-name">${p.nome}</div>
-          <div class="rank-admin-club">${p.clube}</div>
-        </div>
-        <div class="rank-admin-stats">
-          <div class="rank-admin-pts">${p.pts}</div>
-          <div class="rank-admin-vd">${p.v}V ${p.d}D</div>
-        </div>
-      </div>`).join('');
-  };
+  const grid = document.getElementById('rankingCardGrid');
+  if (!grid) return;
 
-  renderList(data.beachtennis?.masculino, 'rankBTMasc');
-  renderList(data.beachtennis?.feminino,  'rankBTFem');
-  renderList(data.futevolei?.masculino,   'rankFVMasc');
-  renderList(data.futevolei?.feminino,    'rankFVFem');
+  grid.innerHTML = RANKING_COMBOS.map(([mod, cat]) => {
+    const entries = data[mod]?.[cat] || [];
+    const list = entries.length === 0
+      ? '<div style="padding:1rem 1.2rem;color:var(--gray);font-size:.85rem">Sem dados — clique em Editar para adicionar.</div>'
+      : entries.map((p,i) => `
+        <div class="rank-admin-row">
+          <div class="rank-admin-pos ${posClass(i)}">${p.pos}</div>
+          <div>
+            <div class="rank-admin-name">${p.nome}</div>
+            <div class="rank-admin-club">${p.clube}</div>
+          </div>
+          <div class="rank-admin-stats">
+            <div class="rank-admin-pts">${p.pts}</div>
+            <div class="rank-admin-vd">${p.v}V ${p.d}D</div>
+          </div>
+        </div>`).join('');
+    return `
+      <div class="admin-card">
+        <div class="rank-admin-card-header">
+          <h3>${RANKING_MOD_LABELS[mod]} — ${RANKING_CAT_LABELS[cat]}</h3>
+          <button class="btn-rank-edit" onclick="abrirModalRanking('${mod}','${cat}')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+            Editar
+          </button>
+        </div>
+        ${list}
+      </div>`;
+  }).join('');
 }
 
 function abrirModalRanking(mod = 'beachtennis', cat = 'masculino') {

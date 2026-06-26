@@ -159,22 +159,11 @@ function updateNavUser(user) {
           </div>
         </div>
         <div class="divider"></div>
-        ${
-          user.admin
-            ? `
-          <a href="${base}admin.html">${icoHome} Meu Painel</a>
-          <a href="${base}admin.html?aba=reservas">${icoCal} Reservas</a>
-          <a href="${base}ranking.html">${icoRanking} Ranking</a>
-          <a href="${base}admin.html?aba=usuarios">${icoUser} Gerenciamento</a>
-        `
-            : `
-          <a href="${base}painel.html">${icoHome} Meu Painel</a>
-          <a href="${base}painel.html?aba=reservas">${icoCal} Minhas Reservas</a>
-          <a href="${base}ranking.html">${icoRanking} Ranking</a>
-          <div class="divider"></div>
-          <a href="${base}painel.html?aba=perfil">${icoUser} Meu Perfil</a>
-        `
-        }
+        <a href="${base}painel.html">${icoHome} Meu Painel</a>
+        <a href="${base}painel.html?aba=reservas">${icoCal} Minhas Reservas</a>
+        <a href="${base}ranking.html">${icoRanking} Ranking</a>
+        <div class="divider"></div>
+        <a href="${base}painel.html?aba=perfil">${icoUser} Meu Perfil</a>
         <div class="divider"></div>
         <a href="#" onclick="event.preventDefault();abrirModalLogoutNav()" style="color:var(--red)">${icoLogout} Sair</a>
       </div>
@@ -321,13 +310,6 @@ function handleLogin(e) {
   closeAuthModal();
   updateNavUser(Auth.getUser());
   showToast(`Bem-vindo de volta, ${user.nome.split(" ")[0]}!`);
-
-  if (user.admin) {
-    setTimeout(() => {
-      const inPages = window.location.pathname.includes("/pages/");
-      window.location.href = inPages ? "admin.html" : "pages/admin.html";
-    }, 800);
-  }
 }
 
 // ─── Cadastro ─────────────────────────────

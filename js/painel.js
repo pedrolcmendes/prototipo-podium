@@ -509,12 +509,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  // Redireciona admin para o painel administrativo
-  if (session.admin) {
-    window.location.href = "../pages/admin.html";
-    return;
-  }
-
   const userFull = getUserFull() || session;
 
   document.getElementById("sidebarAvatar").textContent = getInitials(
