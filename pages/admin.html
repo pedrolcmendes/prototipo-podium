@@ -658,9 +658,6 @@
     </div>
   </a>
 
-  <div class="admin-topbar-divider"></div>
-  <div class="admin-topbar-badge"><span>Painel Admin</span></div>
-
   <div class="admin-topbar-right">
     <div class="admin-topbar-user">
       <div class="admin-topbar-avatar" id="adminTopbarAvatar">A</div>
@@ -763,6 +760,10 @@
           <p class="admin-eyebrow">Visão geral</p>
           <h2 class="admin-section-h2">DASHBOARD</h2>
         </div>
+        <div class="admin-greeting">
+          <div class="admin-greeting-name" id="dashGreetingName">Bom dia, Admin</div>
+          <div class="admin-greeting-sub">Bem-vindo de volta ao Painel Admin</div>
+        </div>
       </div>
 
       <div class="admin-stats">
@@ -861,13 +862,13 @@
               Relatório Financeiro
             </button>
             <div style="display:flex;gap:.7rem">
-              <button class="btn-admin-secondary" style="justify-content:center;flex:1" onclick="exportarBackupAdmin()" title="Baixa um arquivo .json com todos os dados (usuários, reservas, eventos, ranking)">
+              <button class="btn-admin-secondary sm" style="justify-content:center;flex:1" onclick="exportarBackupAdmin()" title="Baixa um arquivo .json com todos os dados (usuários, reservas, eventos, ranking)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                Exportar Backup
+                Exportar
               </button>
-              <button class="btn-admin-secondary" style="justify-content:center;flex:1" onclick="document.getElementById('importBackupInput').click()" title="Restaura os dados a partir de um backup .json exportado anteriormente">
+              <button class="btn-admin-secondary sm" style="justify-content:center;flex:1" onclick="document.getElementById('importBackupInput').click()" title="Restaura os dados a partir de um backup .json exportado anteriormente">
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                Importar Backup
+                Importar
               </button>
               <input type="file" id="importBackupInput" accept="application/json" style="display:none" onchange="importarBackupAdmin(this.files[0]); this.value=''">
             </div>
@@ -943,6 +944,7 @@
                 <th>ID</th>
                 <th>Usuário / Data</th>
                 <th>Quadra</th>
+                <th>Horário</th>
                 <th>Valor</th>
                 <th>Status</th>
                 <th style="text-align:right">Ações</th>

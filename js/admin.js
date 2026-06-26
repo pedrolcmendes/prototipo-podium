@@ -95,6 +95,25 @@ function bookingTimeRange(b) {
 }
 function bookingPrice(b) { return b.total ?? b.price ?? 0; }
 
+// Status "ao vivo": uma vez que o horário da reserva passa, ela é
+// automaticamente tratada como concluída em toda a UI — não existe um botão
+// de "marcar concluída" manual.
+const MODALIDADE_COLOR_VAR = { 'beach-tennis':'mod-bt', futevolei:'mod-fv', volei:'mod-vl', pickleball:'mod-pb' };
+function efetivoStatusReserva(b) {
+  if (b.status === 'cancelada' || b.status === 'concluida') return b.status;
+  const endHour = Array.isArray(b.slots) && b.slots.length ? Math.max(...b.slots) + 1 : 24;
+  const endTs = new Date(`${b.date}T${String(endHour).padStart(2,'0')}:00:00`).getTime();
+  if (!isNaN(endTs) && endTs <= Date.now()) return 'concluida';
+  return b.status;
+}
+function bookingHourRange(b) {
+  if (Array.isArray(b.slots) && b.slots.length) {
+    const s = [...b.slots].sort((a,c)=>a-c);
+    return `${String(s[0]).padStart(2,'0')}h–${String(s[s.length-1]+1).padStart(2,'0')}h`;
+  }
+  return b.time || '—';
+}
+
 // ─── Dados do localStorage ────────────────
 function getUsers()     { return JSON.parse(localStorage.getItem('podium_users')     || '[]'); }
 function getBookings()  { return JSON.parse(localStorage.getItem('podium_bookings')  || '[]'); }
@@ -256,7 +275,7 @@ function renderDashboard() {
           </div>
           <div style="text-align:right">
             <div class="finance-value">${fmtMoney(bookingPrice(b))}</div>
-            <div style="margin-top:.2rem">${badgeHTML(b.status)}</div>
+            <div style="margin-top:.2rem">${badgeHTML(efetivoStatusReserva(b))}</div>
           </div>
         </div>`;
       }).join('');
@@ -688,44 +707,40 @@ function renderReservas() {
 
   tbody.innerHTML = slice.length === 0
     ? `<tr><td colspan="7"><div class="admin-empty"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg><h4>Nenhuma reserva</h4><p>Tente outro filtro.</p></div></td></tr>`
-    : slice.map(b => `
+    : slice.map(b => {
+        const court  = getCourtById(resolveCourtId(b));
+        const modVar = MODALIDADE_COLOR_VAR[b.modalidade];
+        return `
       <tr>
-        <td><span style="font-family:var(--font-cond);font-size:.7rem;letter-spacing:1px;color:var(--gray)">PD-${(b.id||'').slice(-6).toUpperCase()}</span></td>
+        <td><span style="font-family:var(--font-body);font-size:.78rem;color:var(--gray)">#R-${String(b.id||'').slice(-4)}</span></td>
         <td>
           <div class="admin-avatar-cell">
             <div class="admin-avatar-mini">${initials(b._userName)}</div>
             <div>
               <div class="admin-table-name">${b._userName}</div>
-              <div class="admin-table-sub">${fmtDate(b.date)} às ${bookingTimeRange(b)}</div>
+              <div class="admin-table-sub">${fmtDate(b.date)}</div>
             </div>
           </div>
         </td>
-        <td>${bookingLabel(b)}</td>
+        <td>
+          <div class="admin-table-name">${court ? court.label : bookingLabel(b)}</div>
+          <div class="admin-table-sub" style="color:var(--${modVar||'gray'})">${MODALIDADE_LABELS[b.modalidade]||'—'}</div>
+        </td>
+        <td><span style="color:var(--gray-light)">${bookingHourRange(b)}</span></td>
         <td>${fmtMoney(bookingPrice(b))}</td>
-        <td>${badgeHTML(b.status)}</td>
+        <td>${badgeHTML(efetivoStatusReserva(b))}</td>
         <td><div class="admin-row-actions">
-          ${b.status==='confirmada' ? `<button class="admin-action-btn success" title="Marcar concluída" onclick="confirmarReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>` : ''}
-          <button class="admin-action-btn" title="Detalhes" onclick="verDetalhesReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
-          <button class="admin-action-btn" title="Editar" onclick="abrirEditarReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          <button class="btn-admin-secondary sm" onclick="abrirEditarReserva('${b.id}')"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Editar</button>
+          <button class="btn-admin-secondary sm" onclick="verDetalhesReserva('${b.id}')">Detalhes</button>
         </div></td>
-      </tr>`).join('');
+      </tr>`;
+      }).join('');
 
   renderPagination('reservasPag', cur, pages, total, (p) => {
     state.reservas.page = p;
     renderReservas();
   });
   renderReservasDayStrip();
-}
-
-function confirmarReserva(id) {
-  const bookings = getBookings();
-  const idx = bookings.findIndex(b => b.id === id);
-  if (idx === -1) return;
-  bookings[idx].status = 'concluida';
-  saveBookings(bookings);
-  adminToast('Reserva marcada como concluída.');
-  renderReservas();
-  renderDashboard();
 }
 
 function cancelarReservaAdmin(id) {
@@ -824,7 +839,7 @@ function verDetalhesReserva(id) {
   set('drAvatar', initials(u?.nome || b.userName || '?'));
   set('drNome', u?.nome || b.userName || 'Usuário');
   set('drContato', [u?.email, u?.tel].filter(Boolean).join(' · ') || '—');
-  document.getElementById('drStatus').innerHTML = badgeHTML(b.status);
+  document.getElementById('drStatus').innerHTML = badgeHTML(efetivoStatusReserva(b));
   set('drData', fmtDate(b.date));
   set('drHorario', bookingTimeRange(b));
   set('drQuadra', court ? `${court.label} · ${court.tag}` : bookingLabel(b));
@@ -832,7 +847,8 @@ function verDetalhesReserva(id) {
   set('drValor', fmtMoney(bookingPrice(b)));
 
   const cancelBtn = document.getElementById('drCancelBtn');
-  if (cancelBtn) cancelBtn.style.display = (b.status === 'cancelada') ? 'none' : '';
+  const stReal = efetivoStatusReserva(b);
+  if (cancelBtn) cancelBtn.style.display = (stReal === 'cancelada' || stReal === 'concluida') ? 'none' : '';
 
   openModal('modalDetalhesReserva');
 }
@@ -847,7 +863,7 @@ function abrirEditarReserva(id) {
   set('erAvatar', initials(u?.nome || b.userName || '?'));
   set('erNome', u?.nome || b.userName || 'Usuário');
   set('erContato', [u?.email, u?.tel].filter(Boolean).join(' · ') || '—');
-  document.getElementById('erStatus').innerHTML = badgeHTML(b.status);
+  document.getElementById('erStatus').innerHTML = badgeHTML(efetivoStatusReserva(b));
 
   document.getElementById('erQuadra').innerHTML = courtOptionsHTML(resolveCourtId(b));
   set('erModalidade', b.modalidade, 'v');
@@ -1067,7 +1083,7 @@ function verPerfilUsuario(id) {
         </div>
         <div style="text-align:right">
           <div class="finance-value">${fmtMoney(bookingPrice(b))}</div>
-          <div style="margin-top:.2rem">${badgeHTML(b.status)}</div>
+          <div style="margin-top:.2rem">${badgeHTML(efetivoStatusReserva(b))}</div>
         </div>
       </div>`).join('');
 
@@ -1340,7 +1356,8 @@ function renderFinanceiro() {
     el.innerHTML = all.length === 0
       ? adminEmptyHTML('Nenhuma transação')
       : all.map(t => {
-          const isCanceled = t.status === 'cancelada';
+          const stReal = t._type === 'reserva' ? efetivoStatusReserva(t) : t.status;
+          const isCanceled = stReal === 'cancelada';
           return `
           <div class="finance-row" data-cat="${t._cat}">
             <div class="finance-icon">
@@ -1355,7 +1372,7 @@ function renderFinanceiro() {
             </div>
             <div style="text-align:right">
               <div class="finance-value ${isCanceled?'neg':''}">${isCanceled?'-':''}${fmtMoney(t._price)}</div>
-              <div style="margin-top:.2rem">${badgeHTML(t.status)}</div>
+              <div style="margin-top:.2rem">${badgeHTML(stReal)}</div>
             </div>
           </div>`;
         }).join('');
@@ -1621,6 +1638,12 @@ function initAdminApp(session) {
   set('adminTopbarAvatar', ini);
   set('adminTopbarName',   session.nome||'Admin');
 
+  // Saudação do Dashboard ("Bom dia, Nome" conforme a hora atual)
+  const hora = new Date().getHours();
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+  const primeiroNome = (session.nome || 'Admin').split(' ')[0];
+  set('dashGreetingName', `${saudacao}, ${primeiroNome}`);
+
   // Logout
   document.getElementById('btnAdminLogout')?.addEventListener('click', () => {
     abrirModalLogoutAdmin();
@@ -1748,7 +1771,6 @@ function confirmarLogoutAdmin() {
 // Exports globais
 window.adminTab          = adminTab;
 window.toggleAdminMenu   = toggleAdminMenu;
-window.confirmarReserva  = confirmarReserva;
 window.cancelarReservaAdmin = cancelarReservaAdmin;
 window.setUsuarioStatus  = setUsuarioStatus;
 window.editarUsuario     = editarUsuario;

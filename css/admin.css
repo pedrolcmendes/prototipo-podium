@@ -458,6 +458,13 @@ body.gate-active .admin-layout { display: none; }
   gap: .5rem;
 }
 .admin-eyebrow::before { content: ''; display: block; width: 18px; height: 1px; background: var(--red); }
+.admin-greeting { text-align: right; }
+.admin-greeting-name {
+  font-family: var(--font-cond); font-weight: 600; font-size: 1.4rem;
+  letter-spacing: .2px; color: var(--white); line-height: 1.05; white-space: nowrap;
+}
+.admin-greeting-sub { font-size: .78rem; color: var(--gray); font-weight: 500; margin-top: .3rem; white-space: nowrap; }
+@media (max-width: 600px) { .admin-greeting { text-align: left; } }
 .admin-section-h2 {
   font-family: var(--font-cond);
   font-weight: 600;
@@ -661,12 +668,15 @@ body.gate-active .admin-layout { display: none; }
   white-space: nowrap;
 }
 /* Reservas table column widths */
-#admin-reservas .admin-table th:nth-child(1) { width: 110px; }
+#admin-reservas .admin-table th:nth-child(1) { width: 80px; }
 #admin-reservas .admin-table th:nth-child(2) { width: auto; }
-#admin-reservas .admin-table th:nth-child(3) { width: 200px; }
+#admin-reservas .admin-table th:nth-child(3) { width: 150px; }
 #admin-reservas .admin-table th:nth-child(4) { width: 100px; }
-#admin-reservas .admin-table th:nth-child(5) { width: 145px; }
-#admin-reservas .admin-table th:nth-child(6) { width: 90px; }
+#admin-reservas .admin-table th:nth-child(5) { width: 120px; }
+#admin-reservas .admin-table th:nth-child(6) { width: 165px; }
+#admin-reservas .admin-table th:nth-child(7) { width: 215px; }
+#admin-reservas .admin-table td:nth-child(4),
+#admin-reservas .admin-table td:nth-child(5) { white-space: nowrap; }
 /* Usuários table */
 #admin-usuarios .admin-table th:nth-child(1) { width: auto; }
 #admin-usuarios .admin-table th:nth-child(2) { width: 160px; }
@@ -682,6 +692,12 @@ body.gate-active .admin-layout { display: none; }
   vertical-align: middle;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Badges e grupos de botão nunca devem truncar com "…" — só texto solto */
+.admin-table td:has(.badge),
+.admin-table td:has(.admin-row-actions) {
+  overflow: visible;
+  text-overflow: clip;
 }
 .admin-table td:last-child,
 .admin-table th:last-child {
@@ -952,37 +968,42 @@ body.gate-active .admin-layout { display: none; }
 
 /* Botões */
 .btn-admin-primary {
-  display: inline-flex; align-items: center; gap: .4rem;
-  font-family: var(--font-body); font-size: .8rem; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-family: var(--font-body); font-size: .85rem; font-weight: 700;
   background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: var(--on-accent);
-  border: none; padding: .65rem 1.4rem; border-radius: 10px;
+  border: none; padding: .7rem 1.3rem; border-radius: 10px;
   cursor: pointer; transition: all var(--trans-fast);
   text-decoration: none; white-space: nowrap;
 }
-.btn-admin-primary:hover { background: var(--gold-light); }
+.btn-admin-primary:hover { filter: brightness(1.06); }
 .btn-admin-primary svg { width: 13px; height: 13px; }
 
 .btn-admin-secondary {
-  display: inline-flex; align-items: center; gap: .4rem;
-  font-family: var(--font-body); font-size: .8rem; font-weight: 600;
-  letter-spacing: 2px; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-family: var(--font-body); font-size: .85rem; font-weight: 600;
   background: transparent; color: var(--gray-light);
-  border: 1px solid var(--border); border-radius: 10px; padding: .65rem 1.4rem;
+  border: 1px solid var(--border); border-radius: 10px; padding: .7rem 1.3rem;
   cursor: pointer; transition: all var(--trans-fast);
   text-decoration: none; white-space: nowrap;
 }
-.btn-admin-secondary:hover { border-color: var(--gold); color: var(--gold); }
+.btn-admin-secondary:hover {
+  border-color: var(--gold); color: var(--gold); background: var(--gold-faint);
+  transform: translateY(-1px);
+}
+.btn-admin-secondary:active { transform: translateY(0); }
+.btn-admin-secondary.sm {
+  font-size: .72rem; font-weight: 600; color: var(--gray);
+  padding: .55rem 1rem; gap: .4rem;
+}
 
 .btn-admin-danger {
-  display: inline-flex; align-items: center; gap: .4rem;
-  font-family: var(--font-body); font-size: .8rem; font-weight: 700;
-  letter-spacing: 2px; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-family: var(--font-body); font-size: .85rem; font-weight: 700;
   background: var(--red); color: #fff;
-  border: 1px solid var(--red); border-radius: 10px; padding: .65rem 1.4rem;
+  border: 1px solid var(--red); border-radius: 10px; padding: .7rem 1.3rem;
   cursor: pointer; transition: all var(--trans-fast);
 }
-.btn-admin-danger:hover { background: #dc2626; }
+.btn-admin-danger:hover { filter: brightness(1.08); }
 
 /* ══════════════════════════════════════
    TOAST
