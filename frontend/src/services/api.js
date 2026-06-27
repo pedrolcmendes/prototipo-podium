@@ -11,7 +11,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // Só redireciona se havia um token ativo (sessão expirada), não em tentativas de login
+    if (err.response?.status === 401 && localStorage.getItem('podium_token')) {
       localStorage.removeItem('podium_token');
       localStorage.removeItem('podium_user');
       window.location.href = '/';
