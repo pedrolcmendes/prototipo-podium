@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,6 +6,13 @@ import { useToast } from '../components/Toast';
 import api from '../services/api';
 
 // ── helpers ──────────────────────────────────────────────────
+const formatTel = (v) => {
+  const n = v.replace(/\D/g, '').slice(0, 11);
+  if (n.length <= 2) return n.length ? `(${n}` : '';
+  if (n.length <= 6) return `(${n.slice(0, 2)}) ${n.slice(2)}`;
+  if (n.length <= 10) return `(${n.slice(0, 2)}) ${n.slice(2, 6)}-${n.slice(6)}`;
+  return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`;
+};
 const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const fmtMoney = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const getInitials = (nome) => nome ? nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : '?';
@@ -120,7 +127,7 @@ function AdminGate({ onSuccess }) {
 function AdminModal({ open, onClose, title, eyebrow, maxWidth, footer, children, bodyStyle }) {
   if (!open) return null;
   return (
-    <div className="admin-modal-overlay open" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="admin-modal-overlay open">
       <div className="admin-modal" style={maxWidth ? { maxWidth } : {}}>
         <div className="admin-modal-header">
           <div>{eyebrow && <p className="admin-eyebrow" style={{ marginBottom: '.2rem' }}>{eyebrow}</p>}<h3>{title}</h3></div>
@@ -436,14 +443,18 @@ function GradeOcupacao({ reservas, toast }) {
 }
 
 // ── UserSearchInput ───────────────────────────────────────────
-function UserSearchInput({ nome, userId, placeholder, usuarios, onChange }) {
+function UserSearchInput({ nome, userId, placeholder, usuarios, onChange, generoFilter }) {
   const [query, setQuery] = useState(nome || '');
   const [open, setOpen] = useState(false);
 
   useEffect(() => { setQuery(nome || ''); }, [nome]);
 
+  const byGenero = generoFilter
+    ? usuarios.filter(u => !u.genero || u.genero === '' || u.genero === generoFilter)
+    : usuarios;
+
   const filtered = query.length >= 1
-    ? usuarios.filter(u => u.nome?.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+    ? byGenero.filter(u => u.nome?.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
     : [];
 
   const handleSelect = (u) => {
@@ -551,9 +562,18 @@ export default function Admin() {
   // Modals
   const [viewUser, setViewUser] = useState(null);
   const [editUser, setEditUser] = useState(null);
-  const [editUserForm, setEditUserForm] = useState({ nome: '', tel: '', genero: '' });
+  const [editUserForm, setEditUserForm] = useState({ tel: '', genero: '', nasc: '', status: 'ativo', novaSenha: '', confirmarSenha: '' });
+  const [resetEmailLoading, setResetEmailLoading] = useState(false);
+  const [importUsersModal, setImportUsersModal] = useState(false);
+  const [importUsersData, setImportUsersData] = useState(null);
+  const [importMapping, setImportMapping] = useState({});
+  const [importSenha, setImportSenha] = useState('Podium@123');
+  const [importLoading, setImportLoading] = useState(false);
+  const importUsersRef = useRef(null);
   const [eventoModal, setEventoModal] = useState(null);
   const [eventoForm, setEventoForm] = useState({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 0, categoria: 'beachtennis', status: 'aberto', nivel: 'Todos os níveis', desc: '' });
+  const [eventoImagemFile, setEventoImagemFile] = useState(null);
+  const [eventoImagemPreview, setEventoImagemPreview] = useState('');
   const [detalhesRes, setDetalhesRes] = useState(null);
   const [editRes, setEditRes] = useState(null);
   const [editResForm, setEditResForm] = useState({});
@@ -641,12 +661,23 @@ export default function Admin() {
 
   // ── Filtered Usuários ──
   const filteredUsr = usuarios.filter(u => {
-    const q = usrSearch.toLowerCase();
-    const matchSearch = !q || (u.nome || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.cpf || '').includes(q);
+    const q = usrSearch.toLowerCase().trim();
+    const idQ = q.startsWith('#u-') ? q.slice(3) : q.startsWith('#u') ? q.slice(2) : q;
+    const matchSearch = !q
+      || (u.nome || '').toLowerCase().includes(q)
+      || (u.email || '').toLowerCase().includes(q)
+      || (u.cpf || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+      || (u._id || '').toLowerCase().includes(idQ);
     const matchStatus = usrStatus === 'todos' || u.status === usrStatus || (usrStatus === 'ativos' && u.status === 'ativo') || (usrStatus === 'pendentes' && u.status === 'pendente') || (usrStatus === 'bloqueados' && u.status === 'bloqueado') || (usrStatus === 'inativos' && u.status === 'inativo');
     return matchSearch && matchStatus;
   });
   const pagedUsr = filteredUsr.slice((usrPage - 1) * PER_PAGE, usrPage * PER_PAGE);
+
+  // Mapa _id → número de ordem de criação (000, 001, 002…)
+  const usrIndexMap = useMemo(() => {
+    const sorted = [...usuarios].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    return new Map(sorted.map((u, i) => [u._id, i]));
+  }, [usuarios]);
 
   // ── Filtered Eventos ──
   const filteredEvt = eventos.filter(e => {
@@ -672,9 +703,14 @@ export default function Admin() {
   };
 
   const salvarEditUser = async () => {
+    if (editUserForm.novaSenha && editUserForm.novaSenha !== editUserForm.confirmarSenha) {
+      toast('As senhas não coincidem', 'error'); return;
+    }
     try {
-      await api.put(`/users/${editUser._id}`, { nome: editUserForm.nome, tel: editUserForm.tel, genero: editUserForm.genero });
-      setUsuarios(prev => prev.map(u => u._id === editUser._id ? { ...u, ...editUserForm } : u));
+      const body = { tel: editUserForm.tel, genero: editUserForm.genero, nasc: editUserForm.nasc, status: editUserForm.status };
+      if (editUserForm.novaSenha) body.senha = editUserForm.novaSenha;
+      await api.put(`/users/${editUser._id}`, body);
+      setUsuarios(prev => prev.map(u => u._id === editUser._id ? { ...u, ...body } : u));
       toast('Usuário atualizado', 'success');
       setEditUser(null);
     } catch { toast('Erro ao salvar', 'error'); }
@@ -690,16 +726,22 @@ export default function Admin() {
 
   const salvarEvento = async () => {
     try {
+      const fd = new FormData();
+      Object.entries(eventoForm).forEach(([k, v]) => fd.append(k, v));
+      if (eventoImagemFile) fd.append('imagem', eventoImagemFile);
+      const cfg = { headers: { 'Content-Type': 'multipart/form-data' } };
       if (eventoModal?._id) {
-        const { data } = await api.put(`/events/${eventoModal._id}`, eventoForm);
+        const { data } = await api.put(`/events/${eventoModal._id}`, fd, cfg);
         setEventos(prev => prev.map(e => e._id === data._id ? data : e));
         toast('Evento atualizado', 'success');
       } else {
-        const { data } = await api.post('/events', eventoForm);
+        const { data } = await api.post('/events', fd, cfg);
         setEventos(prev => [data, ...prev]);
         toast('Evento criado', 'success');
       }
       setEventoModal(null);
+      setEventoImagemFile(null);
+      setEventoImagemPreview('');
     } catch (ex) { toast(ex.response?.data?.message || 'Erro ao salvar evento', 'error'); }
   };
 
@@ -800,6 +842,167 @@ export default function Admin() {
 
   const adminTab = (t) => { setTab(t); setSidebarOpen(false); };
 
+  const importFileRef = useRef(null);
+
+  // ── Mapeamento automático de colunas do Excel ─────────────
+  const COL_VARIANTS = {
+    nome:   ['nome', 'name', 'cliente', 'razao social', 'razão social', 'responsavel', 'responsável', 'nomecomercial', 'contato'],
+    email:  ['email', 'e-mail', 'mail', 'correio eletrônico', 'e mail'],
+    cpf:    ['cpf', 'cpf/cnpj', 'documento', 'doc', 'cnpj', 'cpf_cnpj'],
+    tel:    ['telefone', 'tel', 'celular', 'whatsapp', 'fone', 'phone', 'celular/whatsapp', 'contato telefone'],
+    nasc:   ['nascimento', 'data de nascimento', 'nasc', 'data_nasc', 'dob', 'data nasc', 'dt_nasc', 'dt nasc'],
+    genero: ['genero', 'gênero', 'sexo', 'gender'],
+  };
+
+  const autoMapCols = (headers) => {
+    const mapping = {};
+    const lower = headers.map(h => String(h).toLowerCase().trim());
+    Object.entries(COL_VARIANTS).forEach(([field, variants]) => {
+      const idx = lower.findIndex(h => variants.some(v => h.includes(v)));
+      if (idx !== -1) mapping[field] = headers[idx];
+    });
+    return mapping;
+  };
+
+  const handleImportUsersFile = async (file) => {
+    if (!file) return;
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!rows.length) { toast('Arquivo vazio.', 'error'); return; }
+      const headers = Object.keys(rows[0]);
+      const mapping = autoMapCols(headers);
+      setImportUsersData({ headers, rows });
+      setImportMapping(mapping);
+      setImportUsersModal(true);
+    } catch {
+      toast('Erro ao ler o arquivo. Verifique se é um Excel ou CSV válido.', 'error');
+    }
+  };
+
+  const confirmarImportUsers = async () => {
+    const { rows } = importUsersData;
+    const lista = rows.map(row => {
+      const u = { senha: importSenha || null, status: 'ativo' };
+      Object.entries(importMapping).forEach(([field, col]) => {
+        if (col && row[col] !== undefined && row[col] !== '') {
+          let v = String(row[col]).trim();
+          if (field === 'genero') {
+            v = v.toLowerCase();
+            if (v.includes('fem') || v === 'f') v = 'feminino';
+            else if (v.includes('masc') || v === 'm') v = 'masculino';
+            else v = '';
+          }
+          u[field] = v;
+        }
+      });
+      return u;
+    }).filter(u => u.email && u.nome);
+
+    if (!lista.length) { toast('Nenhum usuário válido encontrado. Verifique o mapeamento de Nome e Email.', 'error'); return; }
+
+    setImportLoading(true);
+    try {
+      const { data } = await api.post('/users/importar', lista);
+      toast(`${data.importados} usuário(s) importado(s). ${data.erros || 0} ignorado(s) (email duplicado ou inválido).`);
+      setImportUsersModal(false);
+      setImportUsersData(null);
+      const res = await api.get('/users');
+      setUsuarios(res.data);
+    } catch (e) {
+      toast(e.response?.data?.message || 'Erro ao importar.', 'error');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const SLOT_LABELS = { 8:'08:00',9:'09:00',10:'10:00',11:'11:00',12:'12:00',13:'13:00',14:'14:00',15:'15:00',16:'16:00',17:'17:00',18:'18:00',19:'19:00',20:'20:00',21:'21:00',22:'22:00' };
+
+  const exportarAgendamentos = async (formato) => {
+    try {
+      const { data } = await api.get('/bookings');
+      const hoje = new Date().toISOString().slice(0, 10);
+
+      if (formato === 'json') {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `agendamentos-${hoje}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        toast('Agendamentos exportados em JSON.');
+      } else {
+        const cols = ['id','data','horarios','quadra','quadraId','modalidade','usuario','userId','total','status','pagamento','dayUse','criadoEm'];
+        const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const rows = data.map(r => [
+          r._id, r.date,
+          (r.slots || []).map(s => SLOT_LABELS[s] || s).join('|'),
+          r.quadra, r.quadraId, r.modalidade, r.userName, r.userId?._id || r.userId,
+          r.total, r.status, r.payment, r.dayUse ? 'sim' : 'não',
+          r.createdAt ? new Date(r.createdAt).toLocaleString('pt-BR') : '',
+        ].map(esc).join(','));
+        const csv = [cols.join(','), ...rows].join('\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `agendamentos-${hoje}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        toast('Agendamentos exportados em CSV.');
+      }
+    } catch {
+      toast('Erro ao exportar agendamentos.', 'error');
+    }
+  };
+
+  const importarAgendamentos = async (file) => {
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        let lista;
+        if (ext === 'json') {
+          lista = JSON.parse(reader.result);
+          if (!Array.isArray(lista)) throw new Error('JSON inválido');
+        } else {
+          const lines = reader.result.split('\n').map(l => l.trim()).filter(Boolean);
+          const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, ''));
+          lista = lines.slice(1).map(line => {
+            const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
+            const clean = vals.map(v => v.replace(/^"|"$/g, '').replace(/""/g, '"'));
+            const obj = {};
+            headers.forEach((h, i) => { obj[h] = clean[i] ?? ''; });
+            const slotMap = Object.fromEntries(Object.entries(SLOT_LABELS).map(([k,v]) => [v, Number(k)]));
+            return {
+              userId: obj.userId || undefined,
+              userName: obj.usuario || '',
+              modalidade: obj.modalidade || 'beach-tennis',
+              quadra: obj.quadra || 'areia',
+              quadraId: obj.quadraId || '',
+              date: obj.data || '',
+              slots: (obj.horarios || '').split('|').map(h => slotMap[h] || Number(h)).filter(Boolean),
+              dayUse: obj.dayUse === 'sim',
+              payment: obj.pagamento || 'pix',
+              total: Number(obj.total) || 0,
+              status: obj.status || 'confirmada',
+            };
+          });
+        }
+        const { data } = await api.post('/bookings/importar', lista);
+        toast(`${data.importados} agendamento(s) importado(s) com sucesso.`);
+        const res = await api.get('/bookings');
+        setReservas(res.data);
+      } catch (e) {
+        toast(e.response?.data?.message || 'Erro ao importar arquivo.', 'error');
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
   return (
     <>
 
@@ -829,7 +1032,7 @@ export default function Admin() {
         const uInsc = inscricoes.filter(i => i.userId === u._id || i.userId?._id === u._id);
         const uGasto = uReservas.filter(r => r.status !== 'cancelada').reduce((a, r) => a + Number(r.total || 0), 0);
         return (
-          <div className="admin-modal-overlay open" onClick={e => e.target === e.currentTarget && setViewUser(null)}>
+          <div className="admin-modal-overlay open">
             <div className="admin-modal" style={{ maxWidth: 620 }}>
               <div className="admin-modal-header">
                 <div><p className="admin-eyebrow" style={{ marginBottom: '.2rem' }}>Gestão</p><h3>PERFIL DO CLIENTE</h3></div>
@@ -884,28 +1087,122 @@ export default function Admin() {
       })()}
 
       {/* Editar usuário */}
-      <AdminModal open={!!editUser} onClose={() => setEditUser(null)} title="Editar Usuário"
-        footer={<><button className="btn-admin-secondary" onClick={() => setEditUser(null)}>Cancelar</button><button className="btn-admin-primary" onClick={salvarEditUser}>Salvar Alterações</button></>}>
-        <div className="admin-grid-2">
-          <div className="admin-field" style={{ gridColumn: '1/-1' }}>
-            <label>Nome completo</label>
-            <input type="text" value={editUserForm.nome} onChange={e => setEditUserForm({ ...editUserForm, nome: e.target.value })} />
-          </div>
-          <div className="admin-field">
-            <label>Telefone</label>
-            <input type="tel" value={editUserForm.tel} onChange={e => setEditUserForm({ ...editUserForm, tel: e.target.value })} />
-          </div>
-          <div className="admin-field">
-            <label>Gênero</label>
-            <select value={editUserForm.genero} onChange={e => setEditUserForm({ ...editUserForm, genero: e.target.value })}>
-              <option value="">Não informado</option>
-              <option value="feminino">Feminino</option>
-              <option value="masculino">Masculino</option>
-              <option value="outro">Outro</option>
-            </select>
-          </div>
-        </div>
-      </AdminModal>
+      {editUser && (() => {
+        const u = editUser;
+        const uReservas = reservas.filter(r => r.userId === u._id || r.userId?._id === u._id);
+        const uEventos = inscricoes.filter(i => i.userId === u._id || i.userId?._id === u._id);
+        const gastoTotal = uReservas.reduce((acc, r) => acc + (Number(r.total) || 0), 0);
+        const idade = u.nasc ? Math.floor((new Date() - new Date(u.nasc)) / (365.25 * 24 * 3600 * 1000)) : null;
+        const shortId = `#U-${String(usrIndexMap.get(u._id) ?? 0).padStart(3, '0')}`;
+        const STATUS_OPTS = [{ v: 'ativo', label: 'Ativo', color: 'var(--green, #4caf50)' }, { v: 'inativo', label: 'Inativo', color: 'var(--gray)' }, { v: 'bloqueado', label: 'Bloqueado', color: 'var(--red)' }];
+        return (
+          <AdminModal open onClose={() => setEditUser(null)} maxWidth={600} eyebrow={shortId} title={u.nome}
+            footer={<><button className="btn-admin-secondary" onClick={() => setEditUser(null)}>Cancelar</button><button className="btn-admin-primary" onClick={salvarEditUser}>Salvar Alterações</button></>}>
+
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.6rem', marginBottom: '1.4rem' }}>
+              {[
+                { label: 'Reservas', val: uReservas.length },
+                { label: 'Eventos', val: uEventos.length },
+                { label: 'Gasto Total', val: fmtMoney(gastoTotal) },
+                { label: 'Crédito', val: fmtMoney(u.creditos || 0) },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--dark)', border: '1px solid var(--border)', borderRadius: 8, padding: '.7rem .8rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '.68rem', color: 'var(--gray)', fontFamily: 'var(--font-body)', letterSpacing: '1px', marginBottom: '.25rem' }}>{s.label.toUpperCase()}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--white)', fontFamily: 'var(--font-display)', letterSpacing: '1px' }}>{s.val}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Dados pessoais */}
+            <p className="admin-eyebrow" style={{ marginBottom: '.7rem' }}>Dados pessoais</p>
+            <div className="admin-grid-2" style={{ marginBottom: '1.4rem' }}>
+              <div className="admin-field">
+                <label>Telefone</label>
+                <input type="tel" placeholder="(43) 9 9000-0000" value={editUserForm.tel} onChange={e => setEditUserForm({ ...editUserForm, tel: formatTel(e.target.value) })} />
+              </div>
+              <div className="admin-field">
+                <label>CPF <span style={{ fontSize: '.7rem', color: 'var(--gray)' }}>(não editável)</span></label>
+                <input type="text" value={u.cpf ? u.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '—'} disabled style={{ opacity: .5, cursor: 'not-allowed' }} />
+              </div>
+              <div className="admin-field">
+                <label>Data de Nascimento</label>
+                <input type="date" value={editUserForm.nasc} onChange={e => setEditUserForm({ ...editUserForm, nasc: e.target.value })} />
+              </div>
+              <div className="admin-field">
+                <label>Idade</label>
+                <input type="text" value={editUserForm.nasc ? `${Math.floor((new Date() - new Date(editUserForm.nasc)) / (365.25*24*3600*1000))} anos` : '—'} disabled style={{ opacity: .5, cursor: 'not-allowed' }} />
+              </div>
+              <div className="admin-field" style={{ gridColumn: '1/-1' }}>
+                <label>Gênero</label>
+                <div style={{ display: 'flex', gap: '.4rem', marginTop: '.1rem' }}>
+                  {[{ v: 'masculino', l: '♂ Masculino' }, { v: 'feminino', l: '♀ Feminino' }, { v: '', l: 'Prefiro não dizer' }].map(({ v, l }) => {
+                    const active = editUserForm.genero === v;
+                    return (
+                      <button key={v} type="button" onClick={() => setEditUserForm({ ...editUserForm, genero: v })} style={{ flex: 1, padding: '.5rem', background: active ? 'rgba(197,160,40,.12)' : 'rgba(255,255,255,.03)', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 8, color: active ? 'var(--gold)' : 'var(--gray)', fontFamily: 'var(--font-cond)', fontSize: '.75rem', letterSpacing: '1px', cursor: 'pointer', transition: 'all .18s' }}>
+                        {l}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="admin-field" style={{ gridColumn: '1/-1' }}>
+                <label>Cliente desde</label>
+                <input type="text" value={u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'} disabled style={{ opacity: .5, cursor: 'not-allowed' }} />
+              </div>
+            </div>
+
+            {/* Redefinir senha */}
+            <p className="admin-eyebrow" style={{ marginBottom: '.7rem' }}>Redefinir Senha</p>
+            <div className="admin-grid-2" style={{ marginBottom: '.9rem' }}>
+              <div className="admin-field">
+                <label>Nova senha</label>
+                <input type="password" placeholder="Deixe em branco para não alterar" value={editUserForm.novaSenha} onChange={e => setEditUserForm({ ...editUserForm, novaSenha: e.target.value })} />
+              </div>
+              <div className="admin-field">
+                <label>Confirmar nova senha</label>
+                <input type="password" placeholder="••••••••" value={editUserForm.confirmarSenha} onChange={e => setEditUserForm({ ...editUserForm, confirmarSenha: e.target.value })} />
+              </div>
+            </div>
+            <button type="button" className="btn-admin-secondary" disabled={resetEmailLoading}
+              style={{ width: '100%', marginBottom: '1.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem', opacity: resetEmailLoading ? .6 : 1 }}
+              onClick={async () => {
+                setResetEmailLoading(true);
+                try {
+                  await api.post('/auth/enviar-reset-senha', { userId: u._id });
+                  toast(`Link enviado para ${u.email}`, 'success');
+                } catch (ex) {
+                  toast(ex.response?.data?.message || 'Erro ao enviar email', 'error');
+                } finally { setResetEmailLoading(false); }
+              }}>
+              {resetEmailLoading ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                  Enviando…
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                  Enviar link de redefinição por email
+                </>
+              )}
+            </button>
+
+            {/* Situação da conta */}
+            <p className="admin-eyebrow" style={{ marginBottom: '.7rem' }}>Situação da Conta</p>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              {STATUS_OPTS.map(({ v, label, color }) => {
+                const active = editUserForm.status === v;
+                return (
+                  <button key={v} type="button" onClick={() => setEditUserForm({ ...editUserForm, status: v })} style={{ flex: 1, padding: '.6rem', background: active ? `${color}18` : 'rgba(255,255,255,.03)', border: `1px solid ${active ? color : 'var(--border)'}`, borderRadius: 8, color: active ? color : 'var(--gray)', fontFamily: 'var(--font-cond)', fontSize: '.78rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', transition: 'all .18s', textTransform: 'uppercase' }}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </AdminModal>
+        );
+      })()}
 
       {/* Evento modal */}
       <AdminModal open={eventoModal !== null} onClose={() => setEventoModal(null)} title={eventoModal?._id ? 'Editar Evento' : 'Novo Evento'} maxWidth={560}
@@ -931,6 +1228,30 @@ export default function Admin() {
               <option value="encerrado">Encerrado</option>
             </select>
           </div>
+          <div className="admin-field" style={{ gridColumn: '1/-1' }}>
+            <label>Imagem do Evento</label>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '.6rem', background: 'rgba(255,255,255,.03)', border: '1px dashed var(--border)', borderRadius: 8, padding: '.75rem 1rem', cursor: 'pointer', color: 'var(--gray)', fontSize: '.83rem', transition: 'border-color .18s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                {eventoImagemFile ? eventoImagemFile.name : eventoImagemPreview ? 'Trocar imagem…' : 'Selecionar imagem…'}
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
+                  const f = e.target.files[0];
+                  if (!f) return;
+                  setEventoImagemFile(f);
+                  setEventoImagemPreview(URL.createObjectURL(f));
+                }} />
+              </label>
+              {eventoImagemPreview && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <img src={eventoImagemPreview} alt="preview" style={{ width: 80, height: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
+                  <button type="button" onClick={() => { setEventoImagemFile(null); setEventoImagemPreview(''); }}
+                    style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--red)', border: 'none', color: '#fff', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="admin-field" style={{ gridColumn: '1/-1' }}><label>Nível</label><input type="text" value={eventoForm.nivel} onChange={e => setEventoForm({ ...eventoForm, nivel: e.target.value })} /></div>
           <div className="admin-field" style={{ gridColumn: '1/-1' }}><label>Descrição</label><textarea value={eventoForm.desc} onChange={e => setEventoForm({ ...eventoForm, desc: e.target.value })} style={{ minHeight: 80, resize: 'vertical' }} /></div>
         </div>
@@ -938,7 +1259,7 @@ export default function Admin() {
 
       {/* Detalhes reserva */}
       {detalhesRes && (
-        <div className="admin-modal-overlay open" onClick={e => e.target === e.currentTarget && setDetalhesRes(null)}>
+        <div className="admin-modal-overlay open">
           <div className="admin-modal" style={{ maxWidth: 520 }}>
             <div className="admin-modal-header">
               <div><p className="admin-eyebrow" style={{ marginBottom: '.2rem' }}>#{detalhesRes._id?.slice(-6).toUpperCase()}</p><h3>DETALHES DA RESERVA</h3></div>
@@ -1055,7 +1376,7 @@ export default function Admin() {
 
       {/* Inscrições modal */}
       {inscricoesModal && (
-        <div className="admin-modal-overlay open" onClick={e => e.target === e.currentTarget && setInscricoesModal(null)}>
+        <div className="admin-modal-overlay open">
           <div className="admin-modal">
             <div className="admin-modal-header"><h3>{inscricoesModal.nome}</h3><button className="admin-modal-close" onClick={() => setInscricoesModal(null)}>✕</button></div>
             <div className="admin-modal-body" style={{ maxHeight: 360, overflowY: 'auto' }}>
@@ -1073,7 +1394,7 @@ export default function Admin() {
 
       {/* Ranking modal */}
       {rankingModal && (
-        <div className="admin-modal-overlay open" onClick={e => e.target === e.currentTarget && setRankingModal(false)}>
+        <div className="admin-modal-overlay open">
           <div className="admin-modal" style={{ maxWidth: 680, width: '95vw' }}>
             <div className="admin-modal-header">
               <div>
@@ -1143,6 +1464,7 @@ export default function Admin() {
                       userId={e.userId1}
                       placeholder="Jogador 1 *"
                       usuarios={usuarios}
+                      generoFilter={rankForm.genero}
                       onChange={({ nome, userId }) => { upd('nome1', nome); upd('userId1', userId); }}
                     />
                     <UserSearchInput
@@ -1150,6 +1472,7 @@ export default function Admin() {
                       userId={e.userId2}
                       placeholder="Jogador 2"
                       usuarios={usuarios}
+                      generoFilter={rankForm.genero}
                       onChange={({ nome, userId }) => { upd('nome2', nome); upd('userId2', userId); }}
                     />
                     <input className="rank-entry-input num-input" type="number" min="0" value={e.pts} onChange={ev => upd('pts', Number(ev.target.value))} />
@@ -1227,14 +1550,6 @@ export default function Admin() {
             <div className="admin-topbar-avatar">{getInitials(user?.nome)}</div>
             <span className="admin-topbar-name">{user?.nome?.split(' ')[0] || 'Admin'}</span>
           </div>
-          <Link to="/" className="admin-topbar-site">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            Ver site
-          </Link>
-          <button className="admin-topbar-logout" onClick={handleLogout}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-            Sair
-          </button>
         </div>
         <button className={`admin-hamburger${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(!sidebarOpen)}>
           <span /><span /><span />
@@ -1282,6 +1597,10 @@ export default function Admin() {
             <Link to="/painel">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               Meu Painel
+            </Link>
+            <Link to="/">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              Ver site
             </Link>
             <button onClick={handleLogout}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
@@ -1351,6 +1670,22 @@ export default function Admin() {
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     Relatório Financeiro
                   </button>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '.2rem 0' }} />
+                  <div style={{ display: 'flex', gap: '.5rem' }}>
+                    <button className="btn-admin-secondary" style={{ justifyContent: 'center', flex: 1 }} title="Exportar agendamentos como JSON" onClick={() => exportarAgendamentos('json')}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                      JSON
+                    </button>
+                    <button className="btn-admin-secondary" style={{ justifyContent: 'center', flex: 1 }} title="Exportar agendamentos como CSV" onClick={() => exportarAgendamentos('csv')}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                      CSV
+                    </button>
+                  </div>
+                  <button className="btn-admin-secondary" style={{ justifyContent: 'center' }} title="Importar agendamentos de um arquivo JSON ou CSV" onClick={() => importFileRef.current?.click()}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    Importar Agendamentos
+                  </button>
+                  <input ref={importFileRef} type="file" accept=".json,.csv" style={{ display: 'none' }} onChange={(e) => { importarAgendamentos(e.target.files[0]); e.target.value = ''; }} />
                 </div>
               </div>
             </div>
@@ -1385,7 +1720,7 @@ export default function Admin() {
           </section>
 
           {/* RESERVAS */}
-          <section className={`admin-section${tab === 'reservas' ? ' active' : ''}`}>
+          <section id="admin-reservas" className={`admin-section${tab === 'reservas' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">RESERVAS</h2></div>
               <button className="btn-admin-primary" onClick={() => setNovaResModal(true)}>
@@ -1453,17 +1788,23 @@ export default function Admin() {
           </section>
 
           {/* USUÁRIOS */}
-          <section className={`admin-section${tab === 'usuarios' ? ' active' : ''}`}>
+          <section id="admin-usuarios" className={`admin-section${tab === 'usuarios' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">USUÁRIOS</h2></div>
             </div>
             <div className="admin-card">
               <div className="admin-card-header">
-                <h3>Base de Usuários</h3>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                  Base de Usuários
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '.35rem', background: 'rgba(197,160,40,.1)', border: '1px solid rgba(197,160,40,.25)', borderRadius: 20, padding: '.15rem .55rem' }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--gold)', flexShrink: 0 }} />
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '.75rem', fontWeight: 700, color: 'var(--gold)', letterSpacing: '1px' }}>{usuarios.length}</span>
+                  </span>
+                </h3>
                 <div className="admin-card-toolbar">
                   <div className="admin-search">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                    <input type="text" placeholder="Buscar nome, e-mail ou CPF…" value={usrSearch} onChange={e => { setUsrSearch(e.target.value); setUsrPage(1); }} />
+                    <input type="text" placeholder="Buscar por ID, nome, CPF…" value={usrSearch} onChange={e => { setUsrSearch(e.target.value); setUsrPage(1); }} />
                   </div>
                   <select className="admin-filter-select" value={usrStatus} onChange={e => { setUsrStatus(e.target.value); setUsrPage(1); }}>
                     <option value="todos">Todos</option>
@@ -1472,45 +1813,56 @@ export default function Admin() {
                     <option value="bloqueados">Bloqueados</option>
                     <option value="inativos">Inativos</option>
                   </select>
+                  <button className="btn-admin-secondary" style={{ whiteSpace: 'nowrap', gap: '.4rem' }} title="Importar usuários de planilha Excel ou CSV" onClick={() => importUsersRef.current?.click()}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    Importar Planilha
+                  </button>
+                  <input ref={importUsersRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { handleImportUsersFile(e.target.files[0]); e.target.value = ''; }} />
                 </div>
               </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
-                    <tr><th>Usuário</th><th>Telefone</th><th>Cadastro</th><th>Reservas</th><th>Status</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+                    <tr><th>ID</th><th>Usuário</th><th>Gênero</th><th>Telefone</th><th>Cadastro</th><th>Reservas</th><th>Status</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
                   </thead>
                   <tbody>
-                    {pagedUsr.map(u => (
-                      <tr key={u._id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem' }}>
-                            <div className="admin-avatar-mini">{getInitials(u.nome)}</div>
-                            <div>
-                              <div className="admin-table-name">{u.nome}</div>
-                              <div className="admin-table-sub">{u.email}</div>
+                    {pagedUsr.map(u => {
+                      const shortId = `#U-${String(usrIndexMap.get(u._id) ?? 0).padStart(3, '0')}`;
+                      const generoLabel = u.genero === 'masculino' ? '♂ Masc.' : u.genero === 'feminino' ? '♀ Fem.' : '—';
+                      const generoColor = u.genero === 'masculino' ? 'var(--gold)' : u.genero === 'feminino' ? '#e07faa' : 'var(--gray)';
+                      return (
+                        <tr key={u._id}>
+                          <td>
+                            <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '.5px', whiteSpace: 'nowrap' }}>{shortId}</span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem' }}>
+                              <div className="admin-avatar-mini" style={{ flexShrink: 0 }}>{getInitials(u.nome)}</div>
+                              <div>
+                                <div className="admin-table-name">{u.nome}</div>
+                                <div className="admin-table-sub">{u.email}</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="muted">{u.tel || '—'}</td>
-                        <td className="muted">{u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-BR') : '—'}</td>
-                        <td>{reservas.filter(r => r.userId === u._id || r.userId?._id === u._id).length}</td>
-                        <td><span className={`badge ${STATUS_CLS[u.status]}`}>{u.status}</span></td>
-                        <td>
-                          <div className="admin-row-actions">
-                            <button className="admin-action-btn" title="Ver perfil" onClick={() => setViewUser(u)}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            </button>
-                            <button className="admin-action-btn" title="Editar" onClick={() => { setEditUser(u); setEditUserForm({ nome: u.nome, tel: u.tel || '', genero: u.genero || '' }); }}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                            </button>
-                            <button className="admin-action-btn" title="Adicionar crédito" onClick={() => setCreditoModal(u._id)}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {pagedUsr.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Nenhum usuário encontrado</td></tr>}
+                          </td>
+                          <td><span style={{ fontSize: '.78rem', color: generoColor }}>{generoLabel}</span></td>
+                          <td className="muted">{u.tel || '—'}</td>
+                          <td className="muted">{u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-BR') : '—'}</td>
+                          <td>{reservas.filter(r => r.userId === u._id || r.userId?._id === u._id).length}</td>
+                          <td><span className={`badge ${STATUS_CLS[u.status]}`}>{u.status}</span></td>
+                          <td>
+                            <div className="admin-row-actions">
+                              <button className="admin-action-btn" title="Ver / Editar perfil" onClick={() => { setEditUser(u); setEditUserForm({ tel: u.tel ? formatTel(u.tel) : '', genero: u.genero || '', nasc: u.nasc || '', status: u.status || 'ativo', novaSenha: '', confirmarSenha: '' }); }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                              </button>
+                              <button className="admin-action-btn" title="Adicionar crédito" onClick={() => setCreditoModal(u._id)}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {pagedUsr.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Nenhum usuário encontrado</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -1522,7 +1874,7 @@ export default function Admin() {
           <section className={`admin-section${tab === 'eventos' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">EVENTOS</h2></div>
-              <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 0, categoria: 'beachtennis', status: 'aberto', nivel: 'Todos os níveis', desc: '' }); }}>
+              <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 0, categoria: 'beachtennis', status: 'aberto', nivel: 'Todos os níveis', desc: '' }); setEventoImagemFile(null); setEventoImagemPreview(''); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
                 Novo Evento
               </button>
@@ -1550,7 +1902,7 @@ export default function Admin() {
                     const pct = Math.min(100, Math.round((evInsc.length / (ev.vagas || 1)) * 100));
                     return (
                       <div key={ev._id} className="admin-event-card">
-                        <div className="admin-event-banner">
+                        <div className="admin-event-banner" style={ev.imagem ? { backgroundImage: `url(${ev.imagem})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
                           <span className="admin-event-cat">{ev.categoria}</span>
                           <span className={`badge ${STATUS_CLS[ev.status]}`}>{ev.status}</span>
                         </div>
@@ -1573,7 +1925,7 @@ export default function Admin() {
                           </div>
                           <div className="admin-event-actions">
                             <button className="btn-admin-secondary" style={{ fontSize: '.77rem', padding: '.45rem' }} onClick={() => setInscricoesModal(ev)}>Ver inscrições</button>
-                            <button className="admin-action-btn" title="Editar" onClick={() => { setEventoModal(ev); setEventoForm({ nome: ev.nome, data: ev.data, hora: ev.hora, local: ev.local, vagas: ev.vagas, preco: ev.preco, categoria: ev.categoria, status: ev.status, nivel: ev.nivel || '', desc: ev.desc || '' }); }}>
+                            <button className="admin-action-btn" title="Editar" onClick={() => { setEventoModal(ev); setEventoForm({ nome: ev.nome, data: ev.data, hora: ev.hora, local: ev.local, vagas: ev.vagas, preco: ev.preco, categoria: ev.categoria, status: ev.status, nivel: ev.nivel || '', desc: ev.desc || '' }); setEventoImagemFile(null); setEventoImagemPreview(ev.imagem || ''); }}>
                               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                             </button>
                             <button className="admin-action-btn danger" title="Remover" onClick={() => removerEvento(ev._id)}>
@@ -1763,6 +2115,110 @@ export default function Admin() {
 
         </main>
       </div>
+
+      {/* ── MODAL: IMPORTAR USUÁRIOS ── */}
+      {importUsersModal && importUsersData && (
+        <div className="admin-modal-overlay open">
+          <div className="admin-modal" style={{ maxWidth: 680, width: '95vw' }}>
+            <div className="admin-modal-header">
+              <h3>Importar Usuários da Planilha</h3>
+              <button className="admin-modal-close" onClick={() => { setImportUsersModal(false); setImportUsersData(null); }}>✕</button>
+            </div>
+            <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+
+              {/* info */}
+              <div style={{ background: 'rgba(197,160,40,.07)', border: '1px solid rgba(197,160,40,.2)', borderRadius: 8, padding: '.8rem 1rem', fontSize: '.82rem', color: 'var(--gray)', lineHeight: 1.6 }}>
+                <strong style={{ color: 'var(--gold)' }}>{importUsersData.rows.length} linha(s)</strong> encontradas no arquivo.
+                Mapeie abaixo quais colunas correspondem a cada campo. Linhas sem <strong>Nome</strong> e <strong>Email</strong> serão ignoradas.
+                Emails já cadastrados também serão pulados.
+              </div>
+
+              {/* mapeamento de colunas */}
+              <div>
+                <p style={{ fontSize: '.75rem', fontWeight: 700, letterSpacing: '1px', color: 'var(--gray)', marginBottom: '.7rem' }}>MAPEAMENTO DE COLUNAS</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.6rem' }}>
+                  {[
+                    { field: 'nome',   label: 'Nome *' },
+                    { field: 'email',  label: 'Email *' },
+                    { field: 'cpf',    label: 'CPF' },
+                    { field: 'tel',    label: 'Telefone' },
+                    { field: 'nasc',   label: 'Data de Nascimento' },
+                    { field: 'genero', label: 'Gênero' },
+                  ].map(({ field, label }) => (
+                    <div key={field} className="admin-field" style={{ marginBottom: 0 }}>
+                      <label style={{ fontSize: '.72rem' }}>{label}</label>
+                      <select
+                        value={importMapping[field] || ''}
+                        onChange={e => setImportMapping(prev => ({ ...prev, [field]: e.target.value || undefined }))}
+                      >
+                        <option value="">— não importar —</option>
+                        {importUsersData.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* senha padrão */}
+              <div className="admin-field" style={{ marginBottom: 0 }}>
+                <label>Senha padrão para os usuários importados</label>
+                <input
+                  type="text"
+                  value={importSenha}
+                  onChange={e => setImportSenha(e.target.value)}
+                  placeholder="Ex: Podium@123"
+                />
+                <p style={{ fontSize: '.72rem', color: 'var(--gray)', marginTop: '.3rem' }}>
+                  Deixe em branco para que o usuário só possa entrar via Google ou redefinição de senha.
+                </p>
+              </div>
+
+              {/* preview */}
+              <div>
+                <p style={{ fontSize: '.75rem', fontWeight: 700, letterSpacing: '1px', color: 'var(--gray)', marginBottom: '.5rem' }}>
+                  PREVIEW — primeiras 3 linhas
+                </p>
+                <div style={{ overflowX: 'auto', borderRadius: 6, border: '1px solid var(--border)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.78rem' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--border)' }}>
+                        {['nome', 'email', 'cpf', 'tel', 'nasc', 'genero'].map(f => (
+                          <th key={f} style={{ padding: '.4rem .6rem', textAlign: 'left', color: 'var(--gray)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {f} {importMapping[f] ? <span style={{ color: 'var(--gold)', fontWeight: 400 }}>← {importMapping[f]}</span> : <span style={{ color: 'rgba(255,255,255,.2)' }}>—</span>}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importUsersData.rows.slice(0, 3).map((row, i) => (
+                        <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
+                          {['nome', 'email', 'cpf', 'tel', 'nasc', 'genero'].map(f => (
+                            <td key={f} style={{ padding: '.4rem .6rem', color: importMapping[f] ? 'var(--text)' : 'rgba(255,255,255,.2)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {importMapping[f] ? String(row[importMapping[f]] ?? '—') : '—'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '.8rem', justifyContent: 'flex-end' }}>
+                <button className="btn-admin-secondary" onClick={() => { setImportUsersModal(false); setImportUsersData(null); }}>Cancelar</button>
+                <button
+                  className="btn-admin-primary"
+                  disabled={importLoading || !importMapping.nome || !importMapping.email}
+                  onClick={confirmarImportUsers}
+                >
+                  {importLoading ? 'Importando…' : `Importar ${importUsersData.rows.length} usuário(s)`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }

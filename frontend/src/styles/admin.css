@@ -678,13 +678,23 @@ body.gate-active .admin-layout { display: none; }
 #admin-reservas .admin-table th:nth-child(7) { width: 215px; }
 #admin-reservas .admin-table td:nth-child(4),
 #admin-reservas .admin-table td:nth-child(5) { white-space: nowrap; }
-/* Usuários table */
-#admin-usuarios .admin-table th:nth-child(1) { width: auto; }
-#admin-usuarios .admin-table th:nth-child(2) { width: 160px; }
-#admin-usuarios .admin-table th:nth-child(3) { width: 120px; }
-#admin-usuarios .admin-table th:nth-child(4) { width: 100px; }
-#admin-usuarios .admin-table th:nth-child(5) { width: 125px; }
-#admin-usuarios .admin-table th:nth-child(6) { width: 150px; }
+/* Usuários table — cols: ID | Usuário | Gênero | Telefone | Cadastro | Reservas | Status | Ações */
+#admin-usuarios .admin-table { table-layout: auto; width: max-content; min-width: 100%; }
+#admin-usuarios .admin-table th:nth-child(1) { width: 60px; }
+#admin-usuarios .admin-table th:nth-child(3),
+#admin-usuarios .admin-table th:nth-child(4),
+#admin-usuarios .admin-table th:nth-child(5),
+#admin-usuarios .admin-table th:nth-child(6),
+#admin-usuarios .admin-table th:nth-child(7),
+#admin-usuarios .admin-table th:nth-child(8) { width: 110px; white-space: nowrap; }
+#admin-usuarios .admin-table td:nth-child(4) { white-space: nowrap; }
+#admin-usuarios .admin-table td:nth-child(2) { overflow: visible; white-space: nowrap; }
+#admin-usuarios .admin-table th,
+#admin-usuarios .admin-table td { text-align: center; }
+#admin-usuarios .admin-table th:nth-child(2),
+#admin-usuarios .admin-table td:nth-child(2) { text-align: left; }
+#admin-usuarios .admin-table th:nth-last-child(1),
+#admin-usuarios .admin-table td:nth-last-child(1) { text-align: center; }
 .admin-table td {
   padding: .9rem 1.2rem;
   font-size: .88rem;
@@ -712,11 +722,13 @@ body.gate-active .admin-layout { display: none; }
   font-weight: 700;
   letter-spacing: .5px;
   color: var(--white);
+  white-space: nowrap;
 }
 .admin-table-sub {
   font-size: .78rem;
   color: var(--gray);
   margin-top: .1rem;
+  white-space: nowrap;
 }
 
 /* Avatar mini */
@@ -1217,13 +1229,17 @@ body.gate-active .admin-layout { display: none; }
 .rank-entry-del {
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
-  background: none; border: none; cursor: pointer;
-  color: rgba(255,255,255,.2);
-  transition: color .18s;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); cursor: pointer;
+  color: rgba(255,255,255,.5);
+  transition: color .18s, background .18s, border-color .18s;
   padding: 0;
   border-radius: 50%;
 }
-.rank-entry-del:hover { color: var(--red); }
+.rank-entry-del:hover {
+  color: var(--red);
+  background: rgba(220,50,50,.1);
+  border-color: rgba(220,50,50,.3);
+}
 .rank-add-btn {
   display: flex;
   align-items: center;
