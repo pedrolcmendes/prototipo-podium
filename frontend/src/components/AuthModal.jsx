@@ -30,11 +30,28 @@ const GoogleIcon = () => (
   </svg>
 );
 
+const VISUAL_IMGS = {
+  login:    '/img/arena-login.jpeg',
+  cadastro: '/img/arena-cadastro.jpeg',
+};
+
 export default function AuthModal({ initialTab = 'login', onClose }) {
   const { login, register, loginWithGoogle } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState(initialTab);
   const [loading, setLoading] = useState(false);
+  const [visualImg, setVisualImg] = useState(VISUAL_IMGS[initialTab] ?? VISUAL_IMGS.login);
+  const [visualOpacity, setVisualOpacity] = useState(1);
+
+  const switchTab = (next) => {
+    if (next === tab) return;
+    setVisualOpacity(0);
+    setTimeout(() => {
+      setVisualImg(VISUAL_IMGS[next]);
+      setVisualOpacity(1);
+      setTab(next);
+    }, 300);
+  };
 
   const [loginData, setLoginData] = useState({ email: '', senha: '' });
   const [loginErr, setLoginErr] = useState({});
@@ -56,7 +73,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
     onError: () => toast('Erro ao conectar com Google', 'error'),
   });
 
-  const [cadData, setCadData] = useState({ nome: '', email: '', tel: '', cpf: '', nasc: '', senha: '', conf: '' });
+  const [cadData, setCadData] = useState({ nome: '', genero: '', email: '', tel: '', cpf: '', nasc: '', senha: '', conf: '' });
   const [cadErr, setCadErr] = useState({});
   const [showCadPw, setShowCadPw] = useState(false);
   const [showConfPw, setShowConfPw] = useState(false);
@@ -103,6 +120,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
         cpf: cadData.cpf.replace(/\D/g, ''),
         nasc: cadData.nasc,
         tel: cadData.tel,
+        genero: cadData.genero,
         senha: cadData.senha,
       });
       toast('Cadastro realizado!', 'success');
@@ -115,7 +133,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
   const tabIdx = tab === 'login' ? 0 : 1;
 
   return (
-    <div className="modal-overlay open" id="authOverlay" onClick={(e) => e.target.id === 'authOverlay' && onClose()}>
+    <div className="modal-overlay open" id="authOverlay">
       <div className="auth-modal">
 
         {/* FECHAR */}
@@ -127,7 +145,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
         </button>
 
         {/* ESQUERDA — Visual */}
-        <div className="auth-visual">
+        <div className="auth-visual" style={{ backgroundImage: `url('${visualImg}')`, opacity: visualOpacity }}>
           <svg className="visual-arcs" viewBox="0 0 400 600" preserveAspectRatio="none">
             <circle cx="200" cy="-80" r="260" strokeWidth="1" />
             <circle cx="200" cy="-80" r="340" strokeWidth=".5" />
@@ -160,8 +178,8 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
 
           {/* Abas */}
           <div className="auth-tabs">
-            <button className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => setTab('login')}>Entrar</button>
-            <button className={`auth-tab${tab === 'cadastro' ? ' active' : ''}`} onClick={() => setTab('cadastro')}>Cadastrar</button>
+            <button className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => switchTab('login')}>Entrar</button>
+            <button className={`auth-tab${tab === 'cadastro' ? ' active' : ''}`} onClick={() => switchTab('cadastro')}>Cadastrar</button>
           </div>
 
           {/* Slider de painéis */}
@@ -229,6 +247,44 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
                     <input type="text" placeholder="João da Silva" autoComplete="name"
                       value={cadData.nome} onChange={e => setCadData({ ...cadData, nome: e.target.value })} />
                     <span className="field-error">{cadErr.nome || 'Nome muito curto'}</span>
+                  </div>
+
+                  <div className="field">
+                    <label>Gênero</label>
+                    <div style={{ display: 'flex', gap: '.4rem', marginTop: '.1rem' }}>
+                      {[
+                        { val: 'masculino', label: 'Masculino', icon: '♂' },
+                        { val: 'feminino',  label: 'Feminino',  icon: '♀' },
+                        { val: '',          label: 'Prefiro não dizer', icon: null },
+                      ].map(({ val, label, icon }) => {
+                        const active = cadData.genero === val;
+                        return (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setCadData({ ...cadData, genero: val })}
+                            style={{
+                              flex: '1',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem',
+                              padding: '.52rem .3rem',
+                              background: active ? 'rgba(197,160,40,.12)' : 'rgba(255,255,255,.03)',
+                              border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
+                              borderRadius: 8,
+                              color: active ? 'var(--gold)' : 'var(--gray)',
+                              fontFamily: 'var(--font-cond)',
+                              fontSize: '.72rem',
+                              letterSpacing: '1px',
+                              cursor: 'pointer',
+                              transition: 'all .18s',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {icon && <span style={{ fontSize: '.85rem', lineHeight: 1 }}>{icon}</span>}
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="field-row">
