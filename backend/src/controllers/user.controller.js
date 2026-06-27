@@ -1,4 +1,6 @@
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const { enviarEmailSenhaAlterada } = require('../utils/email');
 
 const me = async (req, res) => {
   res.json(req.user.toPublic());
@@ -56,6 +58,7 @@ const atualizar = async (req, res) => {
     const user = await User.findById(req.params.id);
     user.senha = req.body.senha;
     await user.save();
+    enviarEmailSenhaAlterada({ destinatario: user.email, nome: user.nome }).catch(() => {});
     delete atualizacoes.senha;
   }
 
@@ -74,4 +77,39 @@ const remover = async (req, res) => {
   res.json({ message: 'Usuário removido' });
 };
 
-module.exports = { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover };
+const importar = async (req, res) => {
+  const lista = req.body;
+  if (!Array.isArray(lista) || !lista.length) {
+    return res.status(400).json({ message: 'Envie um array de usuários' });
+  }
+
+  // hash único para senha padrão compartilhada (evita N bcrypt calls)
+  const senhasUnicas = [...new Set(lista.map(u => u.senha).filter(Boolean))];
+  const hashMap = {};
+  await Promise.all(senhasUnicas.map(async s => { hashMap[s] = await bcrypt.hash(s, 10); }));
+
+  const GENEROS_VALIDOS = ['masculino', 'feminino', ''];
+  const docs = lista
+    .filter(u => u.nome && u.email)
+    .map(u => ({
+      nome: String(u.nome).trim(),
+      email: String(u.email).toLowerCase().trim(),
+      senha: u.senha ? hashMap[u.senha] : null,
+      cpf: u.cpf ? String(u.cpf).replace(/\D/g, '') || null : null,
+      tel: u.tel ? String(u.tel).replace(/\D/g, '') || null : null,
+      nasc: u.nasc || null,
+      genero: GENEROS_VALIDOS.includes(u.genero) ? u.genero : '',
+      status: ['ativo', 'pendente', 'bloqueado', 'inativo'].includes(u.status) ? u.status : 'ativo',
+      creditos: Number(u.creditos) || 0,
+    }));
+
+  const result = await User.insertMany(docs, { ordered: false }).catch(err => {
+    if (err.insertedDocs) return { insertedCount: err.insertedDocs.length };
+    throw err;
+  });
+
+  const importados = result.insertedCount ?? result.length;
+  res.json({ importados, erros: docs.length - importados });
+};
+
+module.exports = { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover, importar };
