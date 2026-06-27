@@ -25,6 +25,14 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
+  const loginWithGoogle = useCallback(async (access_token) => {
+    const { data } = await api.post('/auth/google', { access_token });
+    localStorage.setItem('podium_token', data.token);
+    localStorage.setItem('podium_user', JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem('podium_token');
     localStorage.removeItem('podium_user');
@@ -38,7 +46,7 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, login, register, loginWithGoogle, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

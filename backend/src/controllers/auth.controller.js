@@ -45,8 +45,42 @@ const login = async (req, res) => {
   res.json({ token: gerarToken(user._id), user: user.toPublic() });
 };
 
+const googleAuth = async (req, res) => {
+  const { access_token } = req.body;
+  if (!access_token) return res.status(400).json({ message: 'Token Google não fornecido' });
+
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${access_token}`
+    );
+
+    if (!response.ok) return res.status(401).json({ message: 'Token Google inválido' });
+
+    const { sub: googleId, email, name: nome } = await response.json();
+
+    if (!email) return res.status(401).json({ message: 'Não foi possível obter e-mail do Google' });
+
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+
+    if (!user) {
+      user = await User.create({ nome, email, googleId });
+    } else if (!user.googleId) {
+      user.googleId = googleId;
+      await user.save();
+    }
+
+    if (user.status === 'bloqueado') {
+      return res.status(403).json({ message: 'Conta bloqueada. Entre em contato com o suporte.' });
+    }
+
+    res.json({ token: gerarToken(user._id), user: user.toPublic() });
+  } catch {
+    res.status(401).json({ message: 'Erro ao autenticar com Google' });
+  }
+};
+
 const me = async (req, res) => {
   res.json(req.user.toPublic());
 };
 
-module.exports = { register, login, me };
+module.exports = { register, login, googleAuth, me };

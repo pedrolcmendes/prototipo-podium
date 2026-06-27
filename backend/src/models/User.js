@@ -4,8 +4,9 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   nome: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  senha: { type: String, required: true, minlength: 6 },
-  cpf: { type: String, required: true, unique: true },
+  senha: { type: String, default: null },
+  googleId: { type: String, default: null },
+  cpf: { type: String, trim: true, default: null },
   nasc: { type: String },
   tel: { type: String },
   genero: { type: String, enum: ['masculino', 'feminino', 'outro', ''], default: '' },
@@ -14,13 +15,17 @@ const userSchema = new mongoose.Schema({
   admin: { type: Boolean, default: false },
 }, { timestamps: true });
 
+// sparse: true permite múltiplos documentos com cpf null sem violar o unique
+userSchema.index({ cpf: 1 }, { unique: true, sparse: true });
+
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('senha')) return next();
+  if (!this.isModified('senha') || !this.senha) return next();
   this.senha = await bcrypt.hash(this.senha, 10);
   next();
 });
 
 userSchema.methods.verificarSenha = function (senha) {
+  if (!this.senha) return Promise.resolve(false);
   return bcrypt.compare(senha, this.senha);
 };
 
