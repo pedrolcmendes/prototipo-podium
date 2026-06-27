@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const Event = require('../models/Event');
 const Registration = require('../models/Registration');
 
@@ -10,10 +12,7 @@ const listar = async (req, res) => {
 
   const comVagas = await Promise.all(
     events.map(async (ev) => {
-      const inscritos = await Registration.countDocuments({
-        eventId: ev._id,
-        status: 'confirmada',
-      });
+      const inscritos = await Registration.countDocuments({ eventId: ev._id, status: 'confirmada' });
       return { ...ev.toObject(), inscritos, vagasRestantes: ev.vagas - inscritos };
     })
   );
@@ -24,21 +23,29 @@ const listar = async (req, res) => {
 const buscarPorId = async (req, res) => {
   const event = await Event.findById(req.params.id);
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
-
   const inscritos = await Registration.countDocuments({ eventId: event._id, status: 'confirmada' });
   res.json({ ...event.toObject(), inscritos, vagasRestantes: event.vagas - inscritos });
 };
 
 const criar = async (req, res) => {
-  const event = await Event.create(req.body);
+  const dados = { ...req.body };
+  if (req.file) dados.imagem = `/uploads/eventos/${req.file.filename}`;
+  const event = await Event.create(dados);
   res.status(201).json(event);
 };
 
 const atualizar = async (req, res) => {
-  const event = await Event.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
-  });
+  const dados = { ...req.body };
+  if (req.file) {
+    // remove imagem anterior se existir
+    const anterior = await Event.findById(req.params.id);
+    if (anterior?.imagem) {
+      const oldPath = path.join(__dirname, '..', '..', '..', 'frontend', 'public', anterior.imagem);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+    dados.imagem = `/uploads/eventos/${req.file.filename}`;
+  }
+  const event = await Event.findByIdAndUpdate(req.params.id, dados, { new: true, runValidators: true });
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
   res.json(event);
 };
@@ -46,6 +53,10 @@ const atualizar = async (req, res) => {
 const remover = async (req, res) => {
   const event = await Event.findByIdAndDelete(req.params.id);
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
+  if (event.imagem) {
+    const imgPath = path.join(__dirname, '..', '..', '..', 'frontend', 'public', event.imagem);
+    if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+  }
   res.json({ message: 'Evento removido' });
 };
 

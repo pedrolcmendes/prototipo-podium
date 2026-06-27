@@ -19,6 +19,7 @@ const eventSchema = new mongoose.Schema({
   },
   nivel: { type: String, default: 'Todos os níveis' },
   desc: { type: String, default: '' },
+  imagem: { type: String, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Event', eventSchema);

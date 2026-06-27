@@ -131,9 +131,10 @@ export default function Eventos() {
             const pct = ev.vagas > 0 ? Math.round(((ev.vagasOcupadas || 0) / ev.vagas) * 100) : 0;
             return (
               <div key={ev._id} className="event-card" onClick={() => setSelectedEvt(ev)}>
-                <div className="event-card-left">
-                  <div className="event-icon">{catIcon(ev.categoria)}</div>
-                  <div className="event-date-block">
+                <div className="event-card-left" style={ev.imagem ? { backgroundImage: `url(${ev.imagem})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' } : {}}>
+                  {ev.imagem && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.55)' }} />}
+                  <div className="event-icon" style={{ position: 'relative' }}>{catIcon(ev.categoria)}</div>
+                  <div className="event-date-block" style={{ position: 'relative' }}>
                     <div className="event-day">{String(d.getDate()).padStart(2,'0')}</div>
                     <div className="event-month">{MESES[d.getMonth()]} {d.getFullYear()}</div>
                   </div>
@@ -174,7 +175,7 @@ export default function Eventos() {
 
       {/* MODAL EVENTO */}
       {selectedEvt && (
-        <div className="evt-overlay" onClick={(e) => e.target.className === 'evt-overlay' && setSelectedEvt(null)}>
+        <div className="evt-overlay">
           <div className="evt-modal">
             <button className="modal-close" onClick={() => setSelectedEvt(null)} style={{ top: '1rem', right: '1rem' }}>&#x2715;</button>
             <div className="evt-modal-header">
