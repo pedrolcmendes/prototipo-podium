@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,13 +7,15 @@ export default function LogoutModal({ onClose }) {
   const navigate = useNavigate();
 
   const confirm = () => {
-    logout();
+    flushSync(() => {
+      logout();
+    });
     onClose();
     navigate('/');
   };
 
   return (
-    <div className="modal-overlay open" style={{ zIndex: 9999 }} onClick={(e) => e.target.className.includes('modal-overlay') && onClose()}>
+    <div className="modal-overlay open" style={{ zIndex: 9999 }}>
       <div style={{
         background: 'var(--card)',
         border: '1px solid var(--border)',
