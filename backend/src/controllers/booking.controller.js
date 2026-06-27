@@ -99,4 +99,20 @@ const horariosOcupados = async (req, res) => {
   res.json([...new Set(ocupados)]);
 };
 
-module.exports = { listar, criar, atualizar, cancelar, horariosOcupados };
+const importar = async (req, res) => {
+  const lista = req.body;
+  if (!Array.isArray(lista) || lista.length === 0) {
+    return res.status(400).json({ message: 'Envie um array de agendamentos' });
+  }
+
+  const docs = lista.map(({ _id, __v, createdAt, updatedAt, ...rest }) => rest);
+
+  const result = await Booking.insertMany(docs, { ordered: false }).catch((err) => {
+    if (err.insertedDocs) return { insertedCount: err.insertedDocs.length };
+    throw err;
+  });
+
+  res.status(201).json({ importados: result.insertedCount ?? result.length });
+};
+
+module.exports = { listar, criar, atualizar, cancelar, horariosOcupados, importar };
