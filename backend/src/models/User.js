@@ -9,10 +9,12 @@ const userSchema = new mongoose.Schema({
   cpf: { type: String, trim: true, default: null },
   nasc: { type: String },
   tel: { type: String },
-  genero: { type: String, enum: ['masculino', 'feminino', 'outro', ''], default: '' },
+  genero: { type: String, enum: ['masculino', 'feminino', ''], default: '' },
   status: { type: String, enum: ['ativo', 'pendente', 'bloqueado', 'inativo'], default: 'ativo' },
   creditos: { type: Number, default: 0 },
   admin: { type: Boolean, default: false },
+  resetToken: { type: String, default: null },
+  resetTokenExpires: { type: Date, default: null },
 }, { timestamps: true });
 
 // sparse: true permite múltiplos documentos com cpf null sem violar o unique

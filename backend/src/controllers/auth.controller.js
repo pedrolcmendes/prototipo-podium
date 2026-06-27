@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
+const { enviarEmailResetSenha, enviarEmailSenhaAlterada } = require('../utils/email');
 
 const gerarToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
@@ -83,4 +85,42 @@ const me = async (req, res) => {
   res.json(req.user.toPublic());
 };
 
-module.exports = { register, login, googleAuth, me };
+const enviarResetSenha = async (req, res) => {
+  const { userId } = req.body;
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+
+  const token = crypto.randomBytes(32).toString('hex');
+  user.resetToken = token;
+  user.resetTokenExpires = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2h
+  await user.save();
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const link = `${frontendUrl}/redefinir-senha/${token}`;
+
+  try {
+    await enviarEmailResetSenha({ destinatario: user.email, nome: user.nome, link });
+    res.json({ message: 'Email enviado com sucesso' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao enviar email. Verifique as configurações de EMAIL_USER e EMAIL_PASS no .env' });
+  }
+};
+
+const redefinirSenha = async (req, res) => {
+  const { token, novaSenha } = req.body;
+  if (!token || !novaSenha) return res.status(400).json({ message: 'Token e nova senha são obrigatórios' });
+
+  const user = await User.findOne({ resetToken: token, resetTokenExpires: { $gt: new Date() } });
+  if (!user) return res.status(400).json({ message: 'Link inválido ou expirado' });
+
+  user.senha = novaSenha;
+  user.resetToken = null;
+  user.resetTokenExpires = null;
+  await user.save();
+
+  enviarEmailSenhaAlterada({ destinatario: user.email, nome: user.nome }).catch(() => {});
+
+  res.json({ message: 'Senha redefinida com sucesso' });
+};
+
+module.exports = { register, login, googleAuth, me, enviarResetSenha, redefinirSenha };
