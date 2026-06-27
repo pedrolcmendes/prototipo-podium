@@ -464,6 +464,9 @@ body.painel-page {
   border: 1px solid var(--border);
   margin-bottom: 2rem;
 }
+.stats-grid.stats-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
 
 .stat-card {
   background: var(--card);
@@ -489,6 +492,12 @@ body.painel-page {
 }
 .stat-card:hover { background: var(--card-hover); }
 .stat-card:hover::after { opacity: 1; }
+.stat-card-credit {
+  background: rgba(224,172,107,.06);
+  border-left: 2px solid var(--gold);
+}
+.stat-card-credit svg { opacity: 1; }
+.stat-card-credit:hover { background: rgba(224,172,107,.1); }
 
 .stat-value {
   font-family: var(--font-display);
@@ -505,6 +514,144 @@ body.painel-page {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--gray);
+}
+
+/* ══════════════════════════════════════
+   BANNER — PRÓXIMA RESERVA
+   ══════════════════════════════════════ */
+.prox-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1.4rem;
+  background: linear-gradient(135deg, rgba(224,172,107,.12), rgba(224,172,107,.04));
+  border: 1px solid rgba(224,172,107,.3);
+  border-left: 3px solid var(--gold);
+  padding: 1.2rem 1.5rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.prox-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 80% 50%, rgba(224,172,107,.07), transparent 60%);
+  pointer-events: none;
+}
+.prox-banner-icon {
+  width: 50px; height: 50px;
+  background: rgba(224,172,107,.15);
+  border: 1px solid rgba(224,172,107,.3);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.prox-banner-icon svg { width: 22px; height: 22px; stroke: var(--gold); }
+.prox-banner-eyebrow {
+  font-family: var(--font-cond);
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: .2rem;
+  display: flex; align-items: center; gap: .5rem;
+}
+.prox-banner-eyebrow::before { content: ''; width: 14px; height: 1px; background: var(--gold); }
+.prox-banner-title {
+  font-family: var(--font-cond);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--white);
+  margin-bottom: .25rem;
+}
+.prox-banner-meta {
+  font-size: .82rem;
+  color: var(--gray-light);
+  display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
+}
+.prox-banner-meta span { display: inline-flex; align-items: center; gap: .35rem; }
+.prox-banner-meta svg { width: 13px; height: 13px; stroke: var(--gold); opacity: .7; flex-shrink: 0; }
+.prox-banner-date {
+  text-align: center;
+  flex-shrink: 0;
+}
+.prox-banner-day {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--gold);
+}
+.prox-banner-month {
+  font-family: var(--font-cond);
+  font-size: .62rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+
+/* ══════════════════════════════════════
+   DASHBOARD GRID 2 COLUNAS
+   ══════════════════════════════════════ */
+.dash-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  align-items: start;
+}
+
+/* ══════════════════════════════════════
+   CARTEIRA
+   ══════════════════════════════════════ */
+.painel-card-wallet {
+  border-color: rgba(224,172,107,.2);
+  background: linear-gradient(180deg, rgba(224,172,107,.05) 0%, var(--card) 40%);
+}
+.wallet-badge {
+  font-family: var(--font-cond);
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: var(--gold-faint);
+  border: 1px solid rgba(224,172,107,.25);
+  padding: .2rem .65rem;
+}
+.wallet-body { padding: 1.5rem; }
+.wallet-saldo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.wallet-saldo-label {
+  font-family: var(--font-cond);
+  font-size: .72rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+.wallet-saldo-value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold), var(--gold-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.wallet-info {
+  font-size: .82rem;
+  color: var(--gray);
+  line-height: 1.6;
+  margin-bottom: 1rem;
 }
 
 /* ══════════════════════════════════════
@@ -984,12 +1131,18 @@ body.painel-page {
 /* ══════════════════════════════════════
    RESPONSIVO
    ══════════════════════════════════════ */
+@media (max-width: 1200px) {
+  .stats-grid.stats-5 { grid-template-columns: repeat(3, 1fr); }
+}
 @media (max-width: 1024px) {
   .painel-topbar-info { display: none; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid.stats-5 { grid-template-columns: repeat(3, 1fr); }
+  .dash-grid-2 { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 860px) {
+  .stats-grid.stats-5 { grid-template-columns: repeat(2, 1fr); }
   .painel-layout { grid-template-columns: 1fr; }
 
   /* Sidebar vira drawer lateral */
@@ -1027,6 +1180,9 @@ body.painel-page {
   .painel-topbar-back span { display: none; }
 
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: .6rem; }
+  .stats-grid.stats-5 { grid-template-columns: repeat(2, 1fr); }
+  .prox-banner { grid-template-columns: auto 1fr; gap: .9rem; }
+  .prox-banner-date { display: none; }
 
   /* Keep booking actions visible as a row below */
   .booking-item { grid-template-columns: 48px 1fr; gap: .7rem; }

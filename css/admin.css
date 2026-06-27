@@ -9,33 +9,34 @@ body.admin-page {
   padding-top: 0;
   background: var(--black);
   color: var(--white);
-  /* ── Paleta própria do painel (handoff de design) — escuro (padrão) ── */
-  --black: #0c0e11;        /* bg geral */
-  --dark: #1a1e24;         /* surface-2: inputs, hover de linha, sidebar nav */
-  --card: #14171c;         /* surface: cards, tabelas, modais */
-  --card-hover: #1f242b;   /* elev */
-  --border: #252a31;
-  --border-light: #333a44;
-  --border-soft: #1e232a;
-  --white: #eef1f5;        /* texto primário */
-  --off-white: #cdd3da;
-  --gray: #6a7280;         /* texto terciário / labels */
-  --gray-light: #a7b0bb;   /* texto secundário */
-  --muted: rgba(238,241,245,.35);
-  --gold: #e0ac6b;         /* accent */
-  --gold-light: #ecc190;
-  --gold-dark: #d2954f;    /* accent-2 */
-  --gold-faint: rgba(224,172,107,.13);
-  --on-accent: #241806;    /* texto sobre fundo accent (botões, avatares) */
-  --sidebar-bg: #0f1216;
-  --red: #f87171;     --red-soft: rgba(248,113,113,.14);
-  --green: #34d399;   --green-soft: rgba(52,211,153,.14);
-  --blue: #60a5fa;    --blue-soft: rgba(96,165,250,.14);
-  --amber: #fbbf24;   --amber-soft: rgba(251,191,36,.14);
-  --shadow-card: 0 8px 30px rgba(0,0,0,.32);
+  /* ── Paleta do painel — idêntica ao site principal ── */
+  --black: #080808;
+  --dark: #101010;
+  --card: #161616;
+  --card-hover: #1c1c1c;
+  --border: #242424;
+  --border-light: #303030;
+  --border-soft: #1e1e1e;
+  --white: #FFFFFF;
+  --off-white: #F0EDE8;
+  --gray: #808080;
+  --gray-light: #BCBCBC;
+  --muted: rgba(255,255,255,.35);
+  --gold: #E0AC6B;
+  --gold-light: #F0C88A;
+  --gold-dark: #B8824A;
+  --gold-faint: rgba(224,172,107,.08);
+  --gold-glow: rgba(224,172,107,.25);
+  --on-accent: #241806;
+  --sidebar-bg: #0e0e0e;
+  --red: #ef4444;     --red-soft: rgba(239,68,68,.12);
+  --green: #22c55e;   --green-soft: rgba(34,197,94,.12);
+  --blue: #60a5fa;    --blue-soft: rgba(96,165,250,.12);
+  --amber: #f59e0b;   --amber-soft: rgba(245,158,11,.12);
+  --shadow-card: 0 4px 24px rgba(0,0,0,.4);
   /* Cores de modalidade — usadas na Grade de Ocupação */
-  --mod-bt: #e0ac6b;
-  --mod-fv: #34d399;
+  --mod-bt: #E0AC6B;
+  --mod-fv: #22c55e;
   --mod-vl: #60a5fa;
   --mod-pb: #c084fc;
 }
@@ -44,31 +45,31 @@ body.admin-page {
    TEMA CLARO — só dentro do painel admin
    ══════════════════════════════════════ */
 body.admin-page.theme-light {
-  --black: #f3f5f8;
-  --dark: #f5f7fa;
+  --black: #f5f5f5;
+  --dark: #ffffff;
   --card: #ffffff;
-  --card-hover: #ffffff;
-  --border: #e4e8ee;
-  --border-light: #d2d8e1;
-  --border-soft: #eef1f5;
-  --white: #1a1f27;
-  --off-white: #3a4250;
-  --gray: #97a1b0;
-  --gray-light: #586474;
-  --muted: rgba(26,31,39,.35);
-  --gold: #c5853d;
-  --gold-light: #d59c5c;
-  --gold-dark: #b3742d;
-  --gold-faint: rgba(197,133,61,.12);
+  --card-hover: #fafafa;
+  --border: #e8e8e8;
+  --border-light: #d8d8d8;
+  --border-soft: #efefef;
+  --white: #111111;
+  --off-white: #2a2a2a;
+  --gray: #888888;
+  --gray-light: #555555;
+  --muted: rgba(0,0,0,.35);
+  --gold: #B8824A;
+  --gold-light: #C8924A;
+  --gold-dark: #A06030;
+  --gold-faint: rgba(184,130,74,.10);
   --on-accent: #fff6e9;
   --sidebar-bg: #ffffff;
   --red: #dc2626;     --red-soft: rgba(220,38,38,.09);
-  --green: #16a34a;   --green-soft: rgba(22,163,74,.11);
+  --green: #16a34a;   --green-soft: rgba(22,163,74,.10);
   --blue: #2563eb;    --blue-soft: rgba(37,99,235,.10);
-  --amber: #d97706;   --amber-soft: rgba(217,119,6,.12);
-  --shadow-card: 0 6px 24px rgba(25,38,55,.07);
-  --mod-bt: #c5853d;
-  --mod-fv: #0f9d6e;
+  --amber: #d97706;   --amber-soft: rgba(217,119,6,.10);
+  --shadow-card: 0 4px 20px rgba(0,0,0,.08);
+  --mod-bt: #B8824A;
+  --mod-fv: #16a34a;
   --mod-vl: #2563eb;
   --mod-pb: #9333ea;
   background: var(--black);
@@ -113,7 +114,7 @@ body.gate-active .admin-layout { display: none; }
 .admin-gate-logo img { width: 100%; height: 100%; object-fit: contain; }
 .admin-gate-eyebrow {
   font-family: var(--font-cond); font-size: .68rem; font-weight: 700;
-  letter-spacing: 4px; text-transform: uppercase; color: var(--red); margin-bottom: .5rem;
+  letter-spacing: 4px; text-transform: uppercase; color: var(--gold); margin-bottom: .5rem;
 }
 .admin-gate-title {
   font-family: var(--font-display); font-size: 1.85rem; letter-spacing: 2px; color: var(--white); margin-bottom: .5rem;
@@ -181,7 +182,7 @@ body.gate-active .admin-layout { display: none; }
   font-size: .58rem;
   letter-spacing: 4px;
   text-transform: uppercase;
-  color: var(--red);
+  color: var(--gold);
   font-weight: 700;
 }
 
@@ -201,10 +202,10 @@ body.gate-active .admin-layout { display: none; }
   font-weight: 700;
   letter-spacing: 3px;
   text-transform: uppercase;
-  color: var(--red);
-  border: 1px solid rgba(239,68,68,.35);
+  color: var(--gold);
+  border: 1px solid rgba(224,172,107,.35);
   padding: .25rem .8rem;
-  background: rgba(239,68,68,.07);
+  background: var(--gold-faint);
   flex-shrink: 0;
 }
 .admin-topbar-badge::before {
@@ -212,7 +213,7 @@ body.gate-active .admin-layout { display: none; }
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--red);
+  background: var(--gold);
   animation: blink 1.6s ease-in-out infinite;
 }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
@@ -231,10 +232,10 @@ body.gate-active .admin-layout { display: none; }
 }
 .admin-topbar-avatar {
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--red);
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold));
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-body); font-size: .82rem; font-weight: 700;
-  color: var(--white); flex-shrink: 0;
+  color: var(--on-accent); flex-shrink: 0;
 }
 .admin-topbar-name {
   font-family: var(--font-body); font-size: .88rem;
@@ -451,13 +452,13 @@ body.gate-active .admin-layout { display: none; }
   font-weight: 700;
   letter-spacing: 4px;
   text-transform: uppercase;
-  color: var(--red);
+  color: var(--gold);
   margin-bottom: .3rem;
   display: flex;
   align-items: center;
   gap: .5rem;
 }
-.admin-eyebrow::before { content: ''; display: block; width: 18px; height: 1px; background: var(--red); }
+.admin-eyebrow::before { content: ''; display: block; width: 18px; height: 1px; background: var(--gold); }
 .admin-greeting { text-align: right; }
 .admin-greeting-name {
   font-family: var(--font-cond); font-weight: 600; font-size: 1.4rem;

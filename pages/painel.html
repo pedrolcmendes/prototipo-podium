@@ -239,17 +239,24 @@
 
       <!-- DASHBOARD -->
       <section class="painel-section active" id="painel-dashboard">
+
+        <!-- Header -->
         <div class="painel-section-header">
           <div>
             <p class="painel-eyebrow">Bem-vindo de volta</p>
-            <h2 class="painel-section-title-h2">DASHBOARD</h2>
+            <h2 class="painel-section-title-h2" id="dashTitulo">SEU PAINEL</h2>
           </div>
           <a href="reservas.html" class="btn-gold-sm">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
             Nova Reserva
           </a>
         </div>
-        <div class="stats-grid">
+
+        <!-- Banner: Próxima Reserva -->
+        <div id="dashBannerProxima"></div>
+
+        <!-- Stats -->
+        <div class="stats-grid stats-5">
           <div class="stat-card">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
             <div class="stat-value" id="statReservas">0</div>
@@ -270,11 +277,18 @@
             <div class="stat-value" id="statConcluidas">0</div>
             <div class="stat-label">Concluídas</div>
           </div>
+          <div class="stat-card stat-card-credit">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+            <div class="stat-value" id="statCredito">R$ 0</div>
+            <div class="stat-label">Crédito em Carteira</div>
+          </div>
         </div>
+
+        <!-- Quick actions -->
         <div class="quick-actions">
           <a href="reservas.html" class="quick-action-btn">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M12 8v4l2 2"/></svg>
-            <span>Nova Reserva</span>
+            <span>Reservar Quadra</span>
           </a>
           <a href="eventos.html" class="quick-action-btn">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
@@ -289,18 +303,61 @@
             <span>WhatsApp</span>
           </a>
         </div>
-        <div class="painel-card">
-          <div class="painel-card-header"><h3>Próximas Reservas</h3><button onclick="switchPainelTab('reservas')">Ver todas</button></div>
-          <div id="dashProximas"></div>
+
+        <!-- Grid 2 colunas: Próximas Reservas | Carteira + Eventos -->
+        <div class="dash-grid-2">
+
+          <!-- Coluna esq: Próximas Reservas -->
+          <div class="painel-card">
+            <div class="painel-card-header">
+              <h3>Próximas Reservas</h3>
+              <button onclick="switchPainelTab('reservas')">Ver todas →</button>
+            </div>
+            <div id="dashProximas"></div>
+          </div>
+
+          <!-- Coluna dir: Carteira + Eventos -->
+          <div style="display:flex;flex-direction:column;gap:1.5rem">
+
+            <!-- Carteira -->
+            <div class="painel-card painel-card-wallet">
+              <div class="painel-card-header">
+                <h3>Carteira de Créditos</h3>
+                <span class="wallet-badge">Saldo disponível</span>
+              </div>
+              <div class="wallet-body">
+                <div class="wallet-saldo">
+                  <span class="wallet-saldo-label">Saldo atual</span>
+                  <span class="wallet-saldo-value" id="walletSaldo">R$ 0,00</span>
+                </div>
+                <p class="wallet-info">Créditos gerados por cancelamentos dentro de 24h ou bônus promocionais. Uso automático na próxima reserva.</p>
+                <a href="reservas.html" class="btn-gold-sm" style="width:100%;justify-content:center;margin-top:.5rem">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                  Usar Crédito
+                </a>
+              </div>
+            </div>
+
+            <!-- Eventos inscritos -->
+            <div class="painel-card">
+              <div class="painel-card-header">
+                <h3>Meus Eventos</h3>
+                <button onclick="switchPainelTab('inscricoes')">Ver todos →</button>
+              </div>
+              <div id="dashEventos"></div>
+            </div>
+
+          </div>
         </div>
+
+        <!-- Atividade Recente -->
         <div class="painel-card">
-          <div class="painel-card-header"><h3>Meus Eventos</h3><button onclick="switchPainelTab('inscricoes')">Ver todos</button></div>
-          <div id="dashEventos"></div>
-        </div>
-        <div class="painel-card">
-          <div class="painel-card-header"><h3>Atividade Recente</h3></div>
+          <div class="painel-card-header">
+            <h3>Atividade Recente</h3>
+          </div>
           <div id="dashActivity"></div>
         </div>
+
       </section>
 
       <!-- RESERVAS -->

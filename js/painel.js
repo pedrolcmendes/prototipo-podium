@@ -118,11 +118,61 @@ function renderDashboard(user) {
     (b) => b.date < now || b.status === "concluida",
   );
 
+  // Stats
   document.getElementById("statReservas").textContent = bookings.length;
   document.getElementById("statProximas").textContent = proximas.length;
   document.getElementById("statEventos").textContent = inscricoes.length;
   document.getElementById("statConcluidas").textContent = concluidas.length;
 
+  // Crédito em carteira
+  const credito = user.credito || 0;
+  const creditoFmt = "R$ " + credito.toFixed(2).replace(".", ",");
+  const statCred = document.getElementById("statCredito");
+  if (statCred) statCred.textContent = creditoFmt;
+
+  // Saldo carteira (wallet card)
+  const walletSaldo = document.getElementById("walletSaldo");
+  if (walletSaldo) walletSaldo.textContent = creditoFmt;
+
+  // Banner: próxima reserva
+  const bannerEl = document.getElementById("dashBannerProxima");
+  if (bannerEl) {
+    if (proximas.length > 0) {
+      const b = proximas[0];
+      const [y, m, d] = (b.date || "").split("-");
+      const mon = MONTHS[parseInt(m) - 1] || "";
+      bannerEl.innerHTML = `
+        <div class="prox-banner">
+          <div class="prox-banner-date">
+            <div class="prox-banner-day">${d}</div>
+            <div class="prox-banner-month">${mon} ${y}</div>
+          </div>
+          <div class="prox-banner-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+          </div>
+          <div>
+            <div class="prox-banner-eyebrow">Próxima Reserva</div>
+            <div class="prox-banner-title">${b.courtName || "Quadra"}</div>
+            <div class="prox-banner-meta">
+              <span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${b.time || "—"}</span>
+              <span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>R$ ${b.price || 0},00</span>
+              ${b.modality ? `<span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>${b.modality}</span>` : ""}
+            </div>
+          </div>
+        </div>`;
+    } else {
+      bannerEl.innerHTML = "";
+    }
+  }
+
+  // Título personalizado
+  const titulo = document.getElementById("dashTitulo");
+  if (titulo) {
+    const nome = (user.nome || "").split(" ")[0].toUpperCase();
+    titulo.textContent = nome ? `OLÁ, ${nome}` : "SEU PAINEL";
+  }
+
+  // Lista de próximas reservas
   const proxEl = document.getElementById("dashProximas");
   proxEl.innerHTML =
     proximas.length === 0
@@ -130,7 +180,7 @@ function renderDashboard(user) {
           SVG.cal,
           "Nenhuma reserva agendada",
           "Reserve uma quadra e apareça aqui.",
-          "../pages/reservas.html",
+          "reservas.html",
           "Reservar agora",
         )
       : proximas
@@ -145,11 +195,11 @@ function renderDashboard(user) {
           SVG.trophy,
           "Nenhuma inscrição",
           "Inscreva-se em um evento e apareça aqui.",
-          "../pages/eventos.html",
+          "eventos.html",
           "Ver eventos",
         )
       : inscricoes
-          .slice(0, 3)
+          .slice(0, 2)
           .map((i) => evtItemHTML(i))
           .join("");
 
