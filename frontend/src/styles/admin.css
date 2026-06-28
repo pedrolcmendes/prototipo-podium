@@ -815,6 +815,7 @@ body.gate-active .admin-layout { display: none; }
 .admin-page-btn:hover,
 .admin-page-btn.active { border-color: var(--gold); color: var(--gold); background: var(--gold-faint); }
 .admin-page-btn:disabled { opacity: .3; cursor: default; }
+.admin-page-ellipsis { width: 24px; height: 30px; display: inline-flex; align-items: center; justify-content: center; color: var(--gray); font-size: .85rem; }
 
 /* ══════════════════════════════════════
    FINANCEIRO

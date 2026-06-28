@@ -23,24 +23,20 @@ const STATUS_CLS = {
 };
 
 const QUADRAS_ALL = [
-  { id: 'BT-1', nome: 'Quadra BT 1' }, { id: 'BT-2', nome: 'Quadra BT 2' },
-  { id: 'BT-3', nome: 'Quadra BT 3' }, { id: 'BT-4', nome: 'Quadra BT 4' },
-  { id: 'FV-1', nome: 'Quadra FV 1' }, { id: 'FV-2', nome: 'Quadra FV 2' },
-  { id: 'VB-1', nome: 'Quadra VB 1' }, { id: 'VB-2', nome: 'Quadra VB 2' },
+  { id: 'coberta-1', nome: 'Quadra 1' }, { id: 'coberta-2', nome: 'Quadra 2' },
+  { id: 'areia-1',   nome: 'Quadra 3' }, { id: 'areia-2',   nome: 'Quadra 4' },
+  { id: 'areia-3',   nome: 'Quadra 5' },
 ];
 const HOURS = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
 const MOD_COLOR = { 'beach-tennis': '#e0ac6b', 'futevolei': '#60a5fa', 'volei': '#34d399', 'pickleball': '#f472b6' };
 
 // ── Grade de Ocupação constants ───────────────────────────────
 const COURTS_GRADE = [
-  { id: 'BT-1', label: 'Quadra BT 1', tipo: 'coberta', tag: 'Beach Tennis' },
-  { id: 'BT-2', label: 'Quadra BT 2', tipo: 'coberta', tag: 'Beach Tennis' },
-  { id: 'BT-3', label: 'Quadra BT 3', tipo: 'areia',   tag: 'Beach Tennis' },
-  { id: 'BT-4', label: 'Quadra BT 4', tipo: 'areia',   tag: 'Beach Tennis' },
-  { id: 'FV-1', label: 'Quadra FV 1', tipo: 'coberta', tag: 'Futevôlei' },
-  { id: 'FV-2', label: 'Quadra FV 2', tipo: 'areia',   tag: 'Futevôlei' },
-  { id: 'VB-1', label: 'Quadra VB 1', tipo: 'coberta', tag: 'Vôlei' },
-  { id: 'VB-2', label: 'Quadra VB 2', tipo: 'areia',   tag: 'Vôlei' },
+  { id: 'coberta-1', label: 'Quadra 1', tipo: 'coberta',    tag: 'Coberta'    },
+  { id: 'coberta-2', label: 'Quadra 2', tipo: 'coberta',    tag: 'Coberta'    },
+  { id: 'areia-1',   label: 'Quadra 3', tipo: 'descoberta', tag: 'Descoberta' },
+  { id: 'areia-2',   label: 'Quadra 4', tipo: 'descoberta', tag: 'Descoberta' },
+  { id: 'areia-3',   label: 'Quadra 5', tipo: 'descoberta', tag: 'Descoberta' },
 ];
 const GRADE_HOURS_LIST = Array.from({ length: 16 }, (_, i) => 7 + i); // 7h–22h
 const MOD_CLS = { 'beach-tennis': 'bt', futevolei: 'fv', volei: 'vl', pickleball: 'pb' };
@@ -512,14 +508,26 @@ function Pagination({ page, total, perPage, onChange }) {
   if (pages <= 1) return null;
   const start = (page - 1) * perPage + 1;
   const end = Math.min(page * perPage, total);
+
+  // Janela de páginas: sempre mostra primeira, última e ±2 ao redor da atual
+  const visibles = new Set([1, pages]);
+  for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) visibles.add(i);
+  const nums = [...visibles].sort((a, b) => a - b);
+
+  const btns = [];
+  nums.forEach((n, idx) => {
+    if (idx > 0 && n - nums[idx - 1] > 1) btns.push(<span key={`e${n}`} className="admin-page-ellipsis">…</span>);
+    btns.push(
+      <button key={n} className={`admin-page-btn${page === n ? ' active' : ''}`} onClick={() => onChange(n)}>{n}</button>
+    );
+  });
+
   return (
     <div className="admin-pagination">
       <div className="admin-pagination-info">{start}–{end} de {total}</div>
       <div className="admin-pagination-btns">
         <button className="admin-page-btn" disabled={page === 1} onClick={() => onChange(page - 1)}>‹</button>
-        {Array.from({ length: pages }, (_, i) => (
-          <button key={i} className={`admin-page-btn${page === i + 1 ? ' active' : ''}`} onClick={() => onChange(i + 1)}>{i + 1}</button>
-        ))}
+        {btns}
         <button className="admin-page-btn" disabled={page === pages} onClick={() => onChange(page + 1)}>›</button>
       </div>
     </div>
@@ -551,6 +559,7 @@ export default function Admin() {
   // Filters — Usuários
   const [usrSearch, setUsrSearch] = useState('');
   const [usrStatus, setUsrStatus] = useState('todos');
+  const [usrGenero, setUsrGenero] = useState('todos');
   const [usrPage, setUsrPage] = useState(1);
 
   // Filters — Eventos
@@ -587,6 +596,11 @@ export default function Admin() {
   const [novaResModal, setNovaResModal] = useState(false);
   const [novaResForm, setNovaResForm] = useState({ userId: '', userName: '', quadraId: 'BT-1', modalidade: 'beach-tennis', date: '', slots: [9], payment: 'pix', total: 80, status: 'confirmada' });
 
+  // Config
+  const [cfgCancelWindow, setCfgCancelWindow] = useState(24);
+  const [cfgMaxAdvanceDays, setCfgMaxAdvanceDays] = useState(30);
+  const [cfgSaving, setCfgSaving] = useState(false);
+
   useEffect(() => {
     document.body.classList.add('admin-page');
     return () => {
@@ -617,16 +631,32 @@ export default function Admin() {
     if (!user?.admin) return;
     setLoading(true);
     try {
-      const [u, b, e] = await Promise.all([api.get('/users'), api.get('/bookings'), api.get('/events')]);
+      const [u, b, e, cfg] = await Promise.all([
+        api.get('/users'),
+        api.get('/bookings'),
+        api.get('/events'),
+        api.get('/settings'),
+      ]);
       setUsuarios(u.data);
       setReservas(b.data);
       setEventos(e.data);
+      setCfgCancelWindow(cfg.data.cancelWindow ?? 24);
+      setCfgMaxAdvanceDays(cfg.data.maxAdvanceDays ?? 30);
       const allInsc = await Promise.all(e.data.map(ev => api.get(`/registrations/evento/${ev._id}`).then(r => r.data).catch(() => [])));
       setInscricoes(allInsc.flat());
       await loadRankings();
     } catch { toast('Erro ao carregar dados', 'error'); }
     finally { setLoading(false); }
   }, [user]);
+
+  const saveConfig = async () => {
+    setCfgSaving(true);
+    try {
+      await api.put('/settings', { cancelWindow: cfgCancelWindow, maxAdvanceDays: cfgMaxAdvanceDays });
+      toast('Configurações salvas', 'success');
+    } catch { toast('Erro ao salvar configurações', 'error'); }
+    finally { setCfgSaving(false); }
+  };
 
   useEffect(() => { if (!gateOpen) loadData(); }, [gateOpen]);
 
@@ -660,16 +690,13 @@ export default function Admin() {
   const pagedRes = filteredRes.slice((resPage - 1) * PER_PAGE, resPage * PER_PAGE);
 
   // ── Filtered Usuários ──
+  const norm = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const filteredUsr = usuarios.filter(u => {
-    const q = usrSearch.toLowerCase().trim();
-    const idQ = q.startsWith('#u-') ? q.slice(3) : q.startsWith('#u') ? q.slice(2) : q;
-    const matchSearch = !q
-      || (u.nome || '').toLowerCase().includes(q)
-      || (u.email || '').toLowerCase().includes(q)
-      || (u.cpf || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
-      || (u._id || '').toLowerCase().includes(idQ);
+    const q = norm(usrSearch.trim());
+    const matchSearch = !q || norm(u.nome).includes(q);
     const matchStatus = usrStatus === 'todos' || u.status === usrStatus || (usrStatus === 'ativos' && u.status === 'ativo') || (usrStatus === 'pendentes' && u.status === 'pendente') || (usrStatus === 'bloqueados' && u.status === 'bloqueado') || (usrStatus === 'inativos' && u.status === 'inativo');
-    return matchSearch && matchStatus;
+    const matchGenero = usrGenero === 'todos' || (usrGenero === 'nd' ? (!u.genero || u.genero === '') : u.genero === usrGenero);
+    return matchSearch && matchStatus && matchGenero;
   });
   const pagedUsr = filteredUsr.slice((usrPage - 1) * PER_PAGE, usrPage * PER_PAGE);
 
@@ -846,12 +873,13 @@ export default function Admin() {
 
   // ── Mapeamento automático de colunas do Excel ─────────────
   const COL_VARIANTS = {
-    nome:   ['nome', 'name', 'cliente', 'razao social', 'razão social', 'responsavel', 'responsável', 'nomecomercial', 'contato'],
-    email:  ['email', 'e-mail', 'mail', 'correio eletrônico', 'e mail'],
-    cpf:    ['cpf', 'cpf/cnpj', 'documento', 'doc', 'cnpj', 'cpf_cnpj'],
-    tel:    ['telefone', 'tel', 'celular', 'whatsapp', 'fone', 'phone', 'celular/whatsapp', 'contato telefone'],
-    nasc:   ['nascimento', 'data de nascimento', 'nasc', 'data_nasc', 'dob', 'data nasc', 'dt_nasc', 'dt nasc'],
-    genero: ['genero', 'gênero', 'sexo', 'gender'],
+    nome:       ['_nomecompleto', 'nome completo', 'nome', 'name', 'cliente', 'razao social', 'razão social', 'responsavel', 'responsável', 'nomecomercial', 'contato'],
+    email:      ['email', 'e-mail', 'mail', 'correio eletrônico', 'e mail'],
+    cpf:        ['cpf', 'cpf/cnpj', 'documento', 'doc', 'cnpj', 'cpf_cnpj'],
+    tel:        ['celular', 'telefone', 'tel', 'whatsapp', 'fone', 'phone', 'celular/whatsapp', 'contato telefone'],
+    nasc:       ['nascimento', 'data de nascimento', 'nasc', 'data_nasc', 'dob', 'data nasc', 'dt_nasc', 'dt nasc'],
+    genero:     ['genero', 'gênero', 'sexo', 'gender'],
+    createdAt:  ['data inscr', 'data inscrição', 'inscricao', 'inscrição', 'data cadastro', 'cadastro', 'data_cadastro', 'criado'],
   };
 
   const autoMapCols = (headers) => {
@@ -871,10 +899,30 @@ export default function Admin() {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      let rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
       if (!rows.length) { toast('Arquivo vazio.', 'error'); return; }
+
+      // detecta padrão "Nome" + "1º Sobrenome" + "2º Sobrenome" e combina em "Nome Completo"
       const headers = Object.keys(rows[0]);
+      const temSobrenome = headers.includes('1º Sobrenome');
+      if (temSobrenome) {
+        rows = rows.map(row => {
+          const nome = String(row['Nome'] || '').trim();
+          const sob1 = String(row['1º Sobrenome'] || '').trim();
+          const sob2 = String(row['2º Sobrenome'] || '').trim();
+          // evita duplicar o sobrenome se ele já está dentro do campo Nome
+          const nomeCompleto = sob1 && !nome.toLowerCase().includes(sob1.toLowerCase())
+            ? [nome, sob1, sob2].filter(Boolean).join(' ')
+            : [nome, sob2].filter(Boolean).join(' ');
+          return { ...row, '_nomeCompleto': nomeCompleto };
+        });
+        headers.unshift('_nomeCompleto');
+      }
+
       const mapping = autoMapCols(headers);
+      // prefere o nome completo sintetizado quando disponível
+      if (temSobrenome) mapping.nome = '_nomeCompleto';
+
       setImportUsersData({ headers, rows });
       setImportMapping(mapping);
       setImportUsersModal(true);
@@ -888,15 +936,27 @@ export default function Admin() {
     const lista = rows.map(row => {
       const u = { senha: importSenha || null, status: 'ativo' };
       Object.entries(importMapping).forEach(([field, col]) => {
-        if (col && row[col] !== undefined && row[col] !== '') {
+        if (col && row[col] !== undefined && String(row[col]).trim() !== '') {
           let v = String(row[col]).trim();
           if (field === 'genero') {
-            v = v.toLowerCase();
-            if (v.includes('fem') || v === 'f') v = 'feminino';
-            else if (v.includes('masc') || v === 'm') v = 'masculino';
+            const vl = v.toLowerCase();
+            if (vl.includes('fem') || vl === 'f') v = 'feminino';
+            else if (vl.includes('masc') || vl === 'm') v = 'masculino';
             else v = '';
+          } else if (field === 'tel') {
+            v = String(Math.round(Number(v))).replace(/\D/g, '');
+          } else if (field === 'createdAt') {
+            // suporta DD/MM/YYYY e YYYY-MM-DD
+            let d;
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
+              const [dd, mm, yyyy] = v.split('/');
+              d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+            } else {
+              d = new Date(v);
+            }
+            v = isNaN(d) ? undefined : d.toISOString();
           }
-          u[field] = v;
+          if (v !== undefined) u[field] = v;
         }
       });
       return u;
@@ -1804,10 +1864,16 @@ export default function Admin() {
                 <div className="admin-card-toolbar">
                   <div className="admin-search">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                    <input type="text" placeholder="Buscar por ID, nome, CPF…" value={usrSearch} onChange={e => { setUsrSearch(e.target.value); setUsrPage(1); }} />
+                    <input type="text" placeholder="Buscar por nome…" value={usrSearch} onChange={e => { setUsrSearch(e.target.value); setUsrPage(1); }} />
                   </div>
+                  <select className="admin-filter-select" value={usrGenero} onChange={e => { setUsrGenero(e.target.value); setUsrPage(1); }}>
+                    <option value="todos">Todos gêneros</option>
+                    <option value="masculino">♂ Masculino</option>
+                    <option value="feminino">♀ Feminino</option>
+                    <option value="nd">Não declarado</option>
+                  </select>
                   <select className="admin-filter-select" value={usrStatus} onChange={e => { setUsrStatus(e.target.value); setUsrPage(1); }}>
-                    <option value="todos">Todos</option>
+                    <option value="todos">Todos status</option>
                     <option value="ativos">Ativos</option>
                     <option value="pendentes">Pendentes</option>
                     <option value="bloqueados">Bloqueados</option>
@@ -1816,6 +1882,15 @@ export default function Admin() {
                   <button className="btn-admin-secondary" style={{ whiteSpace: 'nowrap', gap: '.4rem' }} title="Importar usuários de planilha Excel ou CSV" onClick={() => importUsersRef.current?.click()}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                     Importar Planilha
+                  </button>
+                  <button
+                    className="btn-admin-secondary"
+                    style={{ whiteSpace: 'nowrap', gap: '.4rem', color: '#e05c5c', borderColor: 'rgba(224,92,92,.35)' }}
+                    title="Remove todos os usuários não-admin do banco (exceto admins)"
+                    onClick={() => setConfirmModal({ title: 'Limpar usuários importados?', text: 'Isso vai remover TODOS os usuários não-admin do banco de dados. Esta ação não pode ser desfeita.', onConfirm: async () => { setConfirmModal(null); try { const { data } = await api.delete('/users/limpar'); toast(`${data.removidos} usuário(s) removido(s).`); const r = await api.get('/users'); setUsuarios(r.data); } catch { toast('Erro ao limpar usuários.', 'error'); } } })}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Limpar Importação
                   </button>
                   <input ref={importUsersRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { handleImportUsersFile(e.target.files[0]); e.target.value = ''; }} />
                 </div>
@@ -2050,9 +2125,9 @@ export default function Admin() {
           <section className={`admin-section${tab === 'config' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Sistema</p><h2 className="admin-section-h2">CONFIGURAÇÕES GERAIS</h2></div>
-              <button className="btn-admin-primary" onClick={() => toast('Configurações salvas', 'success')}>
+              <button className="btn-admin-primary" onClick={saveConfig} disabled={cfgSaving}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Salvar Alterações
+                {cfgSaving ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>
             <div className="admin-config-wrap">
@@ -2087,8 +2162,8 @@ export default function Admin() {
                     <div><h3>Regras de Reserva</h3><p>Limites aplicados ao reservar</p></div>
                   </div>
                   <div className="admin-config-row2">
-                    <div className="admin-field"><label>Antecedência máx. (dias)</label><input type="number" defaultValue="14" className="cfg-input" /></div>
-                    <div className="admin-field"><label>Cancelamento até (h)</label><input type="number" defaultValue="6" className="cfg-input" /></div>
+                    <div className="admin-field"><label>Antecedência máx. (dias)</label><input type="number" value={cfgMaxAdvanceDays} onChange={e => setCfgMaxAdvanceDays(Number(e.target.value))} min="1" max="365" className="cfg-input" /></div>
+                    <div className="admin-field"><label>Prazo para cancelar (h após reservar)</label><input type="number" value={cfgCancelWindow} onChange={e => setCfgCancelWindow(Number(e.target.value))} min="0" max="168" className="cfg-input" /></div>
                   </div>
                 </div>
               </div>
@@ -2142,8 +2217,9 @@ export default function Admin() {
                     { field: 'email',  label: 'Email *' },
                     { field: 'cpf',    label: 'CPF' },
                     { field: 'tel',    label: 'Telefone' },
-                    { field: 'nasc',   label: 'Data de Nascimento' },
-                    { field: 'genero', label: 'Gênero' },
+                    { field: 'nasc',      label: 'Data de Nascimento' },
+                    { field: 'genero',    label: 'Gênero' },
+                    { field: 'createdAt', label: 'Data de Cadastro (cliente desde)' },
                   ].map(({ field, label }) => (
                     <div key={field} className="admin-field" style={{ marginBottom: 0 }}>
                       <label style={{ fontSize: '.72rem' }}>{label}</label>
