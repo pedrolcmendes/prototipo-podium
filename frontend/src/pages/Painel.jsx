@@ -6,6 +6,24 @@ import LogoutModal from '../components/LogoutModal';
 import api from '../services/api';
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+function modColor(mod) {
+  const m = (mod || '').toLowerCase().replace(/-/g, '');
+  if (m.includes('beach') || m.includes('tennis')) return 'var(--gold)';
+  if (m.includes('futev')) return 'var(--green)';
+  if (m.includes('volei') || m.includes('vôlei')) return '#60a5fa';
+  if (m.includes('pickle')) return '#c084fc';
+  return 'var(--gold)';
+}
+function modSoft(mod) {
+  const m = (mod || '').toLowerCase().replace(/-/g, '');
+  if (m.includes('beach') || m.includes('tennis')) return 'rgba(224,172,107,.15)';
+  if (m.includes('futev')) return 'rgba(34,197,94,.15)';
+  if (m.includes('volei') || m.includes('vôlei')) return 'rgba(96,165,250,.15)';
+  if (m.includes('pickle')) return 'rgba(192,132,252,.15)';
+  return 'rgba(224,172,107,.15)';
+}
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -13,9 +31,39 @@ function fmtDate(d) {
   return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
 }
 
+function fmtMoney(v) {
+  return `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+}
+
+function resolveStatus(r) {
+  if (!r.date || r.status === 'cancelada') return r.status;
+  if (new Date(r.date + 'T23:59:00') < new Date()) return 'concluida';
+  return r.status;
+}
+
 function StatusBadge({ status }) {
-  const label = { confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada', concluida: 'Concluída' }[status] || status;
-  return <span className={`status-badge ${status}`}>{label}</span>;
+  const map = { confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada', concluida: 'Concluída' };
+  return <span className={`status-badge ${status}`}>{map[status] || status}</span>;
+}
+
+const IcoHome = () => <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const IcoCal = () => <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+const IcoTrophy = () => <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
+const IcoBar = () => <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>;
+const IcoWallet = () => <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
+const IcoUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const IcoTrash = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+const IcoBan = () => <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>;
+const IcoLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
+const IcoClock = () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+
+function NavGroup({ label, children }) {
+  return (
+    <div className="pnav-group">
+      <span className="pnav-label">{label}</span>
+      {children}
+    </div>
+  );
 }
 
 function NavItem({ id, label, icon, activeTab, onSelect }) {
@@ -34,15 +82,17 @@ export default function Painel() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [tab, setTab] = useState('dashboard');
+  const [tab, setTab] = useState('inicio');
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [reservaFilter, setReservaFilter] = useState('proximas');
 
   const [reservas, setReservas] = useState([]);
-  const [inscricoes, setInscricoes] = useState([]);
+  const [eventos, setEventos] = useState([]);
   const [meuRanking, setMeuRanking] = useState([]);
   const [cancelId, setCancelId] = useState(null);
   const [cancelInfo, setCancelInfo] = useState('');
+  const [cancelWindow, setCancelWindow] = useState(24);
 
   const [perfil, setPerfil] = useState({ nome: '', email: '', telefone: '', dataNascimento: '' });
   const [senhaData, setSenhaData] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
@@ -59,12 +109,14 @@ export default function Painel() {
     });
     loadData();
     return () => document.body.classList.remove('painel-page');
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadData = () => {
     api.get('/bookings/me').then(r => setReservas(r.data.data || r.data || [])).catch(() => {});
-    api.get('/registrations/me').then(r => setInscricoes(r.data.data || r.data || [])).catch(() => {});
+    api.get('/events').then(r => setEventos(r.data.data || r.data || [])).catch(() => {});
     api.get('/users/me').then(r => updateUser(r.data.data || r.data)).catch(() => {});
+    api.get('/settings').then(r => setCancelWindow((r.data.data || r.data)?.cancelWindow || 24)).catch(() => {});
     loadMeuRanking();
   };
 
@@ -83,26 +135,57 @@ export default function Painel() {
         const { data } = await api.get(`/ranking?esporte=${esporte}&genero=${genero}`);
         const found = Array.isArray(data) ? data[0] : data;
         if (!found?.entries?.length) return;
-        const entry = found.entries.find(e =>
+        const idx = found.entries.findIndex(e =>
           e.userId?.toString() === uid || e.userId2?.toString() === uid
         );
-        if (entry) posicoes.push({ esporte: esporteLabel, genero: generoLabel, ...entry });
+        if (idx === -1) return;
+        const entry = found.entries[idx];
+        const start = Math.max(0, idx - 2);
+        const end = Math.min(found.entries.length, idx + 3);
+        const contextRows = found.entries.slice(start, end).map(e => ({
+          ...e,
+          isUser: e.userId?.toString() === uid || e.userId2?.toString() === uid,
+        }));
+        posicoes.push({ esporte: esporteLabel, genero: generoLabel, userEntry: entry, contextRows });
       } catch {}
     }));
-    setMeuRanking(posicoes.sort((a, b) => a.pos - b.pos));
+    setMeuRanking(posicoes.sort((a, b) => a.userEntry.pos - b.userEntry.pos));
   };
 
-  const initials = user?.nome ? user.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : '?';
-  const proximas = reservas.filter(r => r.status !== 'cancelada' && r.date && new Date(r.date + 'T12:00:00') >= new Date());
-  const concluidas = reservas.filter(r => r.date && new Date(r.date + 'T12:00:00') < new Date());
-  const fmtCredito = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const initials = user?.nome
+    ? user.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+    : '?';
+
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const proximas = reservas.filter(r => r.status !== 'cancelada' && r.date && new Date(r.date + 'T12:00:00') >= hoje);
+  const anteriores = reservas.filter(r => r.date && new Date(r.date + 'T12:00:00') < hoje);
+  const reservasFiltradas = reservaFilter === 'proximas' ? proximas
+    : reservaFilter === 'anteriores' ? anteriores
+    : reservas;
+  const proximaReserva = [...proximas].sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+
+  const extrato = [...reservas]
+    .filter(r => r.total > 0)
+    .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))
+    .map(r => ({
+      id: r._id,
+      tipo: r.status === 'cancelada' ? 'credito' : 'debito',
+      desc: r.status === 'cancelada' ? `Estorno — ${r.modalidade || '—'}` : `Reserva — ${r.modalidade || '—'}`,
+      data: r.createdAt ? new Date(r.createdAt).toLocaleDateString('pt-BR') : fmtDate(r.date),
+      valor: r.total,
+    }));
 
   const handleCancelar = async () => {
     if (!cancelId) return;
     try {
-      await api.patch(`/bookings/${cancelId}/cancelar`);
-      toast('Reserva cancelada', 'success');
+      const res = await api.patch(`/bookings/${cancelId}/cancelar`);
+      const creditos = res.data?.creditosEstornados;
+      const msg = creditos > 0
+        ? `Reserva cancelada. ${fmtMoney(creditos)} creditados na sua carteira.`
+        : 'Reserva cancelada.';
+      toast(msg, 'success');
       setReservas(prev => prev.map(r => r._id === cancelId ? { ...r, status: 'cancelada' } : r));
+      api.get('/users/me').then(r => updateUser(r.data.data || r.data)).catch(() => {});
     } catch (ex) {
       toast(ex.response?.data?.message || 'Erro ao cancelar', 'error');
     } finally {
@@ -150,7 +233,12 @@ export default function Painel() {
           <img src="/img/logo.png" alt="Podium Arena" />
           <span>PODIUM ARENA</span>
         </Link>
+
         <div className="painel-topbar-right">
+          <button className="ptopbar-wallet" onClick={() => handleNavSelect('carteira')}>
+            <IcoWallet />
+            <span>{fmtMoney(user?.creditos)}</span>
+          </button>
           <div className="painel-topbar-user">
             <div className="painel-topbar-avatar">{initials}</div>
             <div className="painel-topbar-info">
@@ -158,8 +246,15 @@ export default function Painel() {
               <span className="painel-topbar-badge">Membro Arena</span>
             </div>
           </div>
+          <button className="ptopbar-logout-btn" onClick={() => setLogoutOpen(true)} title="Sair">
+            <IcoLogout />
+          </button>
         </div>
-        <button className={`painel-topbar-hamburger${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(!sidebarOpen)}>
+
+        <button
+          className={`painel-topbar-hamburger${sidebarOpen ? ' open' : ''}`}
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+        >
           <span /><span /><span />
         </button>
       </header>
@@ -168,9 +263,14 @@ export default function Painel() {
         {/* SIDEBAR */}
         <aside className={`painel-sidebar${sidebarOpen ? ' open' : ''}`}>
           <div className="painel-user-card">
-            <div className="painel-avatar">
+            <div
+              className="painel-avatar"
+              onClick={() => handleNavSelect('perfil')}
+              title="Editar perfil"
+              style={{ cursor: 'pointer' }}
+            >
               {initials}
-              <div className="painel-avatar-edit" onClick={() => { setTab('perfil'); setSidebarOpen(false); }} title="Editar perfil">
+              <div className="painel-avatar-edit">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#080808" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
               </div>
             </div>
@@ -183,27 +283,21 @@ export default function Painel() {
           </div>
 
           <nav className="painel-nav">
-            <NavItem id="dashboard" label="Dashboard" activeTab={tab} onSelect={handleNavSelect} icon={<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>} />
-            <NavItem id="reservas" label="Reservas" activeTab={tab} onSelect={handleNavSelect} icon={<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>} />
-            <NavItem id="inscricoes" label="Inscrições" activeTab={tab} onSelect={handleNavSelect} icon={<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>} />
-            <NavItem id="ranking" label="Ranking" activeTab={tab} onSelect={handleNavSelect} icon={<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>} />
-            <NavItem id="perfil" label="Perfil" activeTab={tab} onSelect={handleNavSelect} icon={<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>} />
+            <NavGroup label="Principal">
+              <NavItem id="inicio" label="Início" icon={<IcoHome />} activeTab={tab} onSelect={handleNavSelect} />
+            </NavGroup>
+            <NavGroup label="Jogar">
+              <NavItem id="reservas" label="Minhas Reservas" icon={<IcoCal />} activeTab={tab} onSelect={handleNavSelect} />
+            </NavGroup>
+            <NavGroup label="Comunidade">
+              <NavItem id="eventos" label="Eventos" icon={<IcoTrophy />} activeTab={tab} onSelect={handleNavSelect} />
+              <NavItem id="ranking" label="Ranking" icon={<IcoBar />} activeTab={tab} onSelect={handleNavSelect} />
+            </NavGroup>
+            <NavGroup label="Conta">
+              <NavItem id="carteira" label="Carteira" icon={<IcoWallet />} activeTab={tab} onSelect={handleNavSelect} />
+              <NavItem id="perfil" label="Perfil" icon={<IcoUser />} activeTab={tab} onSelect={handleNavSelect} />
+            </NavGroup>
           </nav>
-
-          <div className="painel-sidebar-links">
-            <Link to="/reservas" className="painel-sidebar-link">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-              Nova Reserva
-            </Link>
-            <Link to="/eventos" className="painel-sidebar-link">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-              Ver Eventos
-            </Link>
-            <a href="https://wa.me/5543999999999" target="_blank" rel="noreferrer" className="painel-sidebar-link">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
-              WhatsApp
-            </a>
-          </div>
 
           <div className="painel-sidebar-logout">
             <Link to="/" className="painel-sidebar-link">
@@ -211,25 +305,24 @@ export default function Painel() {
               Ver site
             </Link>
             <button onClick={() => setLogoutOpen(true)}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+              <IcoLogout />
               Sair da Conta
             </button>
           </div>
-
         </aside>
 
         {sidebarOpen && <div className="painel-overlay" onClick={() => setSidebarOpen(false)} />}
 
-        {/* CONTEÚDO */}
+        {/* CONTENT */}
         <main className="painel-content">
 
-          {/* ── DASHBOARD ── */}
-          {tab === 'dashboard' && (
+          {/* ── INÍCIO ── */}
+          {tab === 'inicio' && (
             <section className="painel-section active">
               <div className="painel-section-header">
                 <div>
                   <p className="painel-eyebrow">Bem-vindo de volta</p>
-                  <h2 className="painel-section-title-h2">{user?.nome?.split(' ')[0].toUpperCase()}'S PAINEL</h2>
+                  <h2 className="painel-section-title-h2">{user?.nome?.split(' ')[0]?.toUpperCase()}'S PAINEL</h2>
                 </div>
                 <Link to="/reservas" className="btn-gold-sm">
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
@@ -237,90 +330,99 @@ export default function Painel() {
                 </Link>
               </div>
 
-              <div className="stats-grid stats-5">
-                {[
-                  { icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>, val: reservas.length, label: 'Total Reservas' },
-                  { icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, val: proximas.length, label: 'Próximas' },
-                  { icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>, val: inscricoes.length, label: 'Eventos' },
-                  { icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>, val: concluidas.length, label: 'Concluídas' },
-                  { icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>, val: fmtCredito(user?.creditos), label: 'Crédito em Carteira', credit: true },
-                ].map((s, i) => (
-                  <div key={i} className={`stat-card${s.credit ? ' stat-card-credit' : ''}`}>
-                    {s.icon}
-                    <div className="stat-value">{s.val}</div>
-                    <div className="stat-label">{s.label}</div>
-                  </div>
-                ))}
+              {/* KPI grid */}
+              <div className="stats-grid stats-4">
+                <div className="stat-card stat-card-credit" onClick={() => handleNavSelect('carteira')} style={{ cursor: 'pointer' }}>
+                  <IcoWallet />
+                  <div className="stat-value">{fmtMoney(user?.creditos)}</div>
+                  <div className="stat-label">Saldo Carteira</div>
+                </div>
+                <div className="stat-card">
+                  <IcoCal />
+                  <div className="stat-value">{proximaReserva ? fmtDate(proximaReserva.date) : '—'}</div>
+                  <div className="stat-label">Próxima Reserva</div>
+                </div>
+                <div className="stat-card">
+                  <IcoClock />
+                  <div className="stat-value">{proximas.length}</div>
+                  <div className="stat-label">Reservas Ativas</div>
+                </div>
+                <div className="stat-card">
+                  <IcoBar />
+                  <div className="stat-value">{meuRanking.length > 0 ? `${meuRanking[0].userEntry.pos}º` : '—'}</div>
+                  <div className="stat-label">Melhor Ranking</div>
+                </div>
               </div>
 
-              <div className="quick-actions">
-                <Link to="/reservas" className="quick-action-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M12 8v4l2 2"/></svg>
-                  <span>Reservar Quadra</span>
-                </Link>
-                <Link to="/eventos" className="quick-action-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-                  <span>Ver Eventos</span>
-                </Link>
-                <Link to="/ranking" className="quick-action-btn">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
-                  <span>Ranking</span>
-                </Link>
-              </div>
-
-              {proximas.length > 0 && (() => {
-                const DIAS_S  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-                const MESES_L = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-                const hoje = new Date(); hoje.setHours(0,0,0,0);
-                const ordenadas = [...proximas].sort((a, b) => new Date(a.date) - new Date(b.date));
+              {/* Próxima partida hero */}
+              {proximaReserva && (() => {
+                const dt = new Date(proximaReserva.date + 'T12:00:00');
+                const DIAS_S = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+                const diffDias = Math.round((dt - hoje) / 86400000);
+                const diasLabel = diffDias === 0 ? 'Hoje' : diffDias === 1 ? 'Amanhã' : `Em ${diffDias} dias`;
+                const slots = (proximaReserva.slots || []).slice().sort((a, b) => a - b);
+                const modalidade = (proximaReserva.modalidade || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                 return (
-                  <div style={{ marginTop: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem' }}>
-                      <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.7rem', letterSpacing: '3px', color: 'var(--gray)', textTransform: 'uppercase', margin: 0 }}>Próximas Reservas</p>
-                      <button onClick={() => setTab('reservas')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontFamily: 'var(--font-cond)', fontSize: '.75rem', letterSpacing: '1px', cursor: 'pointer', padding: 0 }}>Ver todas →</button>
+                  <div className="prox-hero">
+                    <div className="prox-hero-glow" />
+                    <div className="prox-hero-date">
+                      <div className="prox-hero-day">{String(dt.getDate()).padStart(2, '0')}</div>
+                      <div className="prox-hero-month">{MESES[dt.getMonth()]}</div>
+                      <div className="prox-hero-dow">{DIAS_S[dt.getDay()]}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                      {ordenadas.slice(0, 4).map((r, i) => {
-                        const dt = new Date(r.date + 'T12:00:00');
-                        const diffDias = Math.round((dt - hoje) / 86400000);
-                        const diasLabel = diffDias === 0 ? 'Hoje' : diffDias === 1 ? 'Amanhã' : `Em ${diffDias} dias`;
-                        const slots = (r.slots || []).slice().sort((a, b) => a - b);
-                        const modalidade = (r.modalidade || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        const quadra = r.quadraId || r.quadra || '—';
-                        return (
-                          <div key={r._id || i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-                            <div style={{ height: 2, background: 'linear-gradient(90deg, var(--gold), transparent)' }} />
-                            <div style={{ padding: '1rem 1.2rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--dark)', border: '1px solid var(--border)', borderRadius: 10, padding: '.7rem .65rem', minWidth: 54, textAlign: 'center', flexShrink: 0 }}>
-                                <span style={{ fontFamily: 'var(--font-cond)', fontSize: '1.6rem', lineHeight: 1, color: 'var(--gold)', fontWeight: 700 }}>{String(dt.getDate()).padStart(2,'0')}</span>
-                                <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.68rem', letterSpacing: '2px', color: 'var(--gray-light)', textTransform: 'uppercase', marginTop: '.15rem' }}>{MESES_L[dt.getMonth()]}</span>
-                                <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.6rem', letterSpacing: '1px', color: 'var(--gray)', textTransform: 'uppercase', marginTop: '.08rem' }}>{DIAS_S[dt.getDay()]}</span>
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.28rem', flexWrap: 'wrap' }}>
-                                  <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.95rem', color: 'var(--white)', letterSpacing: '1px', fontWeight: 700, textTransform: 'uppercase' }}>{modalidade}</span>
-                                  <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.68rem', letterSpacing: '1px', color: 'var(--gray)', background: 'var(--dark)', border: '1px solid var(--border)', borderRadius: 5, padding: '.08rem .4rem' }}>{quadra}</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '.25rem', flexWrap: 'wrap', marginBottom: '.35rem' }}>
-                                  {slots.map(h => (
-                                    <span key={h} style={{ background: 'rgba(197,160,40,.1)', border: '1px solid rgba(197,160,40,.22)', borderRadius: 5, padding: '.1rem .4rem', fontFamily: 'var(--font-cond)', fontSize: '.74rem', color: 'var(--gold)', letterSpacing: '1px' }}>
-                                      {String(h).padStart(2,'0')}h
-                                    </span>
-                                  ))}
-                                </div>
-                                <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.65rem', letterSpacing: '2px', color: diffDias === 0 ? 'var(--gold)' : 'var(--gray)', textTransform: 'uppercase' }}>{diasLabel}</span>
-                              </div>
-                              <div style={{ flexShrink: 0 }}>
-                                <StatusBadge status={r.status} />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="prox-hero-info">
+                      <div className="prox-hero-eyebrow">Próxima Partida</div>
+                      <div className="prox-hero-title">{modalidade}</div>
+                      <div className="prox-hero-meta">
+                        <span>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                          {proximaReserva.quadraId || proximaReserva.quadra || '—'}
+                        </span>
+                        {slots.length > 0 && (
+                          <span>
+                            <IcoClock />
+                            {slots.map(h => `${String(h).padStart(2,'0')}h`).join(' · ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="prox-hero-right">
+                      <div className="prox-hero-dias">{diasLabel}</div>
+                      <StatusBadge status={resolveStatus(proximaReserva)} />
                     </div>
                   </div>
                 );
               })()}
+
+              {/* Últimas reservas */}
+              {reservas.length > 0 && (
+                <div className="painel-card">
+                  <div className="painel-card-header">
+                    <h3>Últimas Reservas</h3>
+                    <button onClick={() => handleNavSelect('reservas')}>Ver todas →</button>
+                  </div>
+                  {[...reservas].slice(0, 4).map(r => {
+                    const dt = r.date ? new Date(r.date + 'T12:00:00') : null;
+                    return (
+                      <div key={r._id} className={`booking-item ${resolveStatus(r)}`}>
+                        <div className="booking-date-block">
+                          <div className="booking-day">{dt ? String(dt.getDate()).padStart(2,'0') : '—'}</div>
+                          <div className="booking-month">{dt ? MESES[dt.getMonth()] : '—'}</div>
+                        </div>
+                        <div>
+                          <div className="booking-info-name">{(r.modalidade || '—').toUpperCase()} · {r.quadraId || r.quadra || '—'}</div>
+                          <div className="booking-info-meta">
+                            {r.slots?.sort((a, b) => a - b).map(h => `${String(h).padStart(2,'0')}h`).join(' · ') || '—'}
+                          </div>
+                        </div>
+                        <div className="booking-actions">
+                          <StatusBadge status={resolveStatus(r)} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           )}
 
@@ -338,108 +440,154 @@ export default function Painel() {
                 </Link>
               </div>
 
-              <div className="painel-card">
-                <div className="painel-card-header">
-                  <h3>Histórico de Reservas</h3>
-                  <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', color: 'var(--gray)', textTransform: 'uppercase' }}>{reservas.length} reserva{reservas.length !== 1 ? 's' : ''}</span>
-                </div>
+              {/* Filtro segmentado */}
+              <div className="res-seg">
+                {[
+                  { key: 'proximas',   label: 'Próximas',   count: proximas.length },
+                  { key: 'anteriores', label: 'Anteriores', count: anteriores.length },
+                  { key: 'todas',      label: 'Todas',      count: reservas.length },
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    className={`res-seg-btn${reservaFilter === f.key ? ' active' : ''}`}
+                    onClick={() => setReservaFilter(f.key)}
+                  >
+                    {f.label}
+                    <span className="res-seg-count">{f.count}</span>
+                  </button>
+                ))}
+              </div>
 
-                {reservas.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-state-icon">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-                    </div>
-                    <h4>Nenhuma reserva</h4>
-                    <p>Você ainda não fez nenhuma reserva.</p>
-                    <Link to="/reservas" className="btn-gold">Reservar Quadra</Link>
-                  </div>
-                ) : (
-                  reservas.map(r => {
-                    const dateStr = r.date || '';
-                    const dt = dateStr ? new Date(dateStr + 'T12:00:00') : null;
-                    const podeCancel = r.status !== 'cancelada' && dt && dt >= new Date();
-                    const horariosStr = r.slots?.sort((a, b) => a - b).map(h => `${String(h).padStart(2, '0')}h`).join(' · ') || '—';
+              {/* Lista de cards */}
+              {reservasFiltradas.length === 0 ? (
+                <div className="res-empty">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+                  <div className="res-empty-title">Nenhuma reserva</div>
+                  <div className="res-empty-sub">Você não tem reservas {reservaFilter === 'proximas' ? 'próximas' : reservaFilter === 'anteriores' ? 'anteriores' : ''}.</div>
+                  {reservaFilter !== 'anteriores' && <Link to="/reservas" className="btn-gold-sm" style={{ marginTop: '1rem' }}>Reservar Quadra</Link>}
+                </div>
+              ) : (
+                <div className="res-list">
+                  {reservasFiltradas.map(r => {
+                    const dt = r.date ? new Date(r.date + 'T12:00:00') : null;
+                    const displaySt = resolveStatus(r);
+                    const podeCancel = displaySt !== 'cancelada' && displaySt !== 'concluida';
+                    const slots = r.slots?.slice().sort((a, b) => a - b) || [];
+                    const horaInicio = slots.length > 0 ? `${String(slots[0]).padStart(2,'0')}:00` : '—';
+                    const horaFim   = slots.length > 0 ? `${String(slots[slots.length-1]+1).padStart(2,'0')}:00` : '';
+                    const horaRange = horaFim ? `${horaInicio} – ${horaFim}` : horaInicio;
+                    const dataLabel = dt ? `${DIAS_SEMANA[dt.getDay()]}, ${dt.getDate()} ${MESES[dt.getMonth()]}` : '—';
+                    const mc = modColor(r.modalidade);
+                    const ms = modSoft(r.modalidade);
+                    const statusLabel = { confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada', concluida: 'Concluída' }[displaySt] || displaySt;
                     return (
-                      <div key={r._id} className={`booking-item ${r.status}`}>
-                        <div className="booking-date-block">
-                          <div className="booking-day">{dt ? String(dt.getDate()).padStart(2, '0') : '—'}</div>
-                          <div className="booking-month">{dt ? MESES[dt.getMonth()] : '—'}</div>
+                      <div key={r._id} className="res-card">
+                        {/* Ícone de modalidade */}
+                        <div className="res-card-icon" style={{ background: ms, color: mc }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/></svg>
                         </div>
-                        <div>
-                          <div className="booking-info-name">{(r.modalidade || '—').toUpperCase()} · {r.quadraId || r.quadra || '—'}</div>
-                          <div className="booking-info-meta">
-                            <span className="booking-meta-item">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                              {horariosStr}
+
+                        {/* Info */}
+                        <div className="res-card-info">
+                          <div className="res-card-title">
+                            {r.quadraId || r.quadra || 'Quadra'} · {(r.modalidade || '—').replace(/-/g,' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </div>
+                          <div className="res-card-meta">
+                            <span>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+                              {dataLabel}
                             </span>
-                            <span className="booking-meta-item">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                              {r.payment || '—'}
+                            <span>
+                              <IcoClock />
+                              {horaRange}
                             </span>
-                            {r.total > 0 && (
-                              <span className="booking-meta-item">
-                                R$ {Number(r.total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </span>
-                            )}
+                            {r.total > 0 && <span>{fmtMoney(r.total)}</span>}
                           </div>
                         </div>
-                        <div className="booking-actions">
-                          <StatusBadge status={r.status} />
+
+                        {/* Status + cancelar */}
+                        <div className="res-card-actions">
+                          <span className={`res-status-pill ${displaySt}`}>{statusLabel}</span>
                           {podeCancel && (
-                            <button className="btn-cancel" onClick={() => { setCancelId(r._id); setCancelInfo(`${r.modalidade} — ${fmtDate(dateStr)}`); }}>
-                              Cancelar
+                            <button
+                              className="res-cancel-btn"
+                              title="Cancelar reserva"
+                              onClick={() => {
+                                const horas = (Date.now() - new Date(r.createdAt).getTime()) / 3600000;
+                                if (horas > cancelWindow) {
+                                  toast(`Prazo de cancelamento expirado. Reservas só podem ser canceladas nas primeiras ${cancelWindow}h após a criação.`, 'error');
+                                  return;
+                                }
+                                setCancelId(r._id);
+                                setCancelInfo(`${r.modalidade} — ${fmtDate(r.date)}`);
+                              }}
+                            >
+                              <IcoBan />
                             </button>
                           )}
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </section>
           )}
 
-          {/* ── INSCRIÇÕES ── */}
-          {tab === 'inscricoes' && (
+          {/* ── EVENTOS ── */}
+          {tab === 'eventos' && (
             <section className="painel-section active">
               <div className="painel-section-header">
                 <div>
-                  <p className="painel-eyebrow">Meus</p>
+                  <p className="painel-eyebrow">Calendário</p>
                   <h2 className="painel-section-title-h2">EVENTOS</h2>
                 </div>
+                <Link to="/eventos" className="btn-ghost">Ver todos →</Link>
               </div>
-              <div className="painel-card">
-                <div className="painel-card-header">
-                  <h3>Minhas Inscrições</h3>
-                  <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', color: 'var(--gray)', textTransform: 'uppercase' }}>{inscricoes.length} inscrição{inscricoes.length !== 1 ? 'ões' : ''}</span>
-                </div>
-                {inscricoes.length === 0 ? (
+
+              {eventos.length === 0 ? (
+                <div className="painel-card">
                   <div className="empty-state">
                     <div className="empty-state-icon">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
                     </div>
-                    <h4>Nenhuma inscrição</h4>
-                    <p>Você ainda não se inscreveu em nenhum evento.</p>
-                    <Link to="/eventos" className="btn-gold">Ver Eventos</Link>
+                    <h4>Nenhum evento</h4>
+                    <p>Não há eventos disponíveis no momento.</p>
                   </div>
-                ) : (
-                  inscricoes.map(i => (
-                    <div key={i._id} className="evt-item">
-                      <div className="evt-item-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-                      </div>
-                      <div>
-                        <div className="evt-item-name">{i.eventId?.nome || '—'}</div>
-                        <div className="evt-item-meta">
-                          {i.eventId?.local && <span>{i.eventId.local}</span>}
-                          {i.eventId?.data && <span>{fmtDate(i.eventId.data)}</span>}
+                </div>
+              ) : (
+                <div className="eventos-grid">
+                  {eventos.map(ev => {
+                    const dt = ev.data ? new Date(ev.data.includes('T') ? ev.data : ev.data + 'T12:00:00') : null;
+                    return (
+                      <div key={ev._id} className="evento-card">
+                        {ev.imagem && (
+                          <div className="evento-card-img">
+                            <img src={ev.imagem} alt={ev.nome} />
+                          </div>
+                        )}
+                        <div className="evento-card-body">
+                          <div className="evento-card-top">
+                            {dt && (
+                              <div className="evento-card-date">
+                                <span className="evento-card-day">{String(dt.getDate()).padStart(2,'0')}</span>
+                                <span className="evento-card-month">{MESES[dt.getMonth()]}</span>
+                              </div>
+                            )}
+                            <span className="evento-card-tag">{ev.modalidade || ev.tipo || 'Evento'}</span>
+                          </div>
+                          <div className="evento-card-name">{ev.nome}</div>
+                          {ev.local && <div className="evento-card-local">{ev.local}</div>}
+                          {ev.preco > 0 && <div className="evento-card-price">{fmtMoney(ev.preco)}</div>}
+                          <Link to="/eventos" className="btn-gold-sm" style={{ marginTop: 'auto', paddingTop: '.75rem', display: 'inline-flex' }}>
+                            Ver detalhes
+                          </Link>
                         </div>
                       </div>
-                      <StatusBadge status={i.status || 'confirmada'} />
-                    </div>
-                  ))
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           )}
 
@@ -456,40 +604,112 @@ export default function Painel() {
 
               {meuRanking.length === 0 ? (
                 <div className="painel-empty">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
-                  <p>Você ainda não aparece em nenhum ranking.</p>
-                  <span style={{ fontSize: '.82rem', color: 'var(--gray)' }}>O administrador da arena irá adicioná-lo ao ranking após suas primeiras partidas.</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+                  <p>Sem ranking</p>
+                  <span>Você ainda não aparece em nenhum ranking. O administrador da arena irá adicioná-lo após suas primeiras partidas.</span>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
-                  {meuRanking.map((r, i) => {
-                    const posLabel = r.pos === 1 ? '🥇' : r.pos === 2 ? '🥈' : r.pos === 3 ? '🥉' : `${r.pos}º`;
-                    const posColor = r.pos === 1 ? 'var(--gold)' : r.pos === 2 ? '#a0a0b0' : r.pos === 3 ? '#cd7f32' : 'var(--gray-light)';
-                    return (
-                      <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.4rem', display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <div style={{ fontSize: '.7rem', fontFamily: 'var(--font-cond)', letterSpacing: '2px', color: 'var(--gray)', textTransform: 'uppercase', marginBottom: '.25rem' }}>{r.esporte} · {r.genero}</div>
-                            <div style={{ fontFamily: 'var(--font-cond)', fontSize: '.9rem', color: 'var(--gray-light)', letterSpacing: '1px' }}>{r.nome}</div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '1.7rem', lineHeight: 1 }}>{posLabel}</div>
-                            <div style={{ fontSize: '.72rem', color: posColor, fontWeight: 700, marginTop: '.15rem' }}>POSIÇÃO</div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.4rem', paddingTop: '.8rem', borderTop: '1px solid var(--border)' }}>
-                          {[['Pts', r.pts], ['PJ', r.pj ?? r.v + r.d], ['V', r.v], ['D', r.d]].map(([label, val]) => (
-                            <div key={label} style={{ textAlign: 'center' }}>
-                              <div style={{ fontFamily: 'var(--font-cond)', fontSize: '1.1rem', color: 'var(--white)', fontWeight: 700 }}>{val ?? 0}</div>
-                              <div style={{ fontSize: '.68rem', color: 'var(--gray)', letterSpacing: '1px' }}>{label}</div>
-                            </div>
-                          ))}
-                        </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {meuRanking.map((r, i) => (
+                    <div key={i} className="painel-card">
+                      <div className="painel-card-header">
+                        <h3>{r.esporte} · {r.genero}</h3>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--gold)' }}>
+                          {r.userEntry.pos}º lugar
+                        </span>
                       </div>
-                    );
-                  })}
+                      <div className="ranking-mini">
+                        {r.contextRows.map((row, j) => {
+                          const posClass = row.pos === 1 ? ' gold' : row.pos === 2 ? ' silver' : row.pos === 3 ? ' bronze' : '';
+                          return (
+                            <div key={j} className={`ranking-mini-row${row.isUser ? ' highlight' : ''}`}>
+                              <div className={`ranking-mini-pos${posClass}`}>{row.pos}º</div>
+                              <div>
+                                <div className="ranking-mini-name">{row.nome || '—'}</div>
+                                {row.isUser && <span className="ranking-mini-you">Você</span>}
+                              </div>
+                              <div className="ranking-mini-pts">{row.pts ?? 0}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
+            </section>
+          )}
+
+          {/* ── CARTEIRA ── */}
+          {tab === 'carteira' && (
+            <section className="painel-section active">
+              <div className="painel-section-header">
+                <div>
+                  <p className="painel-eyebrow">Minha</p>
+                  <h2 className="painel-section-title-h2">CARTEIRA</h2>
+                </div>
+              </div>
+
+              <div className="carteira-grid">
+                {/* Esquerda: cartão físico */}
+                <div className="wallet-card">
+                  <div className="wallet-card-deco1" />
+                  <div className="wallet-card-deco2" />
+                  <div className="wallet-card-top">
+                    <div className="wallet-card-brand">
+                      <img src="/img/logo.png" alt="Podium" />
+                      <span>PODIUM ARENA</span>
+                    </div>
+                    <IcoWallet />
+                  </div>
+                  <div className="wallet-card-balance-label">Saldo disponível</div>
+                  <div className="wallet-card-balance">{fmtMoney(user?.creditos)}</div>
+                  <div className="wallet-card-footer">
+                    <div>
+                      <div className="wallet-card-footer-label">Titular</div>
+                      <div className="wallet-card-footer-value">{user?.nome?.toUpperCase()}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="wallet-card-footer-label">Tipo</div>
+                      <div className="wallet-card-footer-value">ARENA CREDITS</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Direita: extrato */}
+                <div className="painel-card" style={{ marginBottom: 0 }}>
+                  <div className="painel-card-header">
+                    <h3>Extrato</h3>
+                    <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', color: 'var(--gray)', textTransform: 'uppercase' }}>
+                      {extrato.length} transaç{extrato.length !== 1 ? 'ões' : 'ão'}
+                    </span>
+                  </div>
+                  {extrato.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-state-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                      </div>
+                      <h4>Sem movimentações</h4>
+                      <p>Nenhuma transação encontrada.</p>
+                    </div>
+                  ) : (
+                    <div className="extrato-scroll">
+                      {extrato.map(t => (
+                        <div key={t.id} className="extrato-item">
+                          <div className={`extrato-dot ${t.tipo}`} />
+                          <div className="extrato-info">
+                            <div className="extrato-desc">{t.desc}</div>
+                            <div className="extrato-date">{t.data}</div>
+                          </div>
+                          <div className={`extrato-valor ${t.tipo}`}>
+                            {t.tipo === 'credito' ? '+' : '-'}{fmtMoney(t.valor)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </section>
           )}
 
@@ -503,14 +723,13 @@ export default function Painel() {
                 </div>
               </div>
 
-              {/* Avatar / identidade */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '1.5rem 1.8rem', display: 'flex', alignItems: 'center', gap: '1.4rem', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
                 <div className="painel-avatar" style={{ width: 68, height: 68, fontSize: '1.5rem', flexShrink: 0, cursor: 'default' }}>
                   {initials}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'var(--font-cond)', fontSize: '1.15rem', color: 'var(--white)', fontWeight: 700, letterSpacing: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.nome}</div>
-                  <div style={{ fontSize: '.83rem', color: 'var(--gray)', marginTop: '.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</div>
+                  <div style={{ fontFamily: 'var(--font-cond)', fontSize: '1.15rem', color: 'var(--white)', fontWeight: 700, letterSpacing: '1px' }}>{user?.nome}</div>
+                  <div style={{ fontSize: '.83rem', color: 'var(--gray)', marginTop: '.2rem' }}>{user?.email}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginTop: '.55rem', flexWrap: 'wrap' }}>
                     <span className="painel-member-badge">
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="rgba(197,160,40,.3)" stroke="#C5A028" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -526,7 +745,6 @@ export default function Painel() {
                 </div>
               </div>
 
-              {/* Dados pessoais */}
               <form className="profile-form" style={{ borderRadius: 14, overflow: 'hidden', marginBottom: '1.2rem' }} onSubmit={handleSavePerfil}>
                 <div className="profile-form-section">
                   <h3>Dados Pessoais</h3>
@@ -555,7 +773,6 @@ export default function Painel() {
                 </div>
               </form>
 
-              {/* Alterar senha — oculto para usuários Google */}
               {user?.googleId ? (
                 <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.4rem 1.8rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gray)" strokeWidth="1.5" strokeLinecap="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -597,10 +814,11 @@ export default function Painel() {
       {/* BOTTOM TABS MOBILE */}
       <div className="painel-bottom-tabs">
         {[
-          { id: 'dashboard', label: 'Home', icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-          { id: 'reservas', label: 'Reservas', icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg> },
-          { id: 'inscricoes', label: 'Eventos', icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> },
-          { id: 'perfil', label: 'Perfil', icon: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+          { id: 'inicio',   label: 'Início',   icon: <IcoHome /> },
+          { id: 'reservas', label: 'Reservas',  icon: <IcoCal /> },
+          { id: 'eventos',  label: 'Eventos',   icon: <IcoTrophy /> },
+          { id: 'ranking',  label: 'Ranking',   icon: <IcoBar /> },
+          { id: 'perfil',   label: 'Perfil',    icon: <IcoUser /> },
         ].map(t => (
           <button key={t.id} className={`painel-bottom-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
             {t.icon}
@@ -617,7 +835,7 @@ export default function Painel() {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             </div>
             <h3 className="cancel-modal-title">Cancelar Reserva?</h3>
-            <p className="cancel-modal-sub">Esta ação não pode ser desfeita.</p>
+            <p className="cancel-modal-sub">O valor pago será creditado na sua carteira Podium — não é devolvido ao banco.</p>
             <div className="cancel-modal-info-box"><span>{cancelInfo}</span></div>
             <div className="cancel-modal-actions">
               <button className="cancel-modal-btn-keep" onClick={() => setCancelId(null)}>Manter Reserva</button>
