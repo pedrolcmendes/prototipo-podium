@@ -786,15 +786,21 @@ body.painel-page {
 
 /* Botão cancelar */
 .res-cancel-btn {
-  width: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .3rem .75rem;
   height: 32px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--gray);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-family: var(--font-cond);
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  white-space: nowrap;
   cursor: pointer;
   transition: all var(--trans-fast);
 }
