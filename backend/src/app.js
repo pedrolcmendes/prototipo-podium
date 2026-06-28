@@ -8,11 +8,12 @@ const eventRoutes = require('./routes/event.routes');
 const registrationRoutes = require('./routes/registration.routes');
 const rankingRoutes = require('./routes/ranking.routes');
 const blockedSlotRoutes = require('./routes/blockedSlot.routes');
+const settingsRoutes = require('./routes/settings.routes');
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -21,6 +22,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/registrations', registrationRoutes);
 app.use('/api/ranking', rankingRoutes);
 app.use('/api/blocked-slots', blockedSlotRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
