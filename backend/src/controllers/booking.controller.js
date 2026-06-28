@@ -79,14 +79,16 @@ const cancelar = async (req, res) => {
     return res.status(403).json({ message: 'Sem permissão' });
   }
 
-  // Verifica janela de cancelamento: usuário tem cancelWindow horas após a reserva para cancelar
+  // Cancelamento permitido até cancelWindow horas antes do horário da reserva
   if (!req.user.admin) {
     const settings = await Settings.findById('global') || { cancelWindow: 24 };
-    const hoursSinceCreated = (Date.now() - new Date(booking.createdAt).getTime()) / 3600000;
+    const firstSlot = booking.slots?.length > 0 ? Math.min(...booking.slots) : 8;
+    const bookingDateTime = new Date(`${booking.date}T${String(firstSlot).padStart(2, '0')}:00:00`);
+    const hoursUntilBooking = (bookingDateTime.getTime() - Date.now()) / 3600000;
 
-    if (hoursSinceCreated > settings.cancelWindow) {
+    if (hoursUntilBooking < settings.cancelWindow) {
       return res.status(403).json({
-        message: `O prazo para cancelar esta reserva expirou. O cancelamento só é permitido nas ${settings.cancelWindow}h após a reserva.`,
+        message: `Cancelamento não permitido. É necessário cancelar com pelo menos ${settings.cancelWindow}h de antecedência.`,
         cancelWindow: settings.cancelWindow,
       });
     }
