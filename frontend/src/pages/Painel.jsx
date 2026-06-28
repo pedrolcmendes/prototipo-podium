@@ -8,6 +8,30 @@ import api from '../services/api';
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
+const QUADRA_LABEL = {
+  // IDs atuais
+  'coberta-1': 'Quadra 1',
+  'coberta-2': 'Quadra 2',
+  'areia-1':   'Quadra 3',
+  'areia-2':   'Quadra 4',
+  'areia-3':   'Quadra 5',
+  'PKB-DU':    'Pickleball',
+  // IDs legados (formato antigo)
+  'BT-1': 'Quadra 1',
+  'BT-2': 'Quadra 2',
+  'FV-1': 'Quadra 1',
+  'FV-2': 'Quadra 2',
+  'VB-1': 'Quadra 1',
+  'VB-2': 'Quadra 2',
+};
+function quadraLabel(id) {
+  if (!id) return 'Quadra';
+  if (QUADRA_LABEL[id]) return QUADRA_LABEL[id];
+  // Fallback: extrai número do final do ID (ex: 'bt-3' → 'Quadra 3')
+  const m = id.match(/(\d+)$/);
+  return m ? `Quadra ${m[1]}` : id;
+}
+
 function modColor(mod) {
   const m = (mod || '').toLowerCase().replace(/-/g, '');
   if (m.includes('beach') || m.includes('tennis')) return 'var(--gold)';
@@ -376,7 +400,7 @@ export default function Painel() {
                       <div className="prox-hero-meta">
                         <span>
                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                          {proximaReserva.quadraId || proximaReserva.quadra || '—'}
+                          {quadraLabel(proximaReserva.quadraId)}
                         </span>
                         {slots.length > 0 && (
                           <span>
@@ -410,7 +434,7 @@ export default function Painel() {
                           <div className="booking-month">{dt ? MESES[dt.getMonth()] : '—'}</div>
                         </div>
                         <div>
-                          <div className="booking-info-name">{(r.modalidade || '—').toUpperCase()} · {r.quadraId || r.quadra || '—'}</div>
+                          <div className="booking-info-name">{quadraLabel(r.quadraId)} · {(r.modalidade || '—').replace(/-/g,' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
                           <div className="booking-info-meta">
                             {r.slots?.sort((a, b) => a - b).map(h => `${String(h).padStart(2,'0')}h`).join(' · ') || '—'}
                           </div>
@@ -490,7 +514,7 @@ export default function Painel() {
                         {/* Info */}
                         <div className="res-card-info">
                           <div className="res-card-title">
-                            {r.quadraId || r.quadra || 'Quadra'} · {(r.modalidade || '—').replace(/-/g,' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            {quadraLabel(r.quadraId)} · {(r.modalidade || '—').replace(/-/g,' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </div>
                           <div className="res-card-meta">
                             <span>
@@ -513,9 +537,11 @@ export default function Painel() {
                               className="res-cancel-btn"
                               title="Cancelar reserva"
                               onClick={() => {
-                                const horas = (Date.now() - new Date(r.createdAt).getTime()) / 3600000;
-                                if (horas > cancelWindow) {
-                                  toast(`Prazo de cancelamento expirado. Reservas só podem ser canceladas nas primeiras ${cancelWindow}h após a criação.`, 'error');
+                                const firstSlot = r.slots?.length > 0 ? Math.min(...r.slots) : 8;
+                                const bookingDateTime = new Date(`${r.date}T${String(firstSlot).padStart(2,'0')}:00:00`);
+                                const horasAte = (bookingDateTime.getTime() - Date.now()) / 3600000;
+                                if (horasAte < cancelWindow) {
+                                  toast(`Cancelamento não permitido. É necessário cancelar com pelo menos ${cancelWindow}h de antecedência.`, 'error');
                                   return;
                                 }
                                 setCancelId(r._id);
@@ -523,6 +549,7 @@ export default function Painel() {
                               }}
                             >
                               <IcoBan />
+                              Cancelar
                             </button>
                           )}
                         </div>
