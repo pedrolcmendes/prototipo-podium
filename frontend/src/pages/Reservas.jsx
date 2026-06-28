@@ -16,35 +16,44 @@ const MODALIDADES = [
   { id: 'Pickleball', enum: 'pickleball', nome: 'Pickleball', desc: 'Apenas Day Use — R$ 25/pessoa. Acesso à quadra durante o período.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>, dayuse: true },
 ];
 
-const QUADRAS = {
-  'Beach Tennis': [
-    { id: 'BT-1', tipo: 'coberta', nome: 'Quadra BT 1', desc: 'Coberta · Iluminação LED' },
-    { id: 'BT-2', tipo: 'coberta', nome: 'Quadra BT 2', desc: 'Coberta · Iluminação LED' },
-    { id: 'BT-3', tipo: 'areia', nome: 'Quadra BT 3', desc: 'Ao ar livre · Iluminação LED' },
-    { id: 'BT-4', tipo: 'areia', nome: 'Quadra BT 4', desc: 'Ao ar livre · Iluminação LED' },
-  ],
-  'Futevôlei': [
-    { id: 'FV-1', tipo: 'coberta', nome: 'Quadra FV 1', desc: 'Coberta · Rede regulamentada' },
-    { id: 'FV-2', tipo: 'areia', nome: 'Quadra FV 2', desc: 'Ao ar livre · Rede regulamentada' },
-  ],
-  'Vôlei': [
-    { id: 'VB-1', tipo: 'coberta', nome: 'Quadra VB 1', desc: 'Coberta · Estrutura olímpica' },
-    { id: 'VB-2', tipo: 'areia', nome: 'Quadra VB 2', desc: 'Ao ar livre · Estrutura olímpica' },
-  ],
-};
+const QUADRAS = [
+  { id: 'coberta-1', tipo: 'coberta',    nome: 'Quadra 1', desc: 'Coberta' },
+  { id: 'coberta-2', tipo: 'coberta',    nome: 'Quadra 2', desc: 'Coberta' },
+  { id: 'areia-1',   tipo: 'descoberta', nome: 'Quadra 3', desc: 'Descoberta' },
+  { id: 'areia-2',   tipo: 'descoberta', nome: 'Quadra 4', desc: 'Descoberta' },
+  { id: 'areia-3',   tipo: 'descoberta', nome: 'Quadra 5', desc: 'Descoberta' },
+];
 
-const HOURS = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
-function getPrice(h) {
-  if (h < 12) return 60;
-  if (h < 18) return 80;
-  return 100;
+// Retorna preço por hora baseado no tipo de quadra e dia
+function getPrice(h, tipo, isWeekend) {
+  const coberta = tipo === 'coberta';  // descoberta → false
+  if (isWeekend) {
+    if (h < 11) return coberta ? 80 : 60;
+    if (h < 14) return coberta ? 60 : 50;
+    return coberta ? 100 : 80; // 14h+
+  } else {
+    if (h < 16) return coberta ? 60 : 50;
+    if (h < 18) return coberta ? 80 : 60;
+    if (h < 21) return coberta ? 100 : 80;
+    return coberta ? 80 : 60; // 21h+
+  }
 }
+
+const HOURS_WEEKDAY = [8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
+const HOURS_WEEKEND = [8,9,10,11,12,13,14,15,16,17,18,19,20,21];
+const DAY_USE_PRICE = 25;
 
 function padDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function Calendar({ year, month, onPrev, onNext, selectedDate, onSelect, busyDates }) {
+function isWeekendDate(dateStr) {
+  if (!dateStr) return false;
+  const day = new Date(dateStr + 'T12:00:00').getDay();
+  return day === 0 || day === 6;
+}
+
+function Calendar({ year, month, onPrev, onNext, selectedDate, onSelect, busyDates, maxDate }) {
   const first = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const today = padDate(new Date());
@@ -69,16 +78,18 @@ function Calendar({ year, month, onPrev, onNext, selectedDate, onSelect, busyDat
           if (!d) return <div key={`e-${i}`} className="cal-cell empty" />;
           const dt = padDate(new Date(year, month, d));
           const isPast = dt < today;
+          const isFuture = maxDate && dt > maxDate;
           const isBusy = busyDates?.includes(dt);
           const isSel = dt === selectedDate;
           const isToday = dt === today;
+          const isDisabled = isPast || isFuture;
           let cls = 'cal-cell';
-          if (isPast) cls += ' past';
+          if (isDisabled) cls += ' past';
           if (isToday) cls += ' today';
           if (isBusy) cls += ' event-day';
           if (isSel) cls += ' selected';
           return (
-            <div key={d} className={cls} onClick={() => !isPast && onSelect(dt)}>
+            <div key={d} className={cls} onClick={() => !isDisabled && onSelect(dt)}>
               {d}
             </div>
           );
@@ -117,6 +128,16 @@ export default function Reservas() {
 
   const [confOpen, setConfOpen] = useState(false);
   const [confData, setConfData] = useState(null);
+  const [maxAdvanceDays, setMaxAdvanceDays] = useState(30);
+
+  useEffect(() => {
+    api.get('/settings').then(r => setMaxAdvanceDays(r.data.maxAdvanceDays ?? 30)).catch(() => {});
+  }, []);
+
+  const maxDateStr = padDate(new Date(Date.now() + maxAdvanceDays * 86400000));
+
+  const isWeekend = isWeekendDate(selectedDate);
+  const hours = isWeekend ? HOURS_WEEKEND : HOURS_WEEKDAY;
 
   useEffect(() => {
     if (!quadra || !selectedDate) return;
@@ -135,9 +156,8 @@ export default function Reservas() {
   };
 
   const totalPrice = () => {
-    let t = selectedSlots.reduce((acc, h) => acc + getPrice(h), 0);
-    if (dayUse) t += 25;
-    return t;
+    if (dayUse) return DAY_USE_PRICE;
+    return selectedSlots.reduce((acc, h) => acc + getPrice(h, quadra?.tipo, isWeekend), 0);
   };
 
   const handleConfirm = async () => {
@@ -145,16 +165,28 @@ export default function Reservas() {
     if (!payMethod) { toast('Selecione uma forma de pagamento', 'error'); return; }
     setLoading(true);
     try {
-      const res = await api.post('/bookings', {
+      const payload = {
         modalidade: modalidade.enum,
-        quadra: quadra.tipo || 'areia',
-        quadraId: quadra.id,
-        date: selectedDate,
-        slots: selectedSlots.sort((a, b) => a - b),
         payment: payMethod,
         dayUse,
         total: totalPrice(),
-      });
+      };
+      if (!dayUse) {
+        payload.quadra = quadra.tipo;
+        payload.quadraId = quadra.id;
+        payload.date = selectedDate;
+        payload.slots = selectedSlots.sort((a, b) => a - b);
+      } else if (quadra) {
+        payload.quadra = quadra.tipo;
+        payload.quadraId = quadra.id;
+        payload.date = selectedDate;
+      } else {
+        // pickleball day use — sem quadra específica
+        payload.quadra = 'pickleball';
+        payload.quadraId = 'PKB-DU';
+        payload.date = selectedDate;
+      }
+      const res = await api.post('/bookings', payload);
       setConfData(res.data.data || res.data);
       setConfOpen(true);
     } catch (ex) {
@@ -170,6 +202,13 @@ export default function Reservas() {
     setPayMethod(null); setConfOpen(false);
   };
 
+  const goToStep3 = (isDayUse = false) => {
+    setDayUse(isDayUse);
+    setSelectedDate(null);
+    setSelectedSlots([]);
+    setStep(3);
+  };
+
   const stepClass = (n) => {
     if (step === n) return 'bk-step active';
     if (step > n) return 'bk-step done';
@@ -183,6 +222,8 @@ export default function Reservas() {
     const dt = new Date(d + 'T12:00:00');
     return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()} (${DIAS_FULL[dt.getDay()]})`;
   };
+
+  const canProceedStep3 = selectedDate && (dayUse || selectedSlots.length > 0);
 
   return (
     <>
@@ -247,19 +288,27 @@ export default function Reservas() {
         .ts-price{font-family:var(--font-cond);font-size:.65rem;color:var(--gray);letter-spacing:.5px}
         .time-slot.selected .ts-price{color:var(--black)}
         .time-slot.taken .ts-price{color:var(--muted)}
-        .bk-dayuse-btn{display:flex;align-items:center;gap:1rem;background:var(--dark);border:1px solid var(--border);padding:1rem 1.2rem;cursor:pointer;transition:all var(--trans-fast);margin-top:1rem;width:100%;text-align:left}
-        .bk-dayuse-btn:hover{border-color:rgba(224,172,107,.35);background:var(--gold-faint)}
-        .bk-dayuse-btn.active{border-color:var(--gold);background:var(--gold-faint)}
-        .bk-dayuse-check{width:20px;height:20px;border:1.5px solid var(--border);background:var(--card);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:transparent;flex-shrink:0;transition:all var(--trans-fast)}
-        .bk-dayuse-btn.active .bk-dayuse-check{background:var(--gold);border-color:var(--gold);color:var(--black);font-weight:700}
-        .bk-dayuse-info strong{font-family:var(--font-cond);font-size:.9rem;letter-spacing:.5px;color:var(--white);display:block;margin-bottom:.2rem}
-        .bk-dayuse-info p{font-size:.78rem;color:var(--gray)}
+        #bk-quadra-priceinfo{margin-bottom:1.5rem}
+        .bk-price-table{display:grid;grid-template-columns:1fr 1fr;gap:1rem;background:var(--dark);border:1px solid var(--border);padding:1.2rem 1.4rem}
+        .bk-price-col-title{font-family:var(--font-cond);font-size:.7rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:.7rem}
+        .bk-price-row{display:flex;justify-content:space-between;font-family:var(--font-cond);font-size:.82rem;color:var(--gray-light);padding:.25rem 0;border-bottom:1px solid var(--border)}
+        .bk-price-row:last-child{border-bottom:none}
+        .bk-price-row span:last-child{color:var(--gold);font-weight:600}
+        .bk-mode-toggle{display:flex;gap:.5rem;margin-bottom:1.5rem;background:var(--dark);border:1px solid var(--border);padding:.4rem;border-radius:6px;width:fit-content}
+        .bk-mode-btn{padding:.5rem 1.2rem;border:none;background:none;cursor:pointer;font-family:var(--font-cond);font-size:.82rem;font-weight:700;letter-spacing:1px;color:var(--gray);border-radius:4px;transition:all var(--trans-fast)}
+        .bk-mode-btn.active{background:var(--gold);color:#000}
+        .bk-dayuse-card{background:rgba(224,172,107,.04);border:1px solid rgba(224,172,107,.2);border-left:3px solid var(--gold);padding:1.5rem 1.5rem;display:flex;gap:1.2rem;align-items:flex-start;margin-bottom:1.5rem}
+        .bk-dayuse-card svg{flex-shrink:0;color:var(--gold);margin-top:2px}
+        .bk-dayuse-card-title{font-family:var(--font-cond);font-size:1rem;font-weight:700;letter-spacing:1px;color:var(--white);margin-bottom:.35rem}
+        .bk-dayuse-card-desc{font-size:.83rem;color:var(--gray);line-height:1.6}
+        .bk-dayuse-card-price{font-family:var(--font-display);font-size:1.5rem;color:var(--gold);margin-top:.5rem}
         .bk-pay-layout{display:grid;grid-template-columns:1fr 340px;gap:2rem;align-items:start}
         .bk-pay-methods{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.5rem}
         .bk-pay-method{display:flex;align-items:center;gap:.9rem;border:1px solid var(--border);background:var(--dark);padding:1rem 1.2rem;cursor:pointer;transition:all var(--trans-fast)}
         .bk-pay-method:hover{border-color:rgba(224,172,107,.35);background:var(--gold-faint)}
         .bk-pay-method.active{border-color:var(--gold);background:var(--gold-faint)}
-        .bk-pay-icon{font-size:1.3rem}
+        .bk-pay-icon{width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--gray);transition:color var(--trans-fast)}
+        .bk-pay-method.active .bk-pay-icon,.bk-pay-method:hover .bk-pay-icon{color:var(--gold)}
         .bk-pay-label{font-family:var(--font-cond);font-size:.9rem;font-weight:700;letter-spacing:.5px}
         .bk-pay-sub{font-size:.72rem;color:var(--gray)}
         .bk-pix-block{background:rgba(224,172,107,.04);border:1px solid rgba(224,172,107,.2);padding:1.5rem;text-align:center;margin-bottom:1.5rem}
@@ -325,7 +374,7 @@ export default function Reservas() {
                 {modalidade?.dayuse && (
                   <div className="bk-pickleball-notice">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                    <p>O <strong>Pickleball</strong> funciona apenas no modelo <strong>Day Use</strong> (R$ 25/pessoa). Não é possível reservar quadra avulsa.</p>
+                    <p>O <strong>Pickleball</strong> funciona apenas no modelo <strong>Day Use</strong> (R$ 25/pessoa). Não é possível reservar quadra avulsa por hora.</p>
                   </div>
                 )}
                 <div className="bk-option-grid">
@@ -339,7 +388,15 @@ export default function Reservas() {
                   ))}
                 </div>
                 <div className="bk-nav" style={{ justifyContent: 'flex-end' }}>
-                  <button className="btn-gold" disabled={!modalidade} onClick={() => setStep(2)}>
+                  <button className="btn-gold" disabled={!modalidade} onClick={() => {
+                    if (modalidade.dayuse) {
+                      // Pickleball: pula etapa de quadra, vai direto para day use
+                      setQuadra(null);
+                      goToStep3(true);
+                    } else {
+                      setStep(2);
+                    }
+                  }}>
                     Continuar
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                   </button>
@@ -353,26 +410,30 @@ export default function Reservas() {
             <>
               <div className="bk-card-header">
                 <h2>ESCOLHA A QUADRA</h2>
-                <p>Cada quadra tem disponibilidade própria</p>
+                <p>Cada quadra tem disponibilidade própria — confira os valores por faixa de horário</p>
               </div>
               <div className="bk-card-body">
                 <div className="bk-option-grid">
-                  {(QUADRAS[modalidade?.id] || []).map(q => (
+                  {QUADRAS.map(q => (
                     <div key={q.id} className={`bk-option-card${quadra?.id === q.id ? ' active' : ''}`} onClick={() => setQuadra(q)}>
                       <div className="bk-option-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                        {q.tipo === 'coberta'
+                          ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                          : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                        }
                       </div>
                       <div className="bk-option-name">{q.nome}</div>
                       <div className="bk-option-desc">{q.desc}</div>
                     </div>
                   ))}
                 </div>
+
                 <div className="bk-nav">
                   <button className="btn-ghost" onClick={() => setStep(1)}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
                     Voltar
                   </button>
-                  <button className="btn-gold" disabled={!quadra} onClick={() => setStep(3)}>
+                  <button className="btn-gold" disabled={!quadra} onClick={() => goToStep3(false)}>
                     Continuar
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                   </button>
@@ -386,44 +447,82 @@ export default function Reservas() {
             <>
               <div className="bk-card-header">
                 <h2>DATA E HORÁRIOS</h2>
-                <p>Selecione a data no calendário e um ou mais horários consecutivos</p>
+                <p>{dayUse ? 'Modalidade Day Use — acesso livre à quadra no período' : 'Selecione a data e um ou mais horários consecutivos'}</p>
               </div>
               <div className="bk-card-body">
+
+                {/* Toggle por hora / day use — só aparece para modalidades não-pickleball */}
+                {!modalidade?.dayuse && (
+                  <div className="bk-mode-toggle">
+                    <button className={`bk-mode-btn${!dayUse ? ' active' : ''}`} onClick={() => { setDayUse(false); setSelectedDate(null); setSelectedSlots([]); }}>
+                      ⏱ Por Horário
+                    </button>
+                    <button className={`bk-mode-btn${dayUse ? ' active' : ''}`} onClick={() => { setDayUse(true); setSelectedDate(null); setSelectedSlots([]); }}>
+                      🏖 Day Use — R$ 25/pessoa
+                    </button>
+                  </div>
+                )}
+
                 <div className="bk-step3-layout">
                   <div>
-                    <Calendar
-                      year={calYear} month={calMonth}
-                      onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
-                      onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
-                      selectedDate={selectedDate}
-                      onSelect={(d) => { setSelectedDate(d); setSelectedSlots([]); }}
-                    />
-
-                    {selectedDate && (
+                    {dayUse ? (
+                      /* Day Use: info card + calendário para escolher o dia */
                       <>
-                        <div className="bk-times-wrap" style={{ marginTop: '1.5rem' }}>
-                          <div className="bk-times-label">Horários disponíveis <span>· selecione um ou mais</span></div>
-                          <div className="times-grid">
-                            {HOURS.map(h => {
-                              const taken = busySlots.includes(h);
-                              const sel = selectedSlots.includes(h);
-                              return (
-                                <div key={h} className={`time-slot${taken ? ' taken' : ''}${sel ? ' selected' : ''}`} onClick={() => toggleSlot(h)}>
-                                  <div className="ts-hour">{String(h).padStart(2,'0')}h</div>
-                                  <div className="ts-price">R${getPrice(h)}</div>
-                                </div>
-                              );
-                            })}
+                        <div className="bk-dayuse-card">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                          <div>
+                            <div className="bk-dayuse-card-title">Day Use — Acesso Livre</div>
+                            <div className="bk-dayuse-card-desc">
+                              Acesso à quadra e às áreas comuns da arena durante todo o período de funcionamento do dia.<br /><br />
+                              {modalidade?.id === 'Pickleball'
+                                ? 'O Pickleball é disponibilizado exclusivamente no modelo Day Use. Escolha o dia abaixo.'
+                                : 'Ideal para quem quer jogar sem horário fixo ou quer curtir o espaço com mais liberdade.'}
+                            </div>
+                            <div className="bk-dayuse-card-price">R$ {DAY_USE_PRICE}<span style={{ fontSize: '.9rem', color: 'var(--gray)', fontFamily: 'var(--font-body)' }}>/pessoa</span></div>
                           </div>
                         </div>
+                        <Calendar
+                          year={calYear} month={calMonth}
+                          onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
+                          onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
+                          selectedDate={selectedDate}
+                          onSelect={(d) => setSelectedDate(d)}
+                          maxDate={maxDateStr}
+                        />
+                      </>
+                    ) : (
+                      /* Por hora: calendário + horários */
+                      <>
+                        <Calendar
+                          year={calYear} month={calMonth}
+                          onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
+                          onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
+                          selectedDate={selectedDate}
+                          onSelect={(d) => { setSelectedDate(d); setSelectedSlots([]); }}
+                          maxDate={maxDateStr}
+                        />
 
-                        <button className={`bk-dayuse-btn${dayUse ? ' active' : ''}`} onClick={() => setDayUse(!dayUse)}>
-                          <div className="bk-dayuse-check">{dayUse ? '✓' : ''}</div>
-                          <div className="bk-dayuse-info">
-                            <strong>Adicionar Day Use — R$ 25/pessoa</strong>
-                            <p>Acesso às áreas comuns do arena durante o período da reserva</p>
+                        {selectedDate && (
+                          <div className="bk-times-wrap" style={{ marginTop: '1.5rem' }}>
+                            <div className="bk-times-label">
+                              Horários disponíveis
+                              <span style={{ color: 'var(--gray)', fontSize: '.7rem', fontWeight: 400, letterSpacing: '0' }}>· {isWeekend ? 'fim de semana' : 'dia de semana'} · selecione um ou mais</span>
+                            </div>
+                            <div className="times-grid">
+                              {hours.map(h => {
+                                const taken = busySlots.includes(h);
+                                const sel = selectedSlots.includes(h);
+                                const price = getPrice(h, quadra?.tipo, isWeekend);
+                                return (
+                                  <div key={h} className={`time-slot${taken ? ' taken' : ''}${sel ? ' selected' : ''}`} onClick={() => toggleSlot(h)}>
+                                    <div className="ts-hour">{String(h).padStart(2,'0')}h</div>
+                                    <div className="ts-price">R${price}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -435,9 +534,18 @@ export default function Reservas() {
                     </div>
                     <div className="bk-sidebar-body">
                       <div className="bk-summary-row"><span className="bk-summary-label">Modalidade</span><span className="bk-summary-val">{modalidade?.nome}</span></div>
-                      <div className="bk-summary-row"><span className="bk-summary-label">Quadra</span><span className="bk-summary-val">{quadra?.nome}</span></div>
-                      <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
-                      <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.length > 0 ? selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ') : '—'}</span></div>
+                      {quadra && <div className="bk-summary-row"><span className="bk-summary-label">Quadra</span><span className="bk-summary-val">{quadra.nome}</span></div>}
+                      {dayUse ? (
+                        <>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Tipo</span><span className="bk-summary-val" style={{ color: 'var(--gold)' }}>Day Use</span></div>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{selectedDate ? fmtDate(selectedDate) : '—'}</span></div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.length > 0 ? selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ') : '—'}</span></div>
+                        </>
+                      )}
                       <div className="bk-sum-total">
                         <span className="bk-sum-total-label">Total</span>
                         <span className="bk-sum-total-val">R$ {totalPrice()}</span>
@@ -447,11 +555,11 @@ export default function Reservas() {
                 </div>
 
                 <div className="bk-nav">
-                  <button className="btn-ghost" onClick={() => setStep(2)}>
+                  <button className="btn-ghost" onClick={() => modalidade?.dayuse ? setStep(1) : setStep(2)}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
                     Voltar
                   </button>
-                  <button className="btn-gold" disabled={!selectedDate || selectedSlots.length === 0} onClick={() => setStep(4)}>
+                  <button className="btn-gold" disabled={!canProceedStep3} onClick={() => setStep(4)}>
                     Ir para Pagamento
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                   </button>
@@ -473,10 +581,10 @@ export default function Reservas() {
                     <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--gray)', marginBottom: '.9rem' }}>Forma de Pagamento</p>
                     <div className="bk-pay-methods">
                       {[
-                        { id: 'pix', icon: '📱', label: 'PIX', sub: 'Aprovação imediata' },
-                        { id: 'credito', icon: '💳', label: 'Crédito', sub: 'Até 3x sem juros' },
-                        { id: 'debito', icon: '🏦', label: 'Débito', sub: 'Aprovação na hora' },
-                        { id: 'dinheiro', icon: '💵', label: 'Dinheiro', sub: 'Pague na chegada' },
+                        { id: 'pix', label: 'PIX', sub: 'Aprovação imediata', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/><path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/></svg> },
+                        { id: 'credito', label: 'Crédito', sub: 'Até 3x sem juros', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="9" y2="15"/></svg> },
+                        { id: 'debito', label: 'Débito', sub: 'Aprovação na hora', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg> },
+                        { id: 'dinheiro', label: 'Dinheiro', sub: 'Pague na chegada', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 12h.01M18 12h.01"/></svg> },
                       ].map(m => (
                         <div key={m.id} className={`bk-pay-method${payMethod === m.id ? ' active' : ''}`} onClick={() => setPayMethod(m.id)}>
                           <span className="bk-pay-icon">{m.icon}</span>
@@ -512,10 +620,19 @@ export default function Reservas() {
                     </div>
                     <div className="bk-sidebar-body">
                       <div className="bk-summary-row"><span className="bk-summary-label">Modalidade</span><span className="bk-summary-val">{modalidade?.nome}</span></div>
-                      <div className="bk-summary-row"><span className="bk-summary-label">Quadra</span><span className="bk-summary-val">{quadra?.nome}</span></div>
-                      <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
-                      <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
-                      {dayUse && <div className="bk-summary-row"><span className="bk-summary-label">Day Use</span><span className="bk-summary-val">R$ 25</span></div>}
+                      {quadra && <div className="bk-summary-row"><span className="bk-summary-label">Quadra</span><span className="bk-summary-val">{quadra.nome}</span></div>}
+                      {dayUse ? (
+                        <>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Tipo</span><span className="bk-summary-val" style={{ color: 'var(--gold)' }}>Day Use</span></div>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Valor unitário</span><span className="bk-summary-val">R$ {DAY_USE_PRICE}/pessoa</span></div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
+                        </>
+                      )}
                       <div className="bk-sum-total">
                         <span className="bk-sum-total-label">Total</span>
                         <span className="bk-sum-total-val">R$ {totalPrice()}</span>
@@ -555,9 +672,18 @@ export default function Reservas() {
             <div className="conf-id">#{confData?._id?.slice(-6).toUpperCase() || 'PD-000000'}</div>
             <div className="conf-details">
               <div className="conf-row"><span className="conf-label">Modalidade</span><span className="conf-val">{modalidade?.nome}</span></div>
-              <div className="conf-row"><span className="conf-label">Data</span><span className="conf-val">{fmtDate(selectedDate)}</span></div>
-              <div className="conf-row"><span className="conf-label">Horários</span><span className="conf-val">{selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
-              <div className="conf-row"><span className="conf-label">Quadra</span><span className="conf-val">{quadra?.nome}</span></div>
+              {dayUse ? (
+                <>
+                  <div className="conf-row"><span className="conf-label">Tipo</span><span className="conf-val">Day Use</span></div>
+                  <div className="conf-row"><span className="conf-label">Data</span><span className="conf-val">{fmtDate(selectedDate)}</span></div>
+                </>
+              ) : (
+                <>
+                  <div className="conf-row"><span className="conf-label">Data</span><span className="conf-val">{fmtDate(selectedDate)}</span></div>
+                  <div className="conf-row"><span className="conf-label">Horários</span><span className="conf-val">{selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
+                </>
+              )}
+              {quadra && <div className="conf-row"><span className="conf-label">Quadra</span><span className="conf-val">{quadra.nome}</span></div>}
               <div className="conf-row"><span className="conf-label">Pagamento</span><span className="conf-val">{payMethod}</span></div>
               <div className="conf-row"><span className="conf-label">Valor</span><span className="conf-val">R$ {totalPrice()}</span></div>
             </div>
