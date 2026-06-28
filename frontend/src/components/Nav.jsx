@@ -96,7 +96,7 @@ export default function Nav() {
                   </Link>
                 )}
                 <div className="divider" />
-                <button onClick={() => setLogoutOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '.6rem', padding: '.62rem 1.1rem', fontFamily: 'var(--font-cond)', fontSize: '.85rem', letterSpacing: '1px', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', transition: 'all .2s' }}>
+                <button className="user-dropdown-logout" onClick={() => setLogoutOpen(true)}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                   Sair
                 </button>

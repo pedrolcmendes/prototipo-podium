@@ -149,6 +149,16 @@ nav#mainNav.scrolled {
 .user-dropdown a svg { flex-shrink:0; opacity:.7; transition:opacity var(--trans-fast); }
 .user-dropdown a:hover svg { opacity:1; }
 .user-dropdown .divider { height:1px; background:var(--border); margin:.3rem 0; }
+.user-dropdown-logout {
+  display:flex; align-items:center; gap:.6rem;
+  padding:.62rem 1.1rem;
+  font-family:var(--font-cond); font-size:.85rem; letter-spacing:1px;
+  color:#ef4444; background:none; border:none; cursor:pointer;
+  width:100%; text-align:left; transition:all var(--trans-fast);
+}
+.user-dropdown-logout:hover { background:rgba(239,68,68,.1); color:#ff6b6b; }
+.user-dropdown-logout svg { flex-shrink:0; opacity:.8; transition:opacity var(--trans-fast); }
+.user-dropdown-logout:hover svg { opacity:1; }
 
 /* Legado — mantido para compatibilidade */
 .nav-user {
