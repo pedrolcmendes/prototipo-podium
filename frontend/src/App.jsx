@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './components/Toast';
 import Nav from './components/Nav';
+import CompletePerfilModal from './components/CompletePerfilModal';
 import Home from './pages/Home';
 import Eventos from './pages/Eventos';
 import Ranking from './pages/Ranking';
@@ -21,6 +22,7 @@ function Layout() {
   return (
     <>
       {!hideNav && <Nav />}
+      <CompletePerfilModal />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/eventos" element={<Eventos />} />
