@@ -594,7 +594,7 @@ export default function Admin() {
   const [creditoForm, setCreditoForm] = useState({ valor: '', motivo: 'cancelamento', obs: '' });
   const [confirmModal, setConfirmModal] = useState(null);
   const [novaResModal, setNovaResModal] = useState(false);
-  const [novaResForm, setNovaResForm] = useState({ userId: '', userName: '', quadraId: 'BT-1', modalidade: 'beach-tennis', date: '', slots: [9], payment: 'pix', total: 80, status: 'confirmada' });
+  const [novaResForm, setNovaResForm] = useState({ userId: '', userName: '', quadraId: 'coberta-1', modalidade: 'beach-tennis', date: '', slots: [9], payment: 'pix', total: 80, status: 'confirmada' });
 
   // Config
   const [cfgCancelWindow, setCfgCancelWindow] = useState(24);
