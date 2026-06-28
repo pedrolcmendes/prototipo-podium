@@ -7,11 +7,13 @@ const me = async (req, res) => {
 };
 
 const atualizarMe = async (req, res) => {
-  const { nome, tel, nasc } = req.body;
+  const { nome, tel, nasc, genero, cpf } = req.body;
   const updates = {};
   if (nome !== undefined) updates.nome = nome;
   if (tel !== undefined) updates.tel = tel;
   if (nasc !== undefined) updates.nasc = nasc;
+  if (genero !== undefined) updates.genero = genero;
+  if (cpf !== undefined) updates.cpf = cpf ? String(cpf).replace(/\D/g, '') : null;
   const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-senha');
   res.json(user);
 };
@@ -79,6 +81,8 @@ const remover = async (req, res) => {
 
 const importar = async (req, res) => {
   const lista = req.body;
+  console.log('[importar] lista recebida:', Array.isArray(lista), lista?.length);
+  console.log('[importar] primeiro item:', JSON.stringify(lista?.[0]));
   if (!Array.isArray(lista) || !lista.length) {
     return res.status(400).json({ message: 'Envie um array de usuários' });
   }
@@ -91,25 +95,50 @@ const importar = async (req, res) => {
   const GENEROS_VALIDOS = ['masculino', 'feminino', ''];
   const docs = lista
     .filter(u => u.nome && u.email)
-    .map(u => ({
-      nome: String(u.nome).trim(),
-      email: String(u.email).toLowerCase().trim(),
-      senha: u.senha ? hashMap[u.senha] : null,
-      cpf: u.cpf ? String(u.cpf).replace(/\D/g, '') || null : null,
-      tel: u.tel ? String(u.tel).replace(/\D/g, '') || null : null,
-      nasc: u.nasc || null,
-      genero: GENEROS_VALIDOS.includes(u.genero) ? u.genero : '',
-      status: ['ativo', 'pendente', 'bloqueado', 'inativo'].includes(u.status) ? u.status : 'ativo',
-      creditos: Number(u.creditos) || 0,
-    }));
+    .map(u => {
+      const doc = {
+        nome: String(u.nome).trim(),
+        email: String(u.email).toLowerCase().trim(),
+        senha: u.senha ? hashMap[u.senha] : null,
+        genero: GENEROS_VALIDOS.includes(u.genero) ? u.genero : '',
+        status: ['ativo', 'pendente', 'bloqueado', 'inativo'].includes(u.status) ? u.status : 'ativo',
+        creditos: Number(u.creditos) || 0,
+      };
+      // omitir campos opcionais sem valor — índice sparse do CPF só ignora
+      // documentos que NÃO têm o campo; null explícito causaria conflito único
+      const cpf = u.cpf ? String(u.cpf).replace(/\D/g, '') : '';
+      if (cpf) doc.cpf = cpf;
+      const tel = u.tel ? String(u.tel).replace(/\D/g, '') : '';
+      if (tel) doc.tel = tel;
+      if (u.nasc) doc.nasc = u.nasc;
+      if (u.createdAt) {
+        const d = new Date(u.createdAt);
+        if (!isNaN(d)) { doc.createdAt = d; doc.updatedAt = d; }
+      }
+      return doc;
+    });
 
-  const result = await User.insertMany(docs, { ordered: false }).catch(err => {
-    if (err.insertedDocs) return { insertedCount: err.insertedDocs.length };
-    throw err;
-  });
+  console.log('[importar] docs após filtro:', docs.length);
+  console.log('[importar] primeiro doc:', JSON.stringify(docs[0]));
 
-  const importados = result.insertedCount ?? result.length;
+  let importados = 0;
+  try {
+    const result = await User.collection.insertMany(docs, { ordered: false });
+    console.log('[importar] result:', JSON.stringify(result));
+    importados = result.insertedCount;
+  } catch (err) {
+    console.error('[importar] erro:', err.code, err.message);
+    console.error('[importar] nInserted:', err.result?.nInserted, 'insertedCount:', err.insertedCount);
+    importados = err.result?.nInserted ?? err.insertedCount ?? 0;
+  }
+
+  console.log('[importar] importados:', importados, 'erros:', docs.length - importados);
   res.json({ importados, erros: docs.length - importados });
 };
 
-module.exports = { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover, importar };
+const limparNaoAdmins = async (req, res) => {
+  const result = await User.deleteMany({ admin: { $ne: true } });
+  res.json({ removidos: result.deletedCount });
+};
+
+module.exports = { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover, importar, limparNaoAdmins };
