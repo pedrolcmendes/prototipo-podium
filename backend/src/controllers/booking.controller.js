@@ -1,5 +1,7 @@
 const Booking = require('../models/Booking');
 const BlockedSlot = require('../models/BlockedSlot');
+const User = require('../models/User');
+const Settings = require('../models/Settings');
 
 const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
   const query = { quadraId, date, status: { $ne: 'cancelada' }, slots: { $in: slots } };
@@ -27,7 +29,7 @@ const listar = async (req, res) => {
 const criar = async (req, res) => {
   const { modalidade, quadra, quadraId, date, slots, dayUse, payment, total, userId: bodyUserId, userName: bodyUserName } = req.body;
 
-  if (await verificarConflito(quadraId, date, slots)) {
+  if (!dayUse && slots?.length && await verificarConflito(quadraId, date, slots)) {
     return res.status(409).json({ message: 'Horário já reservado ou bloqueado' });
   }
 
@@ -77,9 +79,28 @@ const cancelar = async (req, res) => {
     return res.status(403).json({ message: 'Sem permissão' });
   }
 
+  // Verifica janela de cancelamento: usuário tem cancelWindow horas após a reserva para cancelar
+  if (!req.user.admin) {
+    const settings = await Settings.findById('global') || { cancelWindow: 24 };
+    const hoursSinceCreated = (Date.now() - new Date(booking.createdAt).getTime()) / 3600000;
+
+    if (hoursSinceCreated > settings.cancelWindow) {
+      return res.status(403).json({
+        message: `O prazo para cancelar esta reserva expirou. O cancelamento só é permitido nas ${settings.cancelWindow}h após a reserva.`,
+        cancelWindow: settings.cancelWindow,
+      });
+    }
+  }
+
   booking.status = 'cancelada';
   await booking.save();
-  res.json({ message: 'Reserva cancelada', booking });
+
+  // Estorna como créditos no site (não devolve ao banco)
+  if (ehDono && booking.total > 0) {
+    await User.findByIdAndUpdate(booking.userId, { $inc: { creditos: booking.total } });
+  }
+
+  res.json({ message: 'Reserva cancelada', booking, creditosEstornados: booking.total });
 };
 
 const horariosOcupados = async (req, res) => {
