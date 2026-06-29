@@ -14,8 +14,13 @@ const atualizarMe = async (req, res) => {
   if (nasc !== undefined) updates.nasc = nasc;
   if (genero !== undefined) updates.genero = genero;
   if (cpf !== undefined) updates.cpf = cpf ? String(cpf).replace(/\D/g, '') : null;
-  const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-senha');
-  res.json(user);
+  try {
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    res.json(user.toPublic());
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Este CPF já está cadastrado para outro usuário.' });
+    throw err;
+  }
 };
 
 const alterarSenha = async (req, res) => {
@@ -92,7 +97,7 @@ const importar = async (req, res) => {
   const hashMap = {};
   await Promise.all(senhasUnicas.map(async s => { hashMap[s] = await bcrypt.hash(s, 10); }));
 
-  const GENEROS_VALIDOS = ['masculino', 'feminino', ''];
+  const GENEROS_VALIDOS = ['masculino', 'feminino', 'nao_informar', ''];
   const docs = lista
     .filter(u => u.nome && u.email)
     .map(u => {
