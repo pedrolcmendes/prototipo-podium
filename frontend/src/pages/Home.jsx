@@ -260,23 +260,28 @@ export default function Home() {
         </div>
         <div className="events-grid reveal" id="homeEventsGrid">
           {eventos.length === 0 && (
-            <p style={{ color: 'var(--gray)', fontFamily: 'var(--font-cond)', letterSpacing: '1px' }}>Nenhum evento disponível no momento.</p>
+            <p style={{ color: 'var(--gray)', fontFamily: 'var(--font-cond)', letterSpacing: '1px', gridColumn: '1/-1' }}>Nenhum evento disponível no momento.</p>
           )}
           {eventos.map(ev => {
             const d = new Date(ev.data);
             return (
-              <div key={ev._id} className="event-row">
-                <div className="er-left">
-                  <div className="er-day">{String(d.getDate()).padStart(2, '0')}</div>
-                  <div className="er-month">{MESES[d.getMonth()]}</div>
+              <Link to="/eventos" key={ev._id} className="ev-card">
+                <div className="ev-card-top">
+                  <div className="ev-date-block">
+                    <span className="ev-day">{String(d.getDate()).padStart(2, '0')}</span>
+                    <span className="ev-month">{MESES[d.getMonth()]}</span>
+                  </div>
+                  {ev.categoria && <span className="ev-cat">{ev.categoria}</span>}
                 </div>
-                <div className="er-body">
-                  <div className="er-cat">{ev.categoria}</div>
-                  <div className="er-name">{ev.nome}</div>
-                  <div className="er-meta">{ev.local} · {ev.hora}</div>
+                <div className="ev-card-body">
+                  <div className="ev-title">{ev.nome}</div>
+                  <div className="ev-meta">{[ev.local, ev.hora].filter(Boolean).join(' · ')}</div>
                 </div>
-                <Link to="/eventos" className="btn-ghost" style={{ flexShrink: 0 }}>Ver →</Link>
-              </div>
+                <div className="ev-card-footer">
+                  <span>Ver detalhes</span>
+                  <span className="ev-arrow">→</span>
+                </div>
+              </Link>
             );
           })}
         </div>
