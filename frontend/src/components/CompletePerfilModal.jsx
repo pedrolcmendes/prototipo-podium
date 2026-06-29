@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './Toast';
 import api from '../services/api';
 
 const fmtTel = (v) => {
@@ -18,13 +19,14 @@ const fmtCPF = (v) => {
 };
 
 const GENERO_PILLS = [
-  { value: 'masculino', label: '♂ Masculino' },
-  { value: 'feminino',  label: '♀ Feminino' },
-  { value: '',          label: 'Prefiro não dizer' },
+  { value: 'masculino',    label: '♂ Masculino' },
+  { value: 'feminino',     label: '♀ Feminino' },
+  { value: 'nao_informar', label: 'Prefiro não dizer' },
 ];
 
 export default function CompletePerfilModal() {
   const { user, updateUser } = useAuth();
+  const toast = useToast();
   const [dismissed, setDismissed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [genero, setGenero] = useState('__unset__');
@@ -34,14 +36,17 @@ export default function CompletePerfilModal() {
 
   if (!user || user.admin || dismissed) return null;
 
+  // persiste o "pular" na sessão (clears quando o browser fecha)
+  const skipKey = `perfil_skip_${user._id}`;
+  if (sessionStorage.getItem(skipKey)) return null;
+
   const falta = {
-    genero: !user.genero && user.genero !== '',
+    genero: !user.genero,
     tel:    !user.tel,
     nasc:   !user.nasc,
     cpf:    !user.cpf,
   };
 
-  // nada faltando → não mostra
   if (!Object.values(falta).some(Boolean)) return null;
 
   const handleSalvar = async () => {
@@ -51,17 +56,26 @@ export default function CompletePerfilModal() {
     if (falta.nasc && nasc) payload.nasc = nasc;
     if (falta.cpf) { const c = cpf.replace(/\D/g, ''); if (c.length === 11) payload.cpf = c; }
 
-    if (!Object.keys(payload).length) { setDismissed(true); return; }
+    if (!Object.keys(payload).length) {
+      handlePular();
+      return;
+    }
 
     setLoading(true);
     try {
       const { data } = await api.put('/users/me', payload);
       updateUser(data);
-    } catch {
-      updateUser(payload);
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Erro ao salvar. Tente novamente.';
+      toast(msg, 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePular = () => {
+    sessionStorage.setItem(skipKey, '1');
+    setDismissed(true);
   };
 
   return (
@@ -90,7 +104,7 @@ export default function CompletePerfilModal() {
             <label style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '1px', color: 'var(--gray)' }}>GÊNERO</label>
             <div style={{ display: 'flex', gap: '.5rem' }}>
               {GENERO_PILLS.map(p => (
-                <button key={String(p.value)} onClick={() => setGenero(p.value)} style={{
+                <button key={p.value} onClick={() => setGenero(p.value)} style={{
                   flex: 1, padding: '.5rem .3rem', borderRadius: 8, cursor: 'pointer',
                   border: `1px solid ${genero === p.value ? 'var(--gold)' : 'var(--border)'}`,
                   background: genero === p.value ? 'rgba(197,160,40,.12)' : 'rgba(255,255,255,.03)',
@@ -148,7 +162,7 @@ export default function CompletePerfilModal() {
           }}>
             {loading ? 'Salvando…' : 'Salvar e continuar'}
           </button>
-          <button onClick={() => setDismissed(true)} style={{
+          <button onClick={handlePular} style={{
             background: 'none', border: 'none', color: 'var(--gray)', fontSize: '.8rem',
             cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-body)',
           }}>
