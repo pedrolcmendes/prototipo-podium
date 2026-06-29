@@ -13,6 +13,15 @@ const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
   return !!bloqueio;
 };
 
+const listarMinhas = async (req, res) => {
+  const filtro = { userId: req.user._id };
+  if (req.query.status) filtro.status = req.query.status;
+  const bookings = await Booking.find(filtro)
+    .populate('userId', 'nome email')
+    .sort({ date: -1, createdAt: -1 });
+  res.json(bookings);
+};
+
 const listar = async (req, res) => {
   const filtro = req.user.admin ? {} : { userId: req.user._id };
 
@@ -138,4 +147,4 @@ const importar = async (req, res) => {
   res.status(201).json({ importados: result.insertedCount ?? result.length });
 };
 
-module.exports = { listar, criar, atualizar, cancelar, horariosOcupados, importar };
+module.exports = { listarMinhas, listar, criar, atualizar, cancelar, horariosOcupados, importar };
