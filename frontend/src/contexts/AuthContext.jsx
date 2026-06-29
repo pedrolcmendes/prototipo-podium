@@ -40,10 +40,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const updateUser = useCallback((updated) => {
-    const merged = { ...user, ...updated };
-    localStorage.setItem('podium_user', JSON.stringify(merged));
-    setUser(merged);
-  }, [user]);
+    setUser(prev => {
+      const merged = { ...prev, ...updated };
+      localStorage.setItem('podium_user', JSON.stringify(merged));
+      return merged;
+    });
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, login, register, loginWithGoogle, logout, updateUser }}>
