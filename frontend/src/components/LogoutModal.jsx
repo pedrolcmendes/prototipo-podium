@@ -15,24 +15,20 @@ export default function LogoutModal({ onClose }) {
   };
 
   return (
-    <div className="modal-overlay open" style={{ zIndex: 9999 }}>
-      <div style={{
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        padding: '2.5rem',
-        maxWidth: '400px',
-        width: '100%',
-        textAlign: 'center',
-      }}>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', letterSpacing: '2px', marginBottom: '.8rem' }}>
-          SAIR DA ARENA?
-        </h3>
-        <p style={{ color: 'var(--gray)', fontFamily: 'var(--font-cond)', fontSize: '.9rem', letterSpacing: '1px', marginBottom: '2rem' }}>
-          Você será desconectado da sua conta.
-        </p>
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-          <button className="btn-outline" onClick={onClose} style={{ padding: '.75rem 2rem' }}>Cancelar</button>
-          <button className="btn-gold" onClick={confirm} style={{ padding: '.75rem 2rem' }}>Sair</button>
+    <div className="logout-modal-overlay open" style={{ zIndex: 9999 }}>
+      <div className="logout-modal">
+        <div className="logout-modal-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </div>
+        <h3 className="logout-modal-title">SAIR DA ARENA?</h3>
+        <p className="logout-modal-sub">Você será desconectado da sua conta.</p>
+        <div className="logout-modal-actions">
+          <button className="logout-modal-btn-keep" onClick={onClose}>Cancelar</button>
+          <button className="logout-modal-btn-confirm" onClick={confirm}>Sair</button>
         </div>
       </div>
     </div>

@@ -111,7 +111,8 @@ export default function Eventos() {
         .evt-modal-footer{padding:1.5rem 2.5rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
         .evt-modal-price{font-family:var(--font-display);font-size:2rem;color:var(--gold)}
         .evt-modal-price small{font-family:var(--font-cond);font-size:.75rem;color:var(--gray);display:block}
-        @media(max-width:700px){.event-card{grid-template-columns:1fr}.event-card-left{flex-direction:row;justify-content:flex-start;padding:1.2rem 1.5rem;border-right:none;border-bottom:1px solid var(--border)}.evt-detail-grid{grid-template-columns:1fr}.evt-modal-footer{flex-direction:column}}
+        @media(max-width:700px){.event-card{grid-template-columns:1fr}.event-card-left{flex-direction:row;justify-content:flex-start;padding:1.2rem 1.5rem;border-right:none;border-bottom:1px solid var(--border)}.event-day{font-size:2.2rem}.evt-detail-grid{grid-template-columns:1fr}.evt-modal-footer{flex-direction:column;align-items:stretch;text-align:center}.evt-modal-footer .btn-gold,.evt-modal-footer .btn-outline{width:100%;justify-content:center}}
+        @media(max-width:480px){.page-hero{padding:2rem 1rem 1.5rem}.events-wrap{padding:1rem 1rem 3rem}.event-card-body{padding:1.2rem}.event-card-top{gap:1rem}.evt-modal-header{padding:1.5rem}.evt-modal-body{padding:1.2rem 1.5rem}.evt-modal-footer{padding:1.2rem 1.5rem}}
       `}</style>
 
       <div className="page-hero">

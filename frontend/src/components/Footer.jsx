@@ -33,10 +33,10 @@ export default function Footer() {
         <div className="footer-col">
           <h4>Horários</h4>
           <ul>
-            <li><a>Seg a Sex: 06h – 23h</a></li>
-            <li><a>Sábado: 06h – 22h</a></li>
-            <li><a>Domingo: Consultar</a></li>
-            <li><a>Feriados: Consultar</a></li>
+            <li><span style={{ fontSize: '.9rem', color: 'var(--gray)' }}>Seg a Sex: 06h – 23h</span></li>
+            <li><span style={{ fontSize: '.9rem', color: 'var(--gray)' }}>Sábado: 06h – 22h</span></li>
+            <li><span style={{ fontSize: '.9rem', color: 'var(--gray)' }}>Domingo: Consultar</span></li>
+            <li><span style={{ fontSize: '.9rem', color: 'var(--gray)' }}>Feriados: Consultar</span></li>
           </ul>
         </div>
         <div className="footer-col">

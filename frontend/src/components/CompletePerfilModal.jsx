@@ -105,7 +105,7 @@ export default function CompletePerfilModal() {
             <div style={{ display: 'flex', gap: '.5rem' }}>
               {GENERO_PILLS.map(p => (
                 <button key={p.value} onClick={() => setGenero(p.value)} style={{
-                  flex: 1, padding: '.5rem .3rem', borderRadius: 8, cursor: 'pointer',
+                  flex: 1, minWidth: 0, padding: '.5rem .3rem', borderRadius: 8, cursor: 'pointer',
                   border: `1px solid ${genero === p.value ? 'var(--gold)' : 'var(--border)'}`,
                   background: genero === p.value ? 'rgba(197,160,40,.12)' : 'rgba(255,255,255,.03)',
                   color: 'var(--text)', fontSize: '.76rem', fontFamily: 'var(--font-body)', transition: 'all .15s',
@@ -165,6 +165,7 @@ export default function CompletePerfilModal() {
           <button onClick={handlePular} style={{
             background: 'none', border: 'none', color: 'var(--gray)', fontSize: '.8rem',
             cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-body)',
+            padding: '.6rem',
           }}>
             Pular por agora
           </button>

@@ -446,7 +446,7 @@ function UserSearchInput({ nome, userId, placeholder, usuarios, onChange, genero
   useEffect(() => { setQuery(nome || ''); }, [nome]);
 
   const byGenero = generoFilter
-    ? usuarios.filter(u => !u.genero || u.genero === '' || u.genero === generoFilter)
+    ? usuarios.filter(u => !u.genero || u.genero === '' || u.genero === 'nao_informar' || u.genero === generoFilter)
     : usuarios;
 
   const filtered = query.length >= 1
@@ -695,7 +695,7 @@ export default function Admin() {
     const q = norm(usrSearch.trim());
     const matchSearch = !q || norm(u.nome).includes(q);
     const matchStatus = usrStatus === 'todos' || u.status === usrStatus || (usrStatus === 'ativos' && u.status === 'ativo') || (usrStatus === 'pendentes' && u.status === 'pendente') || (usrStatus === 'bloqueados' && u.status === 'bloqueado') || (usrStatus === 'inativos' && u.status === 'inativo');
-    const matchGenero = usrGenero === 'todos' || (usrGenero === 'nd' ? (!u.genero || u.genero === '') : u.genero === usrGenero);
+    const matchGenero = usrGenero === 'todos' || (usrGenero === 'nd' ? (!u.genero || u.genero === '' || u.genero === 'nao_informar') : u.genero === usrGenero);
     return matchSearch && matchStatus && matchGenero;
   });
   const pagedUsr = filteredUsr.slice((usrPage - 1) * PER_PAGE, usrPage * PER_PAGE);

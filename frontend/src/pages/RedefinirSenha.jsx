@@ -28,7 +28,7 @@ export default function RedefinirSenha() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+    <div style={{ minHeight: 'calc(100dvh - var(--nav-h))', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1.5rem' }}>
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '2.5rem 2rem', width: '100%', maxWidth: 420 }}>
         <p style={{ fontFamily: 'var(--font-display)', fontSize: '.75rem', letterSpacing: '3px', color: 'var(--gold)', marginBottom: '.5rem' }}>PODIUM ARENA</p>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', letterSpacing: '2px', marginBottom: '.5rem' }}>NOVA SENHA</h2>

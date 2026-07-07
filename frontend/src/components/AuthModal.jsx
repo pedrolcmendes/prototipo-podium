@@ -145,7 +145,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
         </button>
 
         {/* ESQUERDA — Visual */}
-        <div className="auth-visual" style={{ backgroundImage: `url('${visualImg}')`, opacity: visualOpacity }}>
+        <div className="auth-visual" style={{ '--auth-visual-img': `url('${visualImg}')`, opacity: visualOpacity }}>
           <svg className="visual-arcs" viewBox="0 0 400 600" preserveAspectRatio="none">
             <circle cx="200" cy="-80" r="260" strokeWidth="1" />
             <circle cx="200" cy="-80" r="340" strokeWidth=".5" />
@@ -253,9 +253,9 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
                     <label>Gênero</label>
                     <div style={{ display: 'flex', gap: '.4rem', marginTop: '.1rem' }}>
                       {[
-                        { val: 'masculino', label: 'Masculino', icon: '♂' },
-                        { val: 'feminino',  label: 'Feminino',  icon: '♀' },
-                        { val: '',          label: 'Prefiro não dizer', icon: null },
+                        { val: 'masculino',    label: 'Masculino', icon: '♂' },
+                        { val: 'feminino',     label: 'Feminino',  icon: '♀' },
+                        { val: 'nao_informar', label: 'Não dizer', icon: null },
                       ].map(({ val, label, icon }) => {
                         const active = cadData.genero === val;
                         return (
@@ -265,6 +265,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
                             onClick={() => setCadData({ ...cadData, genero: val })}
                             style={{
                               flex: '1',
+                              minWidth: 0,
                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.3rem',
                               padding: '.52rem .3rem',
                               background: active ? 'rgba(197,160,40,.12)' : 'rgba(255,255,255,.03)',
@@ -276,7 +277,6 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
                               letterSpacing: '1px',
                               cursor: 'pointer',
                               transition: 'all .18s',
-                              whiteSpace: 'nowrap',
                             }}
                           >
                             {icon && <span style={{ fontSize: '.85rem', lineHeight: 1 }}>{icon}</span>}

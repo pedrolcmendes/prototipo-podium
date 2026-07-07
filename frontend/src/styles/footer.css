@@ -2,12 +2,16 @@
    FOOTER
    ═══════════════════════════════════════════ */
 
-.footer-wrap {
+footer {
   background:var(--dark);
   border-top:1px solid var(--border);
 }
+footer .footer-top,
+footer .footer-bottom {
+  max-width:var(--max-w); margin-left:auto; margin-right:auto;
+}
 footer {
-  max-width:var(--max-w); margin:0 auto; padding:4rem 2rem 2rem;
+  padding:4rem 2rem 2rem;
 }
 .footer-top {
   display:grid; grid-template-columns:2fr 1fr 1fr 1.4fr;
@@ -48,13 +52,12 @@ footer {
   display:flex; align-items:center; justify-content:space-between;
 }
 .footer-copy { font-family:var(--font-cond); font-size:.78rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
-.footer-logo-small img { height:28px; filter:brightness(0) invert(1); opacity:.3; }
 
 @media(max-width:1024px) {
   .footer-top { grid-template-columns:1fr 1fr; }
   .footer-brand { grid-column:span 2; }
 }
-@media(max-width:600px) {
+@media(max-width:640px) {
   .footer-top { grid-template-columns:1fr; }
   .footer-brand { grid-column:auto; }
   .footer-bottom { flex-direction:column; gap:1rem; text-align:center; }

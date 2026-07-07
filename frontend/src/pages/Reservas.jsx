@@ -283,17 +283,10 @@ export default function Reservas() {
         .bk-times-wrap{background:var(--dark);border:1px solid var(--border);padding:1.5rem}
         .bk-times-label{font-family:var(--font-cond);font-size:.75rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gray);margin-bottom:1rem;display:flex;align-items:center;gap:.6rem}
         .bk-times-label::after{content:'';flex:1;height:1px;background:var(--border)}
-        .time-slot{display:flex;flex-direction:column;align-items:center;gap:.2rem}
         .ts-hour{font-family:var(--font-cond);font-size:.82rem;font-weight:700;letter-spacing:1px}
         .ts-price{font-family:var(--font-cond);font-size:.65rem;color:var(--gray);letter-spacing:.5px}
         .time-slot.selected .ts-price{color:var(--black)}
         .time-slot.taken .ts-price{color:var(--muted)}
-        #bk-quadra-priceinfo{margin-bottom:1.5rem}
-        .bk-price-table{display:grid;grid-template-columns:1fr 1fr;gap:1rem;background:var(--dark);border:1px solid var(--border);padding:1.2rem 1.4rem}
-        .bk-price-col-title{font-family:var(--font-cond);font-size:.7rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:.7rem}
-        .bk-price-row{display:flex;justify-content:space-between;font-family:var(--font-cond);font-size:.82rem;color:var(--gray-light);padding:.25rem 0;border-bottom:1px solid var(--border)}
-        .bk-price-row:last-child{border-bottom:none}
-        .bk-price-row span:last-child{color:var(--gold);font-weight:600}
         .bk-mode-toggle{display:flex;gap:.5rem;margin-bottom:1.5rem;background:var(--dark);border:1px solid var(--border);padding:.4rem;border-radius:6px;width:fit-content}
         .bk-mode-btn{padding:.5rem 1.2rem;border:none;background:none;cursor:pointer;font-family:var(--font-cond);font-size:.82rem;font-weight:700;letter-spacing:1px;color:var(--gray);border-radius:4px;transition:all var(--trans-fast)}
         .bk-mode-btn.active{background:var(--gold);color:#000}
@@ -321,8 +314,8 @@ export default function Reservas() {
         .bk-field input{background:var(--dark);border:1px solid var(--border);color:var(--white);padding:.75rem 1rem;font-family:var(--font-body);font-size:.9rem;outline:none;transition:border-color var(--trans-fast)}
         .bk-field input:focus{border-color:var(--gold)}
         .bk-field-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-        .conf-overlay{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.9);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:1.5rem}
-        .conf-modal{background:var(--card);border:1px solid var(--border);padding:2.5rem;max-width:480px;width:100%;text-align:center}
+        .conf-overlay{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.9);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto}
+        .conf-modal{background:var(--card);border:1px solid var(--border);padding:2.5rem;max-width:480px;width:100%;text-align:center;margin:auto}
         .conf-check-wrap{width:64px;height:64px;border-radius:50%;background:rgba(34,197,94,.08);border:1.5px solid rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem}
         .conf-check-wrap svg{width:28px;height:28px;stroke:var(--green)}
         .conf-title{font-family:var(--font-display);font-size:2rem;letter-spacing:3px;margin-bottom:.5rem}
@@ -339,7 +332,8 @@ export default function Reservas() {
         .conf-btn-primary{background:var(--gold);color:var(--black)}
         .conf-btn-primary:hover{background:var(--gold-light)}
         @media(max-width:1000px){.bk-step3-layout,.bk-pay-layout{grid-template-columns:1fr}.bk-sidebar{position:static}}
-        @media(max-width:768px){.page-hero{padding:2rem 1rem 1.5rem}.reservas-container{padding:0 1rem 3rem}.bk-card-header,.bk-card-body{padding:1.2rem 1rem}.bk-option-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem}.bk-option-card{padding:1.2rem .9rem}.bk-pay-methods{grid-template-columns:1fr 1fr}.bk-field-row{grid-template-columns:1fr}.times-grid{grid-template-columns:repeat(3,1fr)!important}}
+        @media(max-width:768px){.page-hero{padding:2rem 1rem 1.5rem}.reservas-container{padding:0 1rem 3rem}.bk-card-header,.bk-card-body{padding:1.2rem 1rem}.bk-option-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem}.bk-option-card{padding:1.2rem .9rem}.bk-field-row{grid-template-columns:1fr}}
+        @media(max-width:480px){.bk-step-label{font-size:.55rem;letter-spacing:1px}.bk-pay-methods{grid-template-columns:1fr}.conf-modal{padding:1.5rem}.conf-actions{grid-template-columns:1fr}}
       `}</style>
 
       <div className="page-hero">

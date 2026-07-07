@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AuthModal from './AuthModal';
@@ -13,12 +13,27 @@ export default function Nav() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState('login');
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [ddOpen, setDdOpen] = useState(false);
+  const pillRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // fecha o dropdown ao tocar fora (necessário em telas touch, onde não há hover)
+  useEffect(() => {
+    if (!ddOpen) return;
+    const onDocClick = (e) => {
+      if (pillRef.current && !pillRef.current.contains(e.target)) setDdOpen(false);
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [ddOpen]);
+
+  // fecha ao navegar
+  useEffect(() => { setDdOpen(false); }, [location.pathname]);
 
   const initials = user?.nome ? user.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : '';
 
@@ -42,9 +57,9 @@ export default function Nav() {
         <div className="mobile-actions">
           <Link to="/reservas" className="btn-gold" onClick={() => setMenuOpen(false)}>Reservar Quadra</Link>
           {user ? (
-            <Link to="/painel" className="btn-outline" style={{ fontSize: '.85rem', padding: '.75rem 2rem' }} onClick={() => setMenuOpen(false)}>Meu Painel</Link>
+            <Link to="/painel" className="btn-outline" onClick={() => setMenuOpen(false)}>Meu Painel</Link>
           ) : (
-            <button className="btn-outline" style={{ fontSize: '.85rem', padding: '.75rem 2rem' }} onClick={() => openAuth('login')}>Entrar</button>
+            <button className="btn-outline" onClick={() => openAuth('login')}>Entrar</button>
           )}
         </div>
       </div>
@@ -66,13 +81,13 @@ export default function Nav() {
 
         <div className="nav-right">
           {user ? (
-            <div className="user-avatar-pill">
+            <div className="user-avatar-pill" ref={pillRef} onClick={() => setDdOpen(o => !o)}>
               <div className="user-avatar-circle">{initials}</div>
               <span className="user-avatar-name">{user.nome?.split(' ')[0]}</span>
               <svg className="user-avatar-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
-              <div className="user-dropdown">
+              <div className={`user-dropdown${ddOpen ? ' open' : ''}`}>
                 <div className="user-dropdown-header">
                   <div className="user-dropdown-avatar">{initials}</div>
                   <div>

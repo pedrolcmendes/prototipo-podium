@@ -174,3 +174,9 @@ ul { list-style:none; }
   .num-item:nth-child(2)::after,
   .num-item:nth-child(4)::after { display:none; }
 }
+@media(max-width:480px) {
+  .btn-gold, .btn-outline { padding:.85rem 1.6rem; letter-spacing:2px; }
+}
+@media(max-width:380px) {
+  .num-value { font-size:2.4rem; }
+}

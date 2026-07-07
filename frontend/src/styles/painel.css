@@ -1160,7 +1160,8 @@ body.painel-page {
   display: none;
   position: fixed;
   bottom: 0; left: 0; right: 0;
-  height: 60px;
+  height: calc(60px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: rgba(8,8,8,.98);
   border-top: 1px solid var(--border);
   backdrop-filter: blur(20px);
