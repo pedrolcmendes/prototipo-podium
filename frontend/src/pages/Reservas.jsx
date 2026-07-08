@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
@@ -130,6 +130,14 @@ export default function Reservas() {
   const [confData, setConfData] = useState(null);
   const [maxAdvanceDays, setMaxAdvanceDays] = useState(30);
 
+  // ao trocar de etapa, rola a tela de volta para o topo das opções
+  const stepperRef = useRef(null);
+  const firstStepRender = useRef(true);
+  useEffect(() => {
+    if (firstStepRender.current) { firstStepRender.current = false; return; }
+    stepperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [step]);
+
   useEffect(() => {
     api.get('/settings').then(r => setMaxAdvanceDays(r.data.maxAdvanceDays ?? 30)).catch(() => {});
   }, []);
@@ -233,7 +241,7 @@ export default function Reservas() {
         .page-hero h1{font-family:var(--font-display);font-size:clamp(2rem,5vw,3.5rem);letter-spacing:2px;line-height:1;margin-bottom:1rem}
         .page-hero p{color:var(--gray);font-size:1rem;max-width:600px}
         .reservas-container{max-width:var(--max-w);margin:0 auto;padding:0 2rem 5rem}
-        .bk-stepper-wrap{margin-bottom:2.5rem}
+        .bk-stepper-wrap{margin-bottom:2.5rem;scroll-margin-top:calc(var(--nav-h) + 16px)}
         .bk-stepper{display:flex;align-items:center;gap:0}
         .bk-step{display:flex;flex-direction:column;align-items:center;gap:.45rem;flex:1;position:relative}
         .bk-step-circle{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border);background:var(--dark);display:flex;align-items:center;justify-content:center;font-family:var(--font-cond);font-size:.8rem;font-weight:700;color:var(--gray);transition:all var(--trans-fast);position:relative;z-index:1}
@@ -333,7 +341,7 @@ export default function Reservas() {
         .conf-btn-primary:hover{background:var(--gold-light)}
         @media(max-width:1000px){.bk-step3-layout,.bk-pay-layout{grid-template-columns:1fr}.bk-sidebar{position:static}}
         @media(max-width:768px){.page-hero{padding:2rem 1rem 1.5rem}.reservas-container{padding:0 1rem 3rem}.bk-card-header,.bk-card-body{padding:1.2rem 1rem}.bk-option-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem}.bk-option-card{padding:1.2rem .9rem}.bk-field-row{grid-template-columns:1fr}}
-        @media(max-width:480px){.bk-step-label{font-size:.55rem;letter-spacing:1px}.bk-pay-methods{grid-template-columns:1fr}.conf-modal{padding:1.5rem}.conf-actions{grid-template-columns:1fr}}
+        @media(max-width:480px){.bk-step-label{font-size:.55rem;letter-spacing:1px}.bk-pay-methods{grid-template-columns:1fr}.conf-modal{padding:1.5rem}.conf-actions{grid-template-columns:1fr}.bk-nav{flex-direction:column-reverse;gap:.7rem;align-items:stretch}.bk-nav .btn-gold,.bk-nav .btn-ghost{width:100%;justify-content:center;padding:.9rem 1rem;white-space:nowrap}}
       `}</style>
 
       <div className="page-hero">
@@ -344,7 +352,7 @@ export default function Reservas() {
 
       <div className="reservas-container">
         {/* STEPPER */}
-        <div className="bk-stepper-wrap">
+        <div className="bk-stepper-wrap" ref={stepperRef}>
           <div className="bk-stepper">
             <div className={stepClass(1)}><div className="bk-step-circle">1</div><div className="bk-step-label">Modalidade</div></div>
             <div className={lineClass(1)} />
