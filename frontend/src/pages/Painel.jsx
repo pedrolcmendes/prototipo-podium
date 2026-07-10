@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 import LogoutModal from '../components/LogoutModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import api from '../services/api';
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -110,6 +111,9 @@ export default function Painel() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reservaFilter, setReservaFilter] = useState('proximas');
+
+  // trava o scroll do fundo enquanto a sidebar mobile estiver aberta
+  useBodyScrollLock(sidebarOpen);
 
   const [reservas, setReservas] = useState([]);
   const [eventos, setEventos] = useState([]);
