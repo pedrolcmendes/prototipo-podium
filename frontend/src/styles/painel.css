@@ -6,15 +6,17 @@ body.painel-page {
   overflow-x: hidden;
   overflow-y: auto;
   height: auto;
-  padding-top: 0;
+  padding-top: 60px; /* compensa a topbar fixa */
 }
 
 /* ══════════════════════════════════════
    TOPBAR
    ══════════════════════════════════════ */
 .painel-topbar {
-  position: sticky;
-  top: 0;
+  /* fixed (não sticky): no mobile o sticky "solta" durante o gesto e abre um
+     vão entre o topo da tela e a sidebar */
+  position: fixed;
+  top: 0; left: 0; right: 0;
   z-index: 200;
   height: 60px;
   background: rgba(8,8,8,.97);
@@ -316,6 +318,7 @@ body.painel-page {
   background: rgba(0,0,0,.7);
   backdrop-filter: blur(4px);
   z-index: 99;
+  touch-action: none; /* deslizar sobre o overlay não rola o fundo */
 }
 
 /* ══════════════════════════════════════
@@ -1211,11 +1214,12 @@ body.painel-page {
     position: fixed;
     top: 60px;
     left: 0;
-    height: calc(100vh - 60px);
+    height: calc(100dvh - 60px);
     width: 280px;
     transform: translateX(-100%);
     transition: transform .35s ease;
     z-index: 100;
+    overscroll-behavior: contain; /* rolar o menu não arrasta a página atrás */
   }
   .painel-sidebar.open { transform: translateX(0); }
   .painel-overlay { display: block; }
