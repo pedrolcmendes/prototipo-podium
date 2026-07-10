@@ -1261,16 +1261,16 @@ export default function Admin() {
             footer={<><button className="btn-admin-secondary" onClick={() => setEditUser(null)}>Cancelar</button><button className="btn-admin-primary" onClick={salvarEditUser}>Salvar Alterações</button></>}>
 
             {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '.6rem', marginBottom: '1.4rem' }}>
+            <div className="edit-user-stats">
               {[
                 { label: 'Reservas', val: uReservas.length },
                 { label: 'Eventos', val: uEventos.length },
                 { label: 'Gasto Total', val: fmtMoney(gastoTotal) },
                 { label: 'Crédito', val: fmtMoney(u.creditos || 0) },
               ].map(s => (
-                <div key={s.label} style={{ background: 'var(--dark)', border: '1px solid var(--border)', borderRadius: 8, padding: '.7rem .8rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '.68rem', color: 'var(--gray)', fontFamily: 'var(--font-body)', letterSpacing: '1px', marginBottom: '.25rem' }}>{s.label.toUpperCase()}</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--white)', fontFamily: 'var(--font-display)', letterSpacing: '1px' }}>{s.val}</div>
+                <div key={s.label} style={{ background: 'var(--dark)', border: '1px solid var(--border)', borderRadius: 8, padding: '.7rem .5rem', textAlign: 'center', minWidth: 0 }}>
+                  <div style={{ fontSize: '.68rem', color: 'var(--gray)', fontFamily: 'var(--font-body)', letterSpacing: '1px', marginBottom: '.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label.toUpperCase()}</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--white)', fontFamily: 'var(--font-display)', letterSpacing: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.val}</div>
                 </div>
               ))}
             </div>
@@ -2454,10 +2454,6 @@ export default function Admin() {
           <section className={`admin-section${tab === 'config' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Sistema</p><h2 className="admin-section-h2">CONFIGURAÇÕES GERAIS</h2></div>
-              <button className="btn-admin-primary" onClick={saveConfig} disabled={cfgSaving}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                {cfgSaving ? 'Salvando...' : 'Salvar Alterações'}
-              </button>
             </div>
             <div className="admin-config-wrap">
               <div className="admin-card admin-config-card">
@@ -2522,6 +2518,14 @@ export default function Admin() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* salvar no final da página — mais natural depois de preencher tudo */}
+            <div className="admin-config-savebar">
+              <button className="btn-admin-primary" onClick={saveConfig} disabled={cfgSaving}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                {cfgSaving ? 'Salvando...' : 'Salvar Alterações'}
+              </button>
             </div>
           </section>
 
