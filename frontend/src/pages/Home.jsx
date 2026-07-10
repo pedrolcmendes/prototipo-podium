@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import Footer from '../components/Footer';
+import { useSettings, fmtHour, hourOf, waLink } from '../contexts/SettingsContext';
 
 function useCountUp(ref, target, suffix = '') {
   useEffect(() => {
@@ -34,6 +35,8 @@ function useReveal() {
 }
 
 export default function Home() {
+  const { settings } = useSettings();
+  const wa = waLink(settings.phone);
   const [eventos, setEventos] = useState([]);
   const ref6 = useRef(null);
   const ref7 = useRef(null);
@@ -94,7 +97,7 @@ export default function Home() {
             <div className="num-label">Eventos por Ano</div>
           </div>
           <div className="num-item reveal reveal-delay-3">
-            <div className="num-value">6h–23h</div>
+            <div className="num-value">{hourOf(settings.openWeek, 6)}h–{hourOf(settings.closeWeek, 23)}h</div>
             <div className="num-label">Seg. a Sáb.</div>
           </div>
         </div>
@@ -297,7 +300,7 @@ export default function Home() {
           <p className="cta-sub">Reserve sua quadra ou inscreva-se em um evento agora mesmo</p>
           <div className="cta-btns">
             <Link to="/reservas" className="btn-gold">Reservar Quadra</Link>
-            <a href="https://wa.me/5543999999999" className="btn-wpp" target="_blank" rel="noreferrer">WhatsApp</a>
+            <a href={wa} className="btn-wpp" target="_blank" rel="noreferrer">WhatsApp</a>
             <Link to="/eventos" className="btn-outline">Ver Eventos</Link>
           </div>
         </div>
@@ -310,14 +313,14 @@ export default function Home() {
             <div>
               <p className="section-eyebrow" style={{ marginBottom: '1.2rem' }}>Como Chegar</p>
               <div className="location-address">
-                <div className="street">RUA MANAUS, 321</div>
-                <div className="city">Telêmaco Borba · Paraná · Brasil</div>
+                <div className="street">{settings.address.split('—')[0].trim().toUpperCase()}</div>
+                <div className="city">{(settings.address.split('—')[1] || 'Telêmaco Borba – PR').trim()} · Brasil</div>
               </div>
             </div>
             <div className="location-details">
               <div className="location-detail-item">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <div><strong>Horários</strong> Seg a Sex: 06h – 23h &nbsp;·&nbsp; Sáb: 06h – 22h<br />Dom e Feriados: Consultar</div>
+                <div><strong>Horários</strong> Seg a Sex: {fmtHour(settings.openWeek)} – {fmtHour(settings.closeWeek)} &nbsp;·&nbsp; Sáb: {fmtHour(settings.openWeekend)} – {fmtHour(settings.closeWeekend)}<br />Dom e Feriados: Consultar</div>
               </div>
               <div className="location-detail-item">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
@@ -325,7 +328,7 @@ export default function Home() {
               </div>
               <div className="location-detail-item">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
-                <div><strong>WhatsApp</strong> <a href="https://wa.me/5543999999999" style={{ color: 'var(--gray)', textDecoration: 'none' }}>(43) 9 9999-9999</a></div>
+                <div><strong>WhatsApp</strong> <a href={wa} style={{ color: 'var(--gray)', textDecoration: 'none' }}>{settings.phone}</a></div>
               </div>
             </div>
             <a href="https://maps.google.com/?q=Podium+Arena+Telemaco+Borba" target="_blank" rel="noreferrer" className="location-cta-link">
