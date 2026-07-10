@@ -136,14 +136,6 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
     <div className="modal-overlay open" id="authOverlay">
       <div className="auth-modal">
 
-        {/* FECHAR */}
-        <button className="modal-close" onClick={onClose} aria-label="Fechar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-
         {/* ESQUERDA — Visual */}
         <div className="auth-visual" style={{ '--auth-visual-img': `url('${visualImg}')`, opacity: visualOpacity }}>
           <svg className="visual-arcs" viewBox="0 0 400 600" preserveAspectRatio="none">
@@ -176,10 +168,16 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
         {/* DIREITA — Formulários */}
         <div className="auth-form-panel">
 
-          {/* Abas */}
+          {/* Abas + fechar */}
           <div className="auth-tabs">
             <button className={`auth-tab${tab === 'login' ? ' active' : ''}`} onClick={() => switchTab('login')}>Entrar</button>
             <button className={`auth-tab${tab === 'cadastro' ? ' active' : ''}`} onClick={() => switchTab('cadastro')}>Cadastrar</button>
+            <button className="auth-close" onClick={onClose} aria-label="Fechar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
 
           {/* Slider de painéis */}
