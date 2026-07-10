@@ -668,7 +668,7 @@ body.painel-page {
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  border-radius: 11px;
+  border-radius: 0; /* cantos retos, como no resto do site */
   background: var(--card);
   border: 1px solid var(--border);
   margin-bottom: 1.1rem;
@@ -686,7 +686,7 @@ body.painel-page {
   font-weight: 600;
   letter-spacing: .8px;
   text-transform: uppercase;
-  border-radius: 8px;
+  border-radius: 0; /* cantos retos, como no resto do site */
   cursor: pointer;
   transition: all .14s;
 }
@@ -701,7 +701,7 @@ body.painel-page {
   opacity: .65;
   background: rgba(255,255,255,.07);
   padding: .1rem .35rem;
-  border-radius: 6px;
+  border-radius: 0; /* cantos retos, como no resto do site */
 }
 .res-seg-btn.active .res-seg-count { opacity: .85; }
 
@@ -714,7 +714,7 @@ body.painel-page {
   gap: 18px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 0; /* cantos retos, como no resto do site */
   padding: 16px 20px;
   box-shadow: var(--shadow-card);
   transition: border-color var(--trans-fast), transform var(--trans-fast);
@@ -1170,6 +1170,11 @@ body.painel-page {
   backdrop-filter: blur(20px);
   z-index: 150;
   align-items: stretch;
+  transition: transform .3s ease;
+}
+/* some quando a sidebar abre — senão fica por cima dela bloqueando botões */
+.painel-bottom-tabs.drawer-open {
+  transform: translateY(110%);
 }
 .painel-bottom-tab {
   flex: 1;
