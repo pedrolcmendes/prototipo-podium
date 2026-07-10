@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AuthModal from './AuthModal';
 import LogoutModal from './LogoutModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 export default function Nav() {
   const { user } = useAuth();
@@ -35,21 +36,21 @@ export default function Nav() {
   // fecha ao navegar
   useEffect(() => { setDdOpen(false); }, [location.pathname]);
 
-  // trava o scroll do site enquanto o drawer estiver aberto
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [menuOpen]);
+  // trava o scroll do site enquanto o drawer estiver aberto (inclusive iOS)
+  useBodyScrollLock(menuOpen);
 
   // rola até uma seção da home (navegando pra lá primeiro, se preciso)
   const goSection = (id) => {
     setMenuOpen(false);
     if (location.pathname === '/') {
-      const el = document.getElementById(id);
-      if (el) {
-        const y = el.getBoundingClientRect().top + window.scrollY - 80;
-        window.scrollTo({ top: y, behavior: 'smooth' });
-      }
+      // espera o drawer destravar o scroll do body antes de rolar
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) {
+          const y = el.getBoundingClientRect().top + window.scrollY - 80;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      }, 60);
     } else {
       navigate(`/#${id}`);
     }
