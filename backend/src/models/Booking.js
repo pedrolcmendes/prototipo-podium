@@ -28,6 +28,7 @@ const bookingSchema = new mongoose.Schema({
     enum: ['confirmada', 'cancelada', 'concluida'],
     default: 'confirmada',
   },
+  reminderSent: { type: Boolean, default: false }, // lembrete de 2h antes já enviado
 }, { timestamps: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);
