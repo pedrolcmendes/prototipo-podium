@@ -10,10 +10,10 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 const MODALIDADES = [
-  { id: 'Beach Tennis', enum: 'beach-tennis', nome: 'Beach Tennis', desc: '4 quadras de areia profissional. Raquetes e bolas disponíveis para locação.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg> },
-  { id: 'Futevôlei', enum: 'futevolei', nome: 'Futevôlei', desc: '2 quadras com redes regulamentadas. Ideal para grupos e ligas.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8m-4-4h8"/></svg> },
-  { id: 'Vôlei', enum: 'volei', nome: 'Vôlei de Praia', desc: 'Estrutura olímpica para treinos e competições na areia.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2v20"/></svg> },
-  { id: 'Pickleball', enum: 'pickleball', nome: 'Pickleball', desc: 'Apenas Day Use — R$ 25/pessoa. Acesso à quadra durante o período.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>, dayuse: true },
+  { id: 'Beach Tennis', enum: 'beach-tennis', nome: 'Beach Tennis', desc: '4 quadras de areia profissional. Raquetes e bolas disponíveis para locação.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="8.5" rx="6.5" ry="7"/><path d="M12 1.5v20.5"/><path d="M5.5 8.5h13"/><path d="M9.5 20h5"/></svg> },
+  { id: 'Futevôlei', enum: 'futevolei', nome: 'Futevôlei', desc: '2 quadras com redes regulamentadas. Ideal para grupos e ligas.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="12 7.6 16.2 10.7 14.6 15.6 9.4 15.6 7.8 10.7"/><path d="M12 7.6V3.5"/><path d="m16.2 10.7 3.9-1.2"/><path d="m14.6 15.6 2.4 3.4"/><path d="m9.4 15.6-2.4 3.4"/><path d="M7.8 10.7 3.9 9.5"/></svg> },
+  { id: 'Vôlei', enum: 'volei', nome: 'Vôlei de Praia', desc: 'Estrutura olímpica para treinos e competições na areia.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M11.1 7.1a16.55 16.55 0 0 1 10.9 4"/><path d="M12 12a12.6 12.6 0 0 1-8.7 5"/><path d="M16.8 13.6a16.55 16.55 0 0 1-9 7.5"/><path d="M20.7 17a12.8 12.8 0 0 0-8.7-5 13.3 13.3 0 0 1 0-10"/><path d="M6.3 3.8a16.55 16.55 0 0 0 1.9 11.5"/></svg> },
+  { id: 'Pickleball', enum: 'pickleball', nome: 'Pickleball', desc: 'Apenas Day Use — R$ 25/pessoa. Acesso à quadra durante o período.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 2.5c3.6 0 6.5 2.9 6.5 6.5 0 3.9-2.9 6.5-6.5 6.5S4.5 12.9 4.5 9c0-3.6 2.9-6.5 6.5-6.5Z"/><path d="M11 15.5V22"/><circle cx="18.5" cy="19" r="2.5"/></svg>, dayuse: true },
 ];
 
 const QUADRAS = [
@@ -457,10 +457,10 @@ export default function Reservas() {
                 {!modalidade?.dayuse && (
                   <div className="bk-mode-toggle">
                     <button className={`bk-mode-btn${!dayUse ? ' active' : ''}`} onClick={() => { setDayUse(false); setSelectedDate(null); setSelectedSlots([]); }}>
-                      ⏱ Por Horário
+                      Por Horário
                     </button>
                     <button className={`bk-mode-btn${dayUse ? ' active' : ''}`} onClick={() => { setDayUse(true); setSelectedDate(null); setSelectedSlots([]); }}>
-                      🏖 Day Use — R$ 25/pessoa
+                      Day Use — R$ 25/pessoa
                     </button>
                   </div>
                 )}
