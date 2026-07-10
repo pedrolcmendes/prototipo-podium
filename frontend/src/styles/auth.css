@@ -429,6 +429,27 @@
   color: #444;
 }
 
+/* input de data no iOS: o Safari dá tamanho/altura próprios ao campo nativo,
+   ignora o width e estoura a coluna — força o mesmo visual dos outros campos */
+.field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px; /* sem appearance nativa o campo vazio colapsa no iOS */
+  border-radius: 0;  /* iOS aplica raio próprio */
+  color-scheme: dark;
+}
+.field input[type="date"]::-webkit-date-and-time-value {
+  text-align: left; /* iOS centraliza o valor por padrão */
+  line-height: normal;
+}
+
+/* células do grid podem encolher — sem isso o campo largo cria scroll lateral */
+.field-row > .field { min-width: 0; }
+
 .field select {
   background: rgba(255, 255, 255, .03);
   border: 1px solid var(--border);
