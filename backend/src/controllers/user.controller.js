@@ -61,6 +61,11 @@ const atualizar = async (req, res) => {
     if (req.body[campo] !== undefined) atualizacoes[campo] = req.body[campo];
   });
 
+  // admin não pode remover o próprio acesso (evita perder o painel sem querer)
+  if (atualizacoes.admin === false && ehProprioUsuario) {
+    return res.status(400).json({ message: 'Você não pode remover seu próprio acesso admin' });
+  }
+
   if (req.body.senha) {
     const user = await User.findById(req.params.id);
     user.senha = req.body.senha;
