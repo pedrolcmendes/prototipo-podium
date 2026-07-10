@@ -6,7 +6,7 @@ body.admin-page {
   overflow-x: hidden;
   overflow-y: auto;
   height: auto;
-  padding-top: 0;
+  padding-top: 64px; /* compensa a topbar fixa */
   background: var(--black);
   color: var(--white);
   /* ── Paleta do painel — idêntica ao site principal ── */
@@ -145,8 +145,10 @@ body.gate-active .admin-layout { display: none; }
    TOPBAR ADMIN
    ══════════════════════════════════════ */
 .admin-topbar {
-  position: sticky;
-  top: 0;
+  /* fixed (não sticky): em navegador mobile o sticky "solta" durante o gesto
+     e abria um vão entre o topo da tela e a sidebar */
+  position: fixed;
+  top: 0; left: 0; right: 0;
   z-index: 200;
   height: 64px;
   background: var(--sidebar-bg);
@@ -401,16 +403,20 @@ body.gate-active .admin-layout { display: none; }
 .admin-sidebar-footer button:hover { color: var(--red); border-color: rgba(239,68,68,.35); }
 .admin-sidebar-footer svg { width: 13px; height: 13px; flex-shrink: 0; }
 
-/* Overlay mobile */
+/* Overlay mobile — fica acima da topbar (200) e abaixo do drawer (300) */
 .admin-overlay {
   display: none;
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.7);
   backdrop-filter: blur(4px);
-  z-index: 99;
+  z-index: 250;
+  touch-action: none; /* deslizar sobre o overlay não rola o fundo */
 }
 .admin-overlay.open { display: block; }
+
+/* Cabeçalho do drawer mobile (logo + fechar) — escondido no desktop */
+.admin-sidebar-mhead { display: none; }
 
 /* ══════════════════════════════════════
    CONTEÚDO
@@ -542,6 +548,24 @@ body.gate-active .admin-layout { display: none; }
   color: var(--green);
 }
 .admin-stat-delta.neg { color: var(--red); }
+
+/* ══════════════════════════════════════
+   DASHBOARD — grids e listas rápidas
+   ══════════════════════════════════════ */
+.dash-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+.dash-list-row {
+  display: flex; align-items: center; gap: .8rem;
+  padding: .7rem 1.2rem; border-bottom: 1px solid var(--border); font-size: .83rem;
+}
+.dash-list-row:last-child { border-bottom: none; }
+.dash-list-main { flex: 1; min-width: 0; }
+.dash-list-title {
+  font-family: var(--font-cond); letter-spacing: 1px; color: var(--white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dash-list-sub { color: var(--gray); font-size: .76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-list-row .badge { flex-shrink: 0; }
+.dash-avatar { width: 32px; height: 32px; font-size: .75rem; flex-shrink: 0; }
 
 /* ══════════════════════════════════════
    CARDS / TABELAS
@@ -786,6 +810,130 @@ body.gate-active .admin-layout { display: none; }
 .admin-action-btn.success:hover { border-color: var(--green); color: var(--green); }
 
 /* ══════════════════════════════════════
+   RESERVAS — cards mobile (substituem a tabela)
+   ══════════════════════════════════════ */
+.adm-res-cards { display: none; }
+.adm-res-card {
+  background: var(--dark);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: .95rem 1rem .9rem;
+  display: flex; flex-direction: column; gap: .75rem;
+  /* permite encolher abaixo do conteúdo (e-mails longos não quebram linha) —
+     sem isso o card estoura a coluna do grid e vaza pra direita da tela */
+  min-width: 0; max-width: 100%; overflow: hidden;
+}
+.adm-res-card-top { min-width: 0; }
+.adm-res-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
+.adm-res-card-who { min-width: 0; }
+.adm-res-card-name {
+  font-family: var(--font-body); font-size: .95rem; font-weight: 600; color: var(--white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.adm-res-card-sub {
+  font-size: .74rem; color: var(--gray); margin-top: .2rem; letter-spacing: .5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.adm-res-card .badge { flex-shrink: 0; }
+.adm-res-card-info { display: flex; flex-wrap: wrap; gap: .4rem; }
+.adm-res-card-chip {
+  display: inline-flex; align-items: center; gap: .4rem;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: .32rem .6rem; font-family: var(--font-body); font-size: .76rem; color: var(--gray-light);
+}
+.adm-res-card-chip svg { width: 12px; height: 12px; stroke: var(--gray); flex-shrink: 0; }
+.adm-res-card-chip.gold {
+  color: var(--gold); font-weight: 700;
+  background: var(--gold-faint); border-color: rgba(224,172,107,.3);
+}
+.adm-res-card-actions { display: flex; gap: .5rem; margin-top: .1rem; }
+.adm-res-card-actions button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+  color: var(--gray-light); font-family: var(--font-body);
+  font-size: .68rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  padding: .65rem .3rem; cursor: pointer; white-space: nowrap; min-width: 0;
+  transition: all var(--trans-fast);
+}
+.adm-res-card-actions button svg { width: 13px; height: 13px; flex-shrink: 0; }
+.adm-res-card-actions button { line-height: 1; }
+.adm-res-card-actions button:disabled { opacity: .3; pointer-events: none; }
+.adm-res-card-actions button:active { border-color: var(--gold); color: var(--gold); }
+.adm-res-card-actions button.danger {
+  color: #e05c5c; border-color: rgba(224,92,92,.3); background: rgba(224,92,92,.06);
+}
+.adm-res-card-actions button.danger:active { border-color: #e05c5c; }
+.adm-res-cards-empty { grid-column: 1 / -1; text-align: center; color: var(--gray); padding: 2rem 1rem; font-size: .85rem; }
+.adm-res-card-user { display: flex; align-items: center; gap: .7rem; min-width: 0; flex: 1; }
+.adm-res-card-user .admin-avatar-mini { flex-shrink: 0; }
+
+@media (max-width: 860px) {
+  #admin-reservas .admin-table-wrap,
+  #admin-usuarios .admin-table-wrap,
+  #admin-eventos .admin-table-wrap,
+  #admin-financeiro .admin-table-wrap { display: none; }
+  #admin-reservas .adm-res-cards,
+  #admin-usuarios .adm-res-cards,
+  #admin-eventos .adm-res-cards,
+  #admin-financeiro .adm-res-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; padding: 1rem; }
+}
+@media (max-width: 620px) {
+  #admin-reservas .adm-res-cards,
+  #admin-usuarios .adm-res-cards,
+  #admin-eventos .adm-res-cards,
+  #admin-financeiro .adm-res-cards { grid-template-columns: 1fr; padding: .8rem; }
+}
+
+/* ══════════════════════════════════════
+   FINANCEIRO — tag de tipo da transação
+   ══════════════════════════════════════ */
+.fin-type-tag {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-cond); font-size: .68rem; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: .3rem .6rem; border-radius: 7px; line-height: 1;
+  white-space: nowrap;
+}
+.fin-type-tag.reserva {
+  color: var(--gold); background: var(--gold-faint);
+  border: 1px solid rgba(224,172,107,.3);
+}
+.fin-type-tag.evento {
+  color: #8db9f2; background: rgba(96,150,240,.1);
+  border: 1px solid rgba(96,150,240,.3);
+}
+
+/* ══════════════════════════════════════
+   MODAL — atletas inscritos no evento
+   ══════════════════════════════════════ */
+.insc-count {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  font-family: var(--font-body); font-size: .7rem; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray);
+  padding: 0 .1rem .75rem;
+}
+.insc-row {
+  display: flex; align-items: center; gap: .7rem;
+  background: var(--dark); border: 1px solid var(--border); border-radius: 10px;
+  padding: .55rem .7rem; margin-bottom: .45rem;
+}
+.insc-num {
+  font-family: var(--font-body); font-size: .72rem; font-weight: 700;
+  color: var(--gray); width: 20px; text-align: center; flex-shrink: 0;
+}
+.insc-who { flex: 1; min-width: 0; }
+.insc-name {
+  font-size: .87rem; font-weight: 600; color: var(--white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.insc-sub {
+  font-size: .72rem; color: var(--gray); margin-top: .1rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.insc-row .badge { flex-shrink: 0; }
+.insc-empty { text-align: center; color: var(--gray); font-size: .84rem; padding: 1.8rem .5rem; }
+
+/* ══════════════════════════════════════
    PAGINAÇÃO
    ══════════════════════════════════════ */
 .admin-pagination {
@@ -951,6 +1099,42 @@ body.gate-active .admin-layout { display: none; }
   border-top: 1px solid var(--border);
 }
 
+/* ── Acesso administrativo (modal editar usuário) ── */
+.admin-adm-box {
+  display: flex; align-items: center; gap: .85rem;
+  background: var(--dark); border: 1px solid var(--border);
+  border-radius: 12px; padding: .9rem 1rem;
+}
+.admin-adm-icon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 10px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+  color: var(--gray);
+}
+.admin-adm-icon.is-admin {
+  background: var(--gold-faint); border-color: rgba(224,172,107,.35);
+  color: var(--gold);
+}
+.admin-adm-toggle {
+  flex-shrink: 0;
+  padding: .55rem .9rem; border-radius: 9px;
+  background: var(--gold-faint); border: 1px solid rgba(224,172,107,.4);
+  color: var(--gold);
+  font-family: var(--font-cond); font-size: .74rem; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap;
+  cursor: pointer; transition: all var(--trans-fast);
+}
+.admin-adm-toggle:hover { background: rgba(224,172,107,.16); }
+.admin-adm-toggle.danger {
+  background: var(--red-soft); border-color: rgba(239,68,68,.4); color: var(--red);
+}
+.admin-adm-toggle.danger:hover { background: rgba(239,68,68,.18); }
+.admin-adm-toggle:disabled { opacity: .35; cursor: not-allowed; }
+@media (max-width: 480px) {
+  .admin-adm-box { flex-wrap: wrap; }
+  .admin-adm-toggle { flex: 1 1 100%; padding: .7rem; }
+}
+
 /* ══════════════════════════════════════
    FORM FIELDS
    ══════════════════════════════════════ */
@@ -1065,24 +1249,47 @@ body.gate-active .admin-layout { display: none; }
   .admin-finance-grid { grid-template-columns: 1fr; }
   .admin-topbar-user { display: none; }
   .admin-section-header { flex-wrap: wrap; gap: .8rem; }
-  /* dashboard 2-col grids → 1 col */
-  .admin-section > div[style*="grid-template-columns:1fr 1fr"] {
-    grid-template-columns: 1fr !important;
-  }
+  .dash-2col { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 860px) {
   .admin-layout { grid-template-columns: 1fr; }
+  /* drawer em tela cheia: cobre inclusive a topbar (sem vão no topo) */
   .admin-sidebar {
     position: fixed;
-    top: 64px; left: 0;
-    height: calc(100vh - 64px);
-    width: 260px;
+    top: 0; left: 0;
+    height: 100dvh;
+    width: 272px;
     transform: translateX(-100%);
     transition: transform .35s var(--ease-out);
-    z-index: 100;
+    z-index: 300;
+    overscroll-behavior: contain; /* rolar o menu não arrasta a página atrás */
   }
   .admin-sidebar.open { transform: translateX(0); }
+  .admin-overlay { display: block; }
+  .admin-sidebar-mhead {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .85rem 1rem .85rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .admin-sidebar-mhead img { height: 34px; object-fit: contain; }
+  .admin-sidebar-mhead-text { display: flex; flex-direction: column; min-width: 0; }
+  .admin-sidebar-mhead-text strong {
+    font-family: var(--font-display); font-size: .92rem; letter-spacing: 2px; color: var(--white); line-height: 1.2;
+  }
+  .admin-sidebar-mhead-text span {
+    font-family: var(--font-cond); font-size: .58rem; font-weight: 600;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--gold);
+  }
+  .admin-sidebar-close {
+    margin-left: auto; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 9px;
+    background: var(--dark); border: 1px solid var(--border);
+    color: var(--gray-light); cursor: pointer;
+  }
+  .admin-sidebar-close:active { color: var(--gold); border-color: var(--gold); }
   .admin-hamburger { display: flex; }
   .admin-topbar-site,
   .admin-topbar-logout { display: none; }
@@ -1092,19 +1299,57 @@ body.gate-active .admin-layout { display: none; }
   .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .admin-modal { max-width: calc(100vw - 2rem) !important; margin: 1rem; }
   .admin-modal-body { max-height: 60svh; overflow-y: auto; }
+
+  /* Grade de Ocupação — no mobile a grade é vertical, sem scroll lateral */
+  .grade-cell { height: 40px; border-radius: 7px; }
+  .grade-lock-btn { width: 30px; height: 30px; }
+  .grade-lock-btn svg { width: 13px; height: 13px; }
 }
 
 @media (max-width: 600px) {
-  .admin-stats { grid-template-columns: 1fr 1fr; }
   .admin-topbar-badge span { display: none; }
-  .admin-search input { width: 120px; }
+  /* toolbar de busca/filtros ocupa a largura toda, um item por linha quando aperta */
+  .admin-card-toolbar { width: 100%; }
+  .admin-search { flex: 1 1 100%; }
+  .admin-search input { width: 100%; flex: 1; padding: .65rem .6rem .65rem 0; }
+  .admin-filter-select { flex: 1; padding-top: .6rem; padding-bottom: .6rem; }
+  .admin-card-toolbar .btn-admin-secondary { flex: 1; justify-content: center; padding-top: .7rem; padding-bottom: .7rem; }
+  .admin-section-header .btn-admin-primary { width: 100%; justify-content: center; padding: .85rem 1rem; }
+  .admin-pagination { justify-content: center; }
+  .admin-page-btn { width: 36px; height: 36px; }
   .admin-grid-2 { grid-template-columns: 1fr; }
   .admin-table td:nth-child(3),
   .admin-table th:nth-child(3) { display: none; }
   .admin-topbar { padding: 0 1rem; }
   .admin-topbar-logo-text { display: none; }
-  .admin-stat { padding: 1.2rem 1rem; }
-  .admin-stat-value { font-size: 1.5rem; }
+  .admin-greeting-name, .admin-greeting-sub { white-space: normal; }
+  .admin-section-h2 { font-size: 1.7rem; }
+
+  /* Stats compactos 2×2 */
+  .admin-stats { grid-template-columns: 1fr 1fr; gap: .7rem; margin-bottom: 1.5rem; }
+  .admin-stat { padding: 1rem .9rem; border-radius: 12px; }
+  .admin-stat-icon { width: 32px; height: 32px; border-radius: 9px; }
+  .admin-stat-icon svg { width: 15px; height: 15px; }
+  .admin-stat-value { font-size: clamp(1.1rem, 6vw, 1.45rem); white-space: nowrap; }
+  .admin-stat-label { font-size: .56rem; letter-spacing: 1.5px; }
+
+  /* Dashboard — cards e listas */
+  .dash-2col { gap: 1rem; margin-bottom: 1rem; }
+  .dash-list-row { padding: .7rem 1rem; }
+  .dash-2col .btn-admin-primary,
+  .dash-2col .btn-admin-secondary { padding: .85rem 1rem; }
+
+  /* Grade de Ocupação — controles fáceis de tocar */
+  .grade-header { padding: .9rem 1rem; }
+  .grade-view-toggle { width: 100%; }
+  .grade-view-btn { flex: 1; padding: .55rem 0; }
+  .grade-legend { padding: .7rem 1rem; gap: .4rem .9rem; }
+  .grade-hint { padding: .6rem 1rem; font-size: .72rem; align-items: flex-start; }
+  .grade-nav { padding: .8rem 1rem; gap: .5rem; }
+  .grade-nav-btn { width: 40px; height: 40px; font-size: 1.15rem; flex-shrink: 0; }
+  .grade-nav-date { flex: 1; text-align: center; font-size: .82rem; }
+  .grade-body { padding: 0 1rem 1.25rem; }
+  .grade-month-cell { min-height: 52px; border-radius: 8px; }
 }
 
 /* ══════════════════════════════════════
@@ -1176,11 +1421,12 @@ body.gate-active .admin-layout { display: none; }
   width: 90vw;
 }
 .rank-entries-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 32px 1fr 1fr 64px 44px 44px 28px;
   align-items: center;
   gap: .5rem;
-  padding: .4rem .6rem;
-  margin-bottom: .4rem;
+  padding: .5rem 1.7rem;
+  margin: 0;
   border-bottom: 1px solid var(--border);
 }
 .rank-entries-header span {
@@ -1193,7 +1439,7 @@ body.gate-active .admin-layout { display: none; }
 }
 .rank-entry-row {
   display: grid;
-  grid-template-columns: 32px 1fr 0.75fr 70px 50px 50px 32px;
+  grid-template-columns: 32px 1fr 1fr 64px 44px 44px 28px;
   gap: .5rem;
   align-items: center;
   padding: .3rem .2rem;
@@ -1227,6 +1473,9 @@ body.gate-active .admin-layout { display: none; }
   background: rgba(197,160,40,.05);
 }
 .rank-entry-input.num-input { text-align: center; }
+/* no desktop o wrapper some da grade (display:contents); no mobile vira campo com label */
+.rank-mini-field { display: contents; }
+.rank-mini-label { display: none; }
 .rank-entry-del {
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
@@ -1318,6 +1567,22 @@ body.gate-active .admin-layout { display: none; }
 }
 .rank-admin-row:last-child { border-bottom: none; }
 .rank-admin-row:hover { background: rgba(197,160,40,.04); }
+
+/* Mobile: mostra só o top 3 com botão "Ver tudo" que expande a lista */
+.rank-see-all { display: none; }
+@media (max-width: 860px) {
+  .rank-row-extra { display: none; }
+  .admin-card.rank-expanded .rank-row-extra { display: grid; }
+  .rank-see-all {
+    display: flex; align-items: center; justify-content: center; gap: .45rem;
+    width: 100%; padding: .8rem; background: none; border: none;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-body); font-size: .7rem; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--gold); cursor: pointer;
+  }
+  .rank-see-all svg { transition: transform .25s ease; }
+  .admin-card.rank-expanded .rank-see-all svg { transform: rotate(180deg); }
+}
 .rank-admin-pos {
   font-family: var(--font-cond);
   font-weight: 700;
@@ -1359,10 +1624,38 @@ body.gate-active .admin-layout { display: none; }
 @media(max-width:860px) {
   .rank-modal-wide { width: calc(100vw - 2rem) !important; max-width: 100% !important; }
   .rank-entries-header { display: none; }
-  .rank-entry-row { grid-template-columns: 28px 1fr 32px; gap: .4rem; }
-  .rank-entry-row .rank-entry-input:nth-child(3),
-  .rank-entry-row .rank-entry-input:nth-child(4),
-  .rank-entry-row .rank-entry-input:nth-child(5) { display: none; }
+
+  /* Cada dupla vira um card: posição + lixeira em cima, jogadores empilhados, Pts/V/D lado a lado */
+  .rank-entry-row {
+    grid-template-columns: 30px 1fr 1fr 1fr 36px;
+    grid-template-areas:
+      "num j1  j1  j1  del"
+      ".   j2  j2  j2  del"
+      ".   pts v   d   .";
+    gap: .5rem;
+    align-items: center;
+    background: var(--dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: .75rem .65rem;
+    margin-bottom: .6rem;
+  }
+  .rank-entry-row:hover { background: var(--dark); }
+  .rank-entry-row > :nth-child(1) { grid-area: num; }
+  .rank-entry-row > :nth-child(2) { grid-area: j1; min-width: 0; }
+  .rank-entry-row > :nth-child(3) { grid-area: j2; min-width: 0; }
+  .rank-entry-row > :nth-child(4) { grid-area: pts; }
+  .rank-entry-row > :nth-child(5) { grid-area: v; }
+  .rank-entry-row > :nth-child(6) { grid-area: d; }
+  .rank-entry-row > :nth-child(7) { grid-area: del; }
+  .rank-mini-field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+  .rank-mini-label {
+    display: block; font-family: var(--font-body); font-size: .54rem; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray); text-align: center;
+  }
+  .rank-entry-input { font-size: 1rem; padding: .55rem .6rem; }
+  .rank-entry-del { width: 36px; height: 36px; border-radius: 9px; align-self: center; }
+  .rank-entry-num { font-size: 1.15rem; }
 }
 
 /* ══════════════════════════════════════
@@ -1414,6 +1707,11 @@ body.gate-active .admin-layout { display: none; }
   border-bottom: 1px solid var(--border);
 }
 .grade-hint svg { flex-shrink: 0; opacity: .7; }
+.grade-hint .hint-touch { display: none; }
+@media (hover: none) {
+  .grade-hint .hint-mouse { display: none; }
+  .grade-hint .hint-touch { display: inline; }
+}
 
 .grade-nav { display: flex; align-items: center; gap: .7rem; padding: 1rem 1.5rem; flex-wrap: wrap; }
 .grade-nav-btn {
@@ -1427,7 +1725,16 @@ body.gate-active .admin-layout { display: none; }
   letter-spacing: .5px; color: var(--white); text-transform: capitalize;
 }
 
-.grade-body { padding: 0 1.5rem 1.5rem; overflow-x: auto; }
+.grade-body { padding: 0 1.5rem 1.5rem; overflow-x: auto; scrollbar-color: var(--gold) var(--dark); }
+/* barra de rolagem horizontal com área de pegada de verdade (a global de 4px não dá pra arrastar) */
+.grade-body::-webkit-scrollbar { height: 12px; }
+.grade-body::-webkit-scrollbar-track { background: var(--dark); border-radius: 8px; margin: 0 1.5rem; }
+.grade-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, var(--gold-dark), var(--gold));
+  border-radius: 8px;
+  border: 3px solid var(--dark);
+}
+.grade-body::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
 .grade-grid { display: grid; gap: 2px; min-width: 920px; }
 .grade-corner { background: transparent; }
@@ -1701,4 +2008,15 @@ body.gate-active .admin-layout { display: none; }
 .admin-config-card-head p { font-size: .76rem; color: var(--gray); margin-top: .1rem; }
 .admin-config-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
 @media (max-width: 700px) { .admin-config-row2, .admin-config-2col { grid-template-columns: 1fr !important; } }
-.admin-config-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; align-items: start; }
+.admin-config-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; align-items: stretch; }
+.admin-config-2col .admin-config-card { display: flex; flex-direction: column; }
+/* Labels em uma linha só — se faltar espaço, corta em vez de quebrar e desalinhar os inputs */
+.admin-config-2col .admin-config-row2 .admin-field label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-config-sub {
+  font-size: .66rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--gold); opacity: .8; margin-bottom: .65rem;
+}
+.admin-config-row2 + .admin-config-sub { margin-top: .2rem; }
+.admin-config-hint { font-size: .74rem; color: var(--gray); line-height: 1.55; margin-top: auto; padding-top: .4rem; }
+.admin-config-hint strong { color: var(--white); font-weight: 600; }
+.cfg-input[type="time"] { color-scheme: dark; }
