@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { ToastProvider } from './components/Toast';
 import Nav from './components/Nav';
 import CompletePerfilModal from './components/CompletePerfilModal';
@@ -62,9 +63,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <Layout />
-        </ToastProvider>
+        <SettingsProvider>
+          <ToastProvider>
+            <Layout />
+          </ToastProvider>
+        </SettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   );
