@@ -842,8 +842,8 @@ export default function Painel() {
         </main>
       </div>
 
-      {/* BOTTOM TABS MOBILE */}
-      <div className="painel-bottom-tabs">
+      {/* BOTTOM TABS MOBILE — escondidas enquanto a sidebar está aberta */}
+      <div className={`painel-bottom-tabs${sidebarOpen ? ' drawer-open' : ''}`}>
         {[
           { id: 'inicio',   label: 'Início',   icon: <IcoHome /> },
           { id: 'reservas', label: 'Reservas',  icon: <IcoCal /> },
