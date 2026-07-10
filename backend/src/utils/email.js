@@ -139,4 +139,126 @@ const enviarEmailSenhaAlterada = async ({ destinatario, nome }) => {
   });
 };
 
-module.exports = { enviarEmailResetSenha, enviarEmailSenhaAlterada };
+const fmtSlots = (slots = []) => {
+  if (!slots.length) return 'Day Use';
+  return [...slots].sort((a, b) => a - b).map((h) => `${String(h).padStart(2, '0')}h`).join(', ');
+};
+
+const fmtData = (dateStr) => {
+  if (!dateStr) return '—';
+  return new Date(`${dateStr}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+};
+
+const blocoReserva = (reserva) => `
+    <table cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:8px;width:100%;margin-bottom:24px;">
+      <tr><td style="padding:18px 20px;">
+        <p style="margin:0 0 10px;font-size:11px;color:#555;letter-spacing:2px;text-transform:uppercase;">Detalhes da reserva</p>
+        <p style="margin:0 0 6px;font-size:14px;color:#ccc;"><strong style="color:#c5a028;">Modalidade:</strong> ${reserva.modalidade || '—'}</p>
+        ${reserva.quadra ? `<p style="margin:0 0 6px;font-size:14px;color:#ccc;"><strong style="color:#c5a028;">Quadra:</strong> ${reserva.quadra}</p>` : ''}
+        <p style="margin:0 0 6px;font-size:14px;color:#ccc;"><strong style="color:#c5a028;">Data:</strong> ${fmtData(reserva.date)}</p>
+        <p style="margin:0 0 6px;font-size:14px;color:#ccc;"><strong style="color:#c5a028;">Horário:</strong> ${fmtSlots(reserva.slots)}</p>
+        <p style="margin:0;font-size:14px;color:#ccc;"><strong style="color:#c5a028;">Total:</strong> R$ ${Number(reserva.total || 0).toFixed(2).replace('.', ',')}</p>
+      </td></tr>
+    </table>`;
+
+const enviarEmailReservaConfirmada = async ({ destinatario, nome, reserva }) => {
+  const primeiroNome = (nome || '').split(' ')[0];
+  const corpo = `
+    <p style="margin:0 0 8px;font-size:13px;letter-spacing:3px;color:#c5a028;text-transform:uppercase;font-weight:700;">Reserva confirmada</p>
+    <h1 style="margin:0 0 20px;font-size:22px;color:#fff;letter-spacing:1px;font-weight:700;">Nos vemos na quadra! 🏆</h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#999;line-height:1.7;">
+      Olá, <strong style="color:#fff;">${primeiroNome}</strong>! Sua reserva na <strong style="color:#ccc;">Podium Arena</strong> foi confirmada. Confira os detalhes abaixo.
+    </p>
+    ${blocoReserva(reserva)}
+    <p style="margin:0;font-size:12px;color:#555;text-align:center;">Precisa cancelar ou alterar? Acesse <strong style="color:#888;">Meu Painel</strong> no site.</p>
+  `;
+
+  await transporter.sendMail({
+    from: `"Podium Arena" <${process.env.EMAIL_USER}>`,
+    to: destinatario,
+    replyTo: `noreply <${process.env.EMAIL_USER}>`,
+    subject: 'Reserva confirmada — Podium Arena',
+    html: baseEmail(corpo),
+    attachments: [logoAttachment],
+  });
+};
+
+const enviarEmailLembreteReserva = async ({ destinatario, nome, reserva }) => {
+  const primeiroNome = (nome || '').split(' ')[0];
+  const corpo = `
+    <p style="margin:0 0 8px;font-size:13px;letter-spacing:3px;color:#c5a028;text-transform:uppercase;font-weight:700;">Lembrete</p>
+    <h1 style="margin:0 0 20px;font-size:22px;color:#fff;letter-spacing:1px;font-weight:700;">Sua reserva é daqui a pouco ⏰</h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#999;line-height:1.7;">
+      Olá, <strong style="color:#fff;">${primeiroNome}</strong>! Passando para lembrar que seu horário na <strong style="color:#ccc;">Podium Arena</strong> está chegando.
+    </p>
+    ${blocoReserva(reserva)}
+    <p style="margin:0;font-size:12px;color:#555;text-align:center;">Chegue com alguns minutos de antecedência. Bom jogo! 🎾</p>
+  `;
+
+  await transporter.sendMail({
+    from: `"Podium Arena" <${process.env.EMAIL_USER}>`,
+    to: destinatario,
+    replyTo: `noreply <${process.env.EMAIL_USER}>`,
+    subject: 'Lembrete: sua reserva é daqui a pouco — Podium Arena',
+    html: baseEmail(corpo),
+    attachments: [logoAttachment],
+  });
+};
+
+const enviarEmailCancelamentoAdmin = async ({ destinatario, reserva, canceladoPor }) => {
+  const corpo = `
+    <p style="margin:0 0 8px;font-size:13px;letter-spacing:3px;color:#e05555;text-transform:uppercase;font-weight:700;">Alerta de cancelamento</p>
+    <h1 style="margin:0 0 20px;font-size:22px;color:#fff;letter-spacing:1px;font-weight:700;">Reserva Cancelada</h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#999;line-height:1.7;">
+      A reserva de <strong style="color:#fff;">${reserva.userName || '—'}</strong> foi cancelada${canceladoPor ? ` por <strong style="color:#ccc;">${canceladoPor}</strong>` : ''}. O horário voltou a ficar disponível.
+    </p>
+    ${blocoReserva(reserva)}
+  `;
+
+  await transporter.sendMail({
+    from: `"Podium Arena" <${process.env.EMAIL_USER}>`,
+    to: destinatario,
+    replyTo: `noreply <${process.env.EMAIL_USER}>`,
+    subject: `Reserva cancelada — ${reserva.userName || 'cliente'} (${reserva.date || 'day use'})`,
+    html: baseEmail(corpo),
+    attachments: [logoAttachment],
+  });
+};
+
+const enviarEmailResumoSemanal = async ({ destinatario, resumo }) => {
+  const linha = (label, valor) => `
+      <tr>
+        <td style="padding:10px 20px;border-bottom:1px solid #222;font-size:13px;color:#999;">${label}</td>
+        <td style="padding:10px 20px;border-bottom:1px solid #222;font-size:14px;color:#fff;font-weight:700;text-align:right;">${valor}</td>
+      </tr>`;
+
+  const corpo = `
+    <p style="margin:0 0 8px;font-size:13px;letter-spacing:3px;color:#c5a028;text-transform:uppercase;font-weight:700;">Resumo semanal</p>
+    <h1 style="margin:0 0 20px;font-size:22px;color:#fff;letter-spacing:1px;font-weight:700;">Semana de ${resumo.inicio} a ${resumo.fim}</h1>
+    <table cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:8px;width:100%;margin-bottom:24px;overflow:hidden;">
+      ${linha('Reservas na semana', resumo.totalReservas)}
+      ${linha('Reservas canceladas', resumo.canceladas)}
+      ${linha('Novos usuários', resumo.novosUsuarios)}
+      ${linha('Receita da semana', `R$ ${Number(resumo.receita || 0).toFixed(2).replace('.', ',')}`)}
+    </table>
+    <p style="margin:0;font-size:12px;color:#555;text-align:center;">Relatório automático enviado toda segunda-feira.</p>
+  `;
+
+  await transporter.sendMail({
+    from: `"Podium Arena" <${process.env.EMAIL_USER}>`,
+    to: destinatario,
+    replyTo: `noreply <${process.env.EMAIL_USER}>`,
+    subject: `Resumo semanal — Podium Arena (${resumo.inicio} a ${resumo.fim})`,
+    html: baseEmail(corpo),
+    attachments: [logoAttachment],
+  });
+};
+
+module.exports = {
+  enviarEmailResetSenha,
+  enviarEmailSenhaAlterada,
+  enviarEmailReservaConfirmada,
+  enviarEmailLembreteReserva,
+  enviarEmailCancelamentoAdmin,
+  enviarEmailResumoSemanal,
+};
