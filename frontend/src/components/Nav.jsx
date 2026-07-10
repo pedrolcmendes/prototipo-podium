@@ -35,6 +35,26 @@ export default function Nav() {
   // fecha ao navegar
   useEffect(() => { setDdOpen(false); }, [location.pathname]);
 
+  // trava o scroll do site enquanto o drawer estiver aberto
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [menuOpen]);
+
+  // rola até uma seção da home (navegando pra lá primeiro, se preciso)
+  const goSection = (id) => {
+    setMenuOpen(false);
+    if (location.pathname === '/') {
+      const el = document.getElementById(id);
+      if (el) {
+        const y = el.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    } else {
+      navigate(`/#${id}`);
+    }
+  };
+
   const initials = user?.nome ? user.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : '';
 
   const openAuth = (tab = 'login') => {
@@ -46,21 +66,80 @@ export default function Nav() {
   return (
     <>
       {/* MOBILE DRAWER */}
-      <div className={`mobile-menu ${menuOpen ? 'open' : ''}`}>
-        <Link to="/" onClick={() => setMenuOpen(false)}>Início</Link>
-        <Link to="/#sobre" onClick={() => setMenuOpen(false)}>Sobre</Link>
-        <Link to="/#modalidades" onClick={() => setMenuOpen(false)}>Modalidades</Link>
-        <Link to="/#parceiros" onClick={() => setMenuOpen(false)}>Parceiros</Link>
-        <Link to="/eventos" onClick={() => setMenuOpen(false)}>Eventos</Link>
-        <Link to="/ranking" onClick={() => setMenuOpen(false)}>Ranking</Link>
-        <Link to="/reservas" onClick={() => setMenuOpen(false)}>Reservas</Link>
-        <div className="mobile-actions">
-          <Link to="/reservas" className="btn-gold" onClick={() => setMenuOpen(false)}>Reservar Quadra</Link>
-          {user ? (
-            <Link to="/painel" className="btn-outline" onClick={() => setMenuOpen(false)}>Meu Painel</Link>
-          ) : (
-            <button className="btn-outline" onClick={() => openAuth('login')}>Entrar</button>
-          )}
+      <div
+        className={`mobile-menu ${menuOpen ? 'open' : ''}`}
+        onClick={(e) => { if (e.target === e.currentTarget) setMenuOpen(false); }}
+      >
+        <div className="mm-user">
+          <div className="mm-avatar">
+            {user ? initials : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            )}
+          </div>
+          <div className="mm-user-info">
+            <div className="mm-user-name">{user ? user.nome : 'Bem-vindo'}</div>
+            <div className="mm-user-email">{user ? user.email : 'Entre para reservar quadras'}</div>
+          </div>
+        </div>
+
+        <div className="mm-group">
+          <span className="mm-label">Navegação</span>
+          <Link className={`mm-item${location.pathname === '/' && !location.hash ? ' active' : ''}`} to="/" onClick={() => setMenuOpen(false)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1Z"/></svg>
+            Início
+          </Link>
+          <button className="mm-item" onClick={() => goSection('sobre')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            Sobre
+          </button>
+          <button className="mm-item" onClick={() => goSection('modalidades')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Modalidades
+          </button>
+          <button className="mm-item" onClick={() => goSection('parceiros')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Parceiros
+          </button>
+          <Link className={`mm-item${location.pathname === '/eventos' ? ' active' : ''}`} to="/eventos" onClick={() => setMenuOpen(false)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Eventos
+          </Link>
+          <Link className={`mm-item${location.pathname === '/ranking' ? ' active' : ''}`} to="/ranking" onClick={() => setMenuOpen(false)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            Ranking
+          </Link>
+        </div>
+
+        <div className="mm-group">
+          <span className="mm-label">Sua Conta</span>
+          <div className="mm-account">
+            {user ? (
+              <>
+                <Link className={`mm-btn${location.pathname === '/painel' ? ' active' : ''}`} to="/painel" onClick={() => setMenuOpen(false)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  Meu Painel
+                </Link>
+                {user.admin && (
+                  <Link className={`mm-btn${location.pathname === '/admin' ? ' active' : ''}`} to="/admin" onClick={() => setMenuOpen(false)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Admin
+                  </Link>
+                )}
+              </>
+            ) : (
+              <button className="mm-btn" onClick={() => openAuth('login')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                Entrar / Criar Conta
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mm-cta-wrap">
+          <Link className="mm-cta" to="/reservas" onClick={() => setMenuOpen(false)}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+            Reservar Quadra
+          </Link>
         </div>
       </div>
 
@@ -71,12 +150,12 @@ export default function Nav() {
         </Link>
 
         <ul className="nav-links">
-          <li><a href="/#sobre">Sobre</a></li>
-          <li><a href="/#modalidades">Modalidades</a></li>
-          <li><a href="/#parceiros">Parceiros</a></li>
-          <li><a href="/eventos" className={location.pathname === '/eventos' ? 'active' : ''}>Eventos</a></li>
-          <li><a href="/ranking" className={location.pathname === '/ranking' ? 'active' : ''}>Ranking</a></li>
-          <li><a href="/reservas" className={location.pathname === '/reservas' ? 'active' : ''}>Reservas</a></li>
+          <li><button className="nav-link-btn" onClick={() => goSection('sobre')}>Sobre</button></li>
+          <li><button className="nav-link-btn" onClick={() => goSection('modalidades')}>Modalidades</button></li>
+          <li><button className="nav-link-btn" onClick={() => goSection('parceiros')}>Parceiros</button></li>
+          <li><Link to="/eventos" className={location.pathname === '/eventos' ? 'active' : ''}>Eventos</Link></li>
+          <li><Link to="/ranking" className={location.pathname === '/ranking' ? 'active' : ''}>Ranking</Link></li>
+          <li><Link to="/reservas" className={location.pathname === '/reservas' ? 'active' : ''}>Reservas</Link></li>
         </ul>
 
         <div className="nav-right">
