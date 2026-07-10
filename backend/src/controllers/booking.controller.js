@@ -2,6 +2,7 @@ const Booking = require('../models/Booking');
 const BlockedSlot = require('../models/BlockedSlot');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
+const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
 
 const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
   const query = { quadraId, date, status: { $ne: 'cancelada' }, slots: { $in: slots } };
@@ -42,6 +43,17 @@ const criar = async (req, res) => {
     return res.status(409).json({ message: 'Horário já reservado ou bloqueado' });
   }
 
+  const settings = await Settings.findById('global');
+
+  // Antecedência máxima de reserva (admin pode ignorar)
+  if (!req.user.admin && date && settings?.maxAdvanceDays) {
+    const limite = new Date(Date.now() + settings.maxAdvanceDays * 86400000);
+    const limiteStr = `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, '0')}-${String(limite.getDate()).padStart(2, '0')}`;
+    if (date > limiteStr) {
+      return res.status(400).json({ message: `Reservas permitidas com no máximo ${settings.maxAdvanceDays} dias de antecedência.` });
+    }
+  }
+
   const targetUserId = (req.user.admin && bodyUserId) ? bodyUserId : req.user._id;
   const targetUserName = (req.user.admin && bodyUserName) ? bodyUserName : req.user.nome;
 
@@ -57,6 +69,13 @@ const criar = async (req, res) => {
     payment,
     total,
   });
+
+  // Comprovante por e-mail (sem bloquear a resposta)
+  if (settings?.notifEmailConfirm !== false) {
+    User.findById(targetUserId).select('nome email')
+      .then((u) => u && enviarEmailReservaConfirmada({ destinatario: u.email, nome: u.nome, reserva: booking }))
+      .catch((e) => console.warn('Falha no e-mail de confirmação:', e.message));
+  }
 
   res.status(201).json(booking);
 };
@@ -110,6 +129,16 @@ const cancelar = async (req, res) => {
   if (ehDono && booking.total > 0) {
     await User.findByIdAndUpdate(booking.userId, { $inc: { creditos: booking.total } });
   }
+
+  // Alerta de cancelamento para o admin (sem bloquear a resposta)
+  Settings.findById('global')
+    .then((s) => {
+      if (s?.notifCancelAlert === false) return;
+      const destinatario = s?.email || process.env.EMAIL_USER;
+      if (!destinatario) return;
+      return enviarEmailCancelamentoAdmin({ destinatario, reserva: booking, canceladoPor: req.user.nome });
+    })
+    .catch((e) => console.warn('Falha no alerta de cancelamento:', e.message));
 
   res.json({ message: 'Reserva cancelada', booking, creditosEstornados: booking.total });
 };
