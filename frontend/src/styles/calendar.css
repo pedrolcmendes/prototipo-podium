@@ -203,8 +203,12 @@
   color: var(--gray-light);
   display: flex; flex-direction: column; align-items: center; gap: .2rem;
 }
-.time-slot:hover:not(.taken) {
-  border-color: var(--gold); color: var(--gold); background: var(--gold-faint);
+/* hover só em dispositivos com mouse — no touch o hover "gruda" após o toque
+   e escondia o dourado do estado selecionado até tocar fora */
+@media (hover: hover) {
+  .time-slot:hover:not(.taken):not(.selected) {
+    border-color: var(--gold); color: var(--gold); background: var(--gold-faint);
+  }
 }
 .time-slot.selected {
   background: var(--gold); color: var(--black); border-color: var(--gold);
