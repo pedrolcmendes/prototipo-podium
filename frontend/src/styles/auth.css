@@ -279,9 +279,30 @@
 /* abas */
 .auth-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 56px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+/* botão fechar — célula própria na linha das abas, alinhado com elas */
+.auth-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--gray);
+  cursor: pointer;
+  transition: all .2s;
+}
+.auth-close:hover {
+  color: var(--gold);
+  background: var(--gold-faint);
+}
+.auth-close svg {
+  width: 15px;
+  height: 15px;
 }
 
 .auth-tab {
