@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings, hourOf } from '../contexts/SettingsContext';
 import { useToast } from '../components/Toast';
 import AuthModal from '../components/AuthModal';
 import Footer from '../components/Footer';
@@ -39,8 +40,12 @@ function getPrice(h, tipo, isWeekend) {
   }
 }
 
-const HOURS_WEEKDAY = [8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
-const HOURS_WEEKEND = [8,9,10,11,12,13,14,15,16,17,18,19,20,21];
+// Horários reserváveis vêm das configurações do admin (abertura → última hora antes do fechamento)
+const buildHours = (open, close) => {
+  const out = [];
+  for (let h = open; h < close; h++) out.push(h);
+  return out;
+};
 const DAY_USE_PRICE = 25;
 
 function padDate(d) {
@@ -128,7 +133,8 @@ export default function Reservas() {
 
   const [confOpen, setConfOpen] = useState(false);
   const [confData, setConfData] = useState(null);
-  const [maxAdvanceDays, setMaxAdvanceDays] = useState(30);
+  const { settings } = useSettings();
+  const maxAdvanceDays = Number(settings.maxAdvanceDays) || 30;
 
   // ao trocar de etapa, rola a tela de volta para o topo das opções
   const stepperRef = useRef(null);
@@ -138,14 +144,12 @@ export default function Reservas() {
     stepperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [step]);
 
-  useEffect(() => {
-    api.get('/settings').then(r => setMaxAdvanceDays(r.data.maxAdvanceDays ?? 30)).catch(() => {});
-  }, []);
-
   const maxDateStr = padDate(new Date(Date.now() + maxAdvanceDays * 86400000));
 
   const isWeekend = isWeekendDate(selectedDate);
-  const hours = isWeekend ? HOURS_WEEKEND : HOURS_WEEKDAY;
+  const hours = isWeekend
+    ? buildHours(hourOf(settings.openWeekend, 6), hourOf(settings.closeWeekend, 22))
+    : buildHours(hourOf(settings.openWeek, 6), hourOf(settings.closeWeek, 23));
 
   useEffect(() => {
     if (!quadra || !selectedDate) return;
