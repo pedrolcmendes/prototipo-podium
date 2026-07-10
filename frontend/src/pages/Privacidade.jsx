@@ -1,6 +1,8 @@
 import Footer from '../components/Footer';
+import { useSettings } from '../contexts/SettingsContext';
 
 export default function Privacidade() {
+  const { settings } = useSettings();
   return (
     <>
       <style>{`
@@ -74,13 +76,13 @@ export default function Privacidade() {
           <p>Seus dados não são vendidos ou compartilhados com terceiros, exceto quando exigido por lei.</p>
 
           <h2>4. Seus direitos</h2>
-          <p>Você pode solicitar acesso, correção ou exclusão dos seus dados a qualquer momento pelo e-mail <strong>contato@podiumarena.com.br</strong>.</p>
+          <p>Você pode solicitar acesso, correção ou exclusão dos seus dados a qualquer momento pelo e-mail <strong>{settings.email}</strong>.</p>
 
           <h2>5. Segurança</h2>
           <p>Utilizamos criptografia e boas práticas de segurança para proteger suas informações.</p>
 
           <h2>6. Contato</h2>
-          <p>Dúvidas sobre esta política: <strong>contato@podiumarena.com.br</strong></p>
+          <p>Dúvidas sobre esta política: <strong>{settings.email}</strong></p>
         </div>
       </main>
       <Footer />
