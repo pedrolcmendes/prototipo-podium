@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'rea
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings, DEFAULT_SETTINGS, hourOf } from '../contexts/SettingsContext';
 import { useToast } from '../components/Toast';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import api from '../services/api';
 
 // ── helpers ──────────────────────────────────────────────────
@@ -12,6 +14,14 @@ const formatTel = (v) => {
   if (n.length <= 6) return `(${n.slice(0, 2)}) ${n.slice(2)}`;
   if (n.length <= 10) return `(${n.slice(0, 2)}) ${n.slice(2, 6)}-${n.slice(6)}`;
   return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`;
+};
+const formatCnpj = (v) => {
+  const n = v.replace(/\D/g, '').slice(0, 14);
+  if (n.length <= 2) return n;
+  if (n.length <= 5) return `${n.slice(0, 2)}.${n.slice(2)}`;
+  if (n.length <= 8) return `${n.slice(0, 2)}.${n.slice(2, 5)}.${n.slice(5)}`;
+  if (n.length <= 12) return `${n.slice(0, 2)}.${n.slice(2, 5)}.${n.slice(5, 8)}/${n.slice(8)}`;
+  return `${n.slice(0, 2)}.${n.slice(2, 5)}.${n.slice(5, 8)}/${n.slice(8, 12)}-${n.slice(12)}`;
 };
 const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const fmtMoney = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -38,7 +48,6 @@ const COURTS_GRADE = [
   { id: 'areia-2',   label: 'Quadra 4', tipo: 'descoberta', tag: 'Descoberta' },
   { id: 'areia-3',   label: 'Quadra 5', tipo: 'descoberta', tag: 'Descoberta' },
 ];
-const GRADE_HOURS_LIST = Array.from({ length: 16 }, (_, i) => 7 + i); // 7h–22h
 const MOD_CLS = { 'beach-tennis': 'bt', futevolei: 'fv', volei: 'vl', pickleball: 'pb' };
 const MODALIDADE_LABELS = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };
 const WEEKDAYS_S = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -155,11 +164,19 @@ function MiniBarChart({ data }) {
 // ── GradeOcupacao ─────────────────────────────────────────────
 function GradeOcupacao({ reservas, toast }) {
   const todayStr = new Date().toISOString().slice(0, 10);
+  // Grade cobre toda a janela de funcionamento configurada (semana ∪ fim de semana)
+  const { settings } = useSettings();
+  const gradeHours = useMemo(() => {
+    const open = Math.min(hourOf(settings.openWeek, 7), hourOf(settings.openWeekend, 7));
+    const close = Math.max(hourOf(settings.closeWeek, 23), hourOf(settings.closeWeekend, 22));
+    return Array.from({ length: Math.max(close - open, 1) }, (_, i) => open + i);
+  }, [settings]);
   const [view, setView] = useState('dia');
   const [navDate, setNavDate] = useState(todayStr);
   const [blockedSlots, setBlockedSlots] = useState([]);
   const [tooltip, setTooltip] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const tipTimer = useRef(null); // auto-esconde o tooltip aberto por toque
 
   useEffect(() => {
     api.get('/blocked-slots').then(r => setBlockedSlots(r.data)).catch(() => {});
@@ -205,7 +222,7 @@ function GradeOcupacao({ reservas, toast }) {
   };
 
   const handleLockRow = async (courtId, dateStr) => {
-    const freeHours = GRADE_HOURS_LIST.filter(h => getCellStatus(courtId, dateStr, h).status === 'livre');
+    const freeHours = gradeHours.filter(h => getCellStatus(courtId, dateStr, h).status === 'livre');
     if (!freeHours.length) { toast('Nenhum horário livre para bloquear', 'info'); return; }
     try {
       const results = await Promise.all(freeHours.map(h =>
@@ -242,10 +259,37 @@ function GradeOcupacao({ reservas, toast }) {
   const IconPlay   = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>;
   const IconLock   = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 
+  const dayCell = (court, hour) => {
+    const { status, booking } = getCellStatus(court.id, navDate, hour);
+    const modCls = booking ? ` mod-${MOD_CLS[booking.modalidade] || 'bt'}` : '';
+    const cellCls = booking ? `grade-cell${modCls} st-${status}` : `grade-cell st-${status}`;
+    return (
+      <div
+        key={`${court.id}-${hour}`}
+        className={cellCls}
+        onClick={(e) => {
+          if (status === 'livre' || status === 'bloqueado') { handleCellClick(court.id, navDate, hour); return; }
+          // célula reservada: no touch (sem hover) o toque abre o tooltip com os dados
+          setTooltip({ court, dateStr: navDate, hour, status, booking });
+          setTooltipPos({ x: e.clientX, y: e.clientY });
+          clearTimeout(tipTimer.current);
+          tipTimer.current = setTimeout(() => setTooltip(null), 3500);
+        }}
+        onMouseEnter={(e) => { setTooltip({ court, dateStr: navDate, hour, status, booking }); setTooltipPos({ x: e.clientX, y: e.clientY }); }}
+        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+        onMouseLeave={() => { clearTimeout(tipTimer.current); setTooltip(null); }}
+      >
+        {status === 'concluida' && <IconCheck />}
+        {status === 'andamento' && <IconPlay />}
+        {status === 'bloqueado' && <IconLock />}
+      </div>
+    );
+  };
+
   const renderDia = () => (
-    <div className="grade-grid" style={{ gridTemplateColumns: `170px repeat(${GRADE_HOURS_LIST.length}, 1fr)` }}>
+    <div className="grade-grid" style={{ gridTemplateColumns: `170px repeat(${gradeHours.length}, 1fr)` }}>
       <div className="grade-corner" />
-      {GRADE_HOURS_LIST.map(h => <div key={h} className="grade-hour-head">{h}h</div>)}
+      {gradeHours.map(h => <div key={h} className="grade-hour-head">{h}h</div>)}
       {COURTS_GRADE.map(court => (
         <Fragment key={court.id}>
           <div className="grade-row-label">
@@ -254,29 +298,31 @@ function GradeOcupacao({ reservas, toast }) {
             </button>
             <div><strong>{court.label}</strong><span>{court.tag.toUpperCase()}</span></div>
           </div>
-          {GRADE_HOURS_LIST.map(hour => {
-            const { status, booking } = getCellStatus(court.id, navDate, hour);
-            const modCls = booking ? ` mod-${MOD_CLS[booking.modalidade] || 'bt'}` : '';
-            const cellCls = booking ? `grade-cell${modCls} st-${status}` : `grade-cell st-${status}`;
-            return (
-              <div
-                key={hour}
-                className={cellCls}
-                onClick={() => handleCellClick(court.id, navDate, hour)}
-                onMouseEnter={(e) => { setTooltip({ court, dateStr: navDate, hour, status, booking }); setTooltipPos({ x: e.clientX, y: e.clientY }); }}
-                onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                onMouseLeave={() => setTooltip(null)}
-              >
-                {status === 'concluida' && <IconCheck />}
-                {status === 'andamento' && <IconPlay />}
-                {status === 'bloqueado' && <IconLock />}
-              </div>
-            );
-          })}
+          {gradeHours.map(hour => dayCell(court, hour))}
         </Fragment>
       ))}
     </div>
   );
+
+  const heatCell = (court, d) => {
+    const booked = gradeHours.filter(h => {
+      const { status } = getCellStatus(court.id, d, h);
+      return status !== 'livre' && status !== 'bloqueado';
+    }).length;
+    const pct = Math.round((booked / gradeHours.length) * 100);
+    const op = (pct / 100 * 0.55 + 0.04).toFixed(2);
+    return (
+      <div
+        key={`${court.id}-${d}`}
+        className="grade-cell grade-cell-heat"
+        style={{ background: `rgba(224,172,107,${op})` }}
+        onClick={() => { setView('dia'); setNavDate(d); }}
+        title={`${pct}% ocupado`}
+      >
+        <span>{pct}%</span>
+      </div>
+    );
+  };
 
   const renderSemana = () => {
     const ws = weekRangeStart(navDate);
@@ -297,25 +343,7 @@ function GradeOcupacao({ reservas, toast }) {
             <div className="grade-row-label">
               <div><strong>{court.label}</strong><span>{court.tag.toUpperCase()}</span></div>
             </div>
-            {days.map(d => {
-              const booked = GRADE_HOURS_LIST.filter(h => {
-                const { status } = getCellStatus(court.id, d, h);
-                return status !== 'livre' && status !== 'bloqueado';
-              }).length;
-              const pct = Math.round((booked / GRADE_HOURS_LIST.length) * 100);
-              const op = (pct / 100 * 0.55 + 0.04).toFixed(2);
-              return (
-                <div
-                  key={d}
-                  className="grade-cell grade-cell-heat"
-                  style={{ background: `rgba(224,172,107,${op})` }}
-                  onClick={() => { setView('dia'); setNavDate(d); }}
-                  title={`${pct}% ocupado`}
-                >
-                  <span>{pct}%</span>
-                </div>
-              );
-            })}
+            {days.map(d => heatCell(court, d))}
           </Fragment>
         ))}
       </div>
@@ -332,11 +360,11 @@ function GradeOcupacao({ reservas, toast }) {
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const booked = COURTS_GRADE.reduce((sum, court) =>
-        sum + GRADE_HOURS_LIST.filter(h => {
+        sum + gradeHours.filter(h => {
           const { status } = getCellStatus(court.id, dateStr, h);
           return status !== 'livre' && status !== 'bloqueado';
         }).length, 0);
-      const pct = Math.round((booked / (COURTS_GRADE.length * GRADE_HOURS_LIST.length)) * 100);
+      const pct = Math.round((booked / (COURTS_GRADE.length * gradeHours.length)) * 100);
       cells.push(
         <div key={dateStr} className={`grade-month-cell${dateStr === todayStr ? ' is-today' : ''}`} onClick={() => { setView('dia'); setNavDate(dateStr); }}>
           <span className="gm-num">{day}</span>
@@ -419,7 +447,8 @@ function GradeOcupacao({ reservas, toast }) {
       </div>
       <p className="grade-hint">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-        {' '}Passe o cursor sobre um horário para ver os dados. Clique num horário livre para bloqueá-lo, ou use o cadeado para bloquear todos os livres da quadra.
+        <span className="hint-mouse">Passe o cursor sobre um horário para ver os dados. Clique num horário livre para bloqueá-lo, ou use o cadeado para bloquear todos os livres da quadra.</span>
+        <span className="hint-touch">Toque numa reserva para ver os detalhes. Toque num horário livre para bloqueá-lo (e de novo para liberar), ou use o cadeado para bloquear a quadra toda.</span>
       </p>
       <div className="grade-nav">
         <button className="grade-nav-btn" onClick={() => navigate(-1)}>‹</button>
@@ -566,6 +595,11 @@ export default function Admin() {
   const [evtSearch, setEvtSearch] = useState('');
   const [evtStatus, setEvtStatus] = useState('todos');
 
+  // Filters — Financeiro
+  const [finSearch, setFinSearch] = useState('');
+  const [finTipo, setFinTipo] = useState('todas');
+  const [finPage, setFinPage] = useState(1);
+
   const today = new Date().toISOString().split('T')[0];
 
   // Modals
@@ -588,6 +622,7 @@ export default function Admin() {
   const [editResForm, setEditResForm] = useState({});
   const [inscricoesModal, setInscricoesModal] = useState(null);
   const [rankingModal, setRankingModal] = useState(false);
+  const [rankExpand, setRankExpand] = useState({}); // mobile: "ver tudo" por categoria
   const [rankForm, setRankForm] = useState({ modalidade: 'beachtennis', categoria: 'masculino', entries: [] });
   const newRankEntry = () => ({ pos: 0, userId1: null, nome1: '', userId2: null, nome2: '', pts: 0, v: 0, d: 0 });
   const [creditoModal, setCreditoModal] = useState(null);
@@ -597,9 +632,10 @@ export default function Admin() {
   const [novaResForm, setNovaResForm] = useState({ userId: '', userName: '', quadraId: 'coberta-1', modalidade: 'beach-tennis', date: '', slots: [9], payment: 'pix', total: 80, status: 'confirmada' });
 
   // Config
-  const [cfgCancelWindow, setCfgCancelWindow] = useState(24);
-  const [cfgMaxAdvanceDays, setCfgMaxAdvanceDays] = useState(30);
+  const { refreshSettings } = useSettings();
+  const [cfg, setCfg] = useState({ ...DEFAULT_SETTINGS });
   const [cfgSaving, setCfgSaving] = useState(false);
+  const updCfg = (field, val) => setCfg(prev => ({ ...prev, [field]: val }));
 
   useEffect(() => {
     document.body.classList.add('admin-page');
@@ -613,6 +649,9 @@ export default function Admin() {
     if (gateOpen) document.body.classList.add('gate-active');
     else document.body.classList.remove('gate-active');
   }, [gateOpen]);
+
+  // trava o scroll do fundo enquanto a sidebar mobile estiver aberta
+  useBodyScrollLock(sidebarOpen);
 
   const loadRankings = async () => {
     const combos = [['beachtennis','masculino'],['beachtennis','feminino'],['futevolei','masculino'],['futevolei','feminino']];
@@ -640,8 +679,7 @@ export default function Admin() {
       setUsuarios(u.data);
       setReservas(b.data);
       setEventos(e.data);
-      setCfgCancelWindow(cfg.data.cancelWindow ?? 24);
-      setCfgMaxAdvanceDays(cfg.data.maxAdvanceDays ?? 30);
+      setCfg(prev => ({ ...prev, ...cfg.data }));
       const allInsc = await Promise.all(e.data.map(ev => api.get(`/registrations/evento/${ev._id}`).then(r => r.data).catch(() => [])));
       setInscricoes(allInsc.flat());
       await loadRankings();
@@ -652,7 +690,14 @@ export default function Admin() {
   const saveConfig = async () => {
     setCfgSaving(true);
     try {
-      await api.put('/settings', { cancelWindow: cfgCancelWindow, maxAdvanceDays: cfgMaxAdvanceDays });
+      const payload = {
+        ...cfg,
+        cancelWindow: Number(cfg.cancelWindow) || 0,
+        maxAdvanceDays: Number(cfg.maxAdvanceDays) || 30,
+      };
+      const { data } = await api.put('/settings', payload);
+      setCfg(prev => ({ ...prev, ...data }));
+      await refreshSettings(); // atualiza horários/contatos no site inteiro
       toast('Configurações salvas', 'success');
     } catch { toast('Erro ao salvar configurações', 'error'); }
     finally { setCfgSaving(false); }
@@ -699,6 +744,39 @@ export default function Admin() {
     return matchSearch && matchStatus && matchGenero;
   });
   const pagedUsr = filteredUsr.slice((usrPage - 1) * PER_PAGE, usrPage * PER_PAGE);
+
+  // ── Transações unificadas (Financeiro): reservas + inscrições em eventos ──
+  const receitaEventos = inscricoes.filter(i => i.status !== 'cancelada').reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
+  const receitaEventosMes = inscricoes.filter(i => i.status !== 'cancelada' && (i.createdAt || '').startsWith(mesAtual)).reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
+  const transacoes = useMemo(() => {
+    const res = reservas.map(r => ({
+      id: r._id, tipo: 'reserva',
+      nome: r.userName || r.userId?.nome || '—',
+      detalhe: r.dayUse ? 'Day Use' : `${r.quadraId || ''}${r.slots?.length ? ` · ${r.slots.map(h => `${h}h`).join(', ')}` : ''}` || 'Reserva',
+      data: r.date,
+      pagamento: r.payment || '—',
+      valor: Number(r.total || 0),
+      status: r.status,
+    }));
+    const insc = inscricoes.map(i => ({
+      id: i._id, tipo: 'evento',
+      nome: i.userId?.nome || i.userName || '—',
+      detalhe: i.eventId?.nome || i.eventNome || 'Evento',
+      data: (i.createdAt || '').slice(0, 10) || i.eventId?.data || '',
+      pagamento: '—',
+      valor: Number(i.preco ?? i.eventId?.preco ?? 0),
+      status: i.status || 'confirmada',
+    }));
+    return [...res, ...insc].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  }, [reservas, inscricoes]);
+
+  const filteredFin = transacoes.filter(t => {
+    const q = norm(finSearch.trim());
+    const matchSearch = !q || norm(t.nome).includes(q) || norm(t.detalhe).includes(q);
+    const matchTipo = finTipo === 'todas' || t.tipo === finTipo;
+    return matchSearch && matchTipo;
+  });
+  const pagedFin = filteredFin.slice((finPage - 1) * PER_PAGE, finPage * PER_PAGE);
 
   // Mapa _id → número de ordem de criação (000, 001, 002…)
   const usrIndexMap = useMemo(() => {
@@ -749,6 +827,29 @@ export default function Admin() {
       setUsuarios(prev => prev.map(u => u._id === id ? { ...u, status } : u));
       toast('Status atualizado', 'success');
     } catch { toast('Erro ao atualizar', 'error'); }
+  };
+
+  const toggleAdmin = (u) => {
+    const tornar = !u.admin;
+    if (!tornar && u._id === user?._id) {
+      toast('Você não pode remover seu próprio acesso admin', 'error');
+      return;
+    }
+    setConfirmModal({
+      title: tornar ? 'Tornar administrador?' : 'Remover acesso admin?',
+      text: tornar
+        ? `${u.nome} terá acesso total ao painel administrativo: reservas, usuários, eventos, financeiro e configurações.`
+        : `${u.nome} perderá o acesso ao painel administrativo e voltará a ser um usuário comum.`,
+      onConfirm: async () => {
+        try {
+          await api.put(`/users/${u._id}`, { admin: tornar });
+          setUsuarios(prev => prev.map(x => x._id === u._id ? { ...x, admin: tornar } : x));
+          setEditUser(prev => (prev && prev._id === u._id) ? { ...prev, admin: tornar } : prev);
+          toast(tornar ? `${u.nome.split(' ')[0]} agora é administrador` : 'Acesso admin removido', 'success');
+        } catch (ex) { toast(ex.response?.data?.message || 'Erro ao atualizar permissão', 'error'); }
+        setConfirmModal(null);
+      }
+    });
   };
 
   const salvarEvento = async () => {
@@ -1073,7 +1174,7 @@ export default function Admin() {
 
       {/* Confirm */}
       {confirmModal && (
-        <div className="admin-modal-overlay open">
+        <div className="admin-modal-overlay open" style={{ zIndex: 9600 }}>
           <div className="admin-modal" style={{ maxWidth: 400 }}>
             <div className="admin-modal-header"><h3>{confirmModal.title}</h3><button className="admin-modal-close" onClick={() => setConfirmModal(null)}>✕</button></div>
             <div className="admin-modal-body"><p style={{ color: 'var(--gray)', fontSize: '.9rem', lineHeight: 1.7 }}>{confirmModal.text}</p></div>
@@ -1260,6 +1361,27 @@ export default function Admin() {
                 );
               })}
             </div>
+
+            {/* Acesso administrativo */}
+            <p className="admin-eyebrow" style={{ margin: '1.4rem 0 .7rem' }}>Acesso Administrativo</p>
+            <div className="admin-adm-box">
+              <div className={`admin-adm-icon${u.admin ? ' is-admin' : ''}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '.85rem', fontWeight: 600, color: u.admin ? 'var(--gold)' : 'var(--white)', fontFamily: 'var(--font-body)' }}>
+                  {u.admin ? 'Este usuário é administrador' : 'Usuário comum'}
+                </div>
+                <div style={{ fontSize: '.72rem', color: 'var(--gray)', marginTop: '.15rem' }}>
+                  {u._id === user?._id
+                    ? 'Você não pode remover seu próprio acesso'
+                    : u.admin ? 'Tem acesso total ao painel administrativo' : 'Sem acesso ao painel administrativo'}
+                </div>
+              </div>
+              <button type="button" className={`admin-adm-toggle${u.admin ? ' danger' : ''}`} disabled={u._id === user?._id} onClick={() => toggleAdmin(u)}>
+                {u.admin ? 'Remover Admin' : 'Tornar Admin'}
+              </button>
+            </div>
           </AdminModal>
         );
       })()}
@@ -1435,22 +1557,42 @@ export default function Admin() {
       </AdminModal>
 
       {/* Inscrições modal */}
-      {inscricoesModal && (
-        <div className="admin-modal-overlay open">
-          <div className="admin-modal">
-            <div className="admin-modal-header"><h3>{inscricoesModal.nome}</h3><button className="admin-modal-close" onClick={() => setInscricoesModal(null)}>✕</button></div>
-            <div className="admin-modal-body" style={{ maxHeight: 360, overflowY: 'auto' }}>
-              {inscricoes.filter(i => i.eventId === inscricoesModal._id || i.eventId?._id === inscricoesModal._id).map(i => (
-                <div key={i._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '.5rem .7rem', background: 'var(--dark)', marginBottom: '.3rem', fontSize: '.85rem' }}>
-                  <span>{i.userId?.nome || i.userName || '—'}</span>
-                  <span className={`badge ${STATUS_CLS[i.status]}`}>{i.status}</span>
+      {inscricoesModal && (() => {
+        const listaInsc = inscricoes.filter(i => i.eventId === inscricoesModal._id || i.eventId?._id === inscricoesModal._id);
+        const vagasRestantes = Math.max((inscricoesModal.vagas || 0) - listaInsc.length, 0);
+        return (
+          <div className="admin-modal-overlay open">
+            <div className="admin-modal">
+              <div className="admin-modal-header">
+                <div>
+                  <p className="admin-eyebrow" style={{ marginBottom: '.2rem' }}>Atletas Inscritos</p>
+                  <h3>{inscricoesModal.nome}</h3>
                 </div>
-              ))}
+                <button className="admin-modal-close" onClick={() => setInscricoesModal(null)}>✕</button>
+              </div>
+              <div className="admin-modal-body" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                <div className="insc-count">
+                  <span>{listaInsc.length} atleta{listaInsc.length !== 1 ? 's' : ''}</span>
+                  {inscricoesModal.vagas > 0 && <span>{vagasRestantes} vaga{vagasRestantes !== 1 ? 's' : ''} restante{vagasRestantes !== 1 ? 's' : ''}</span>}
+                </div>
+                {listaInsc.map((i, idx) => (
+                  <div key={i._id} className="insc-row">
+                    <span className="insc-num">{idx + 1}</span>
+                    <div className="admin-avatar-mini">{getInitials(i.userId?.nome || i.userName || '?')}</div>
+                    <div className="insc-who">
+                      <div className="insc-name">{i.userId?.nome || i.userName || '—'}</div>
+                      <div className="insc-sub">{i.userId?.tel ? formatTel(i.userId.tel) : (i.userId?.email || 'sem contato')}</div>
+                    </div>
+                    <span className={`badge ${STATUS_CLS[i.status] || 'badge-green'}`}>{i.status || 'confirmada'}</span>
+                  </div>
+                ))}
+                {listaInsc.length === 0 && <div className="insc-empty">Nenhum atleta inscrito neste evento ainda.</div>}
+              </div>
+              <div className="admin-modal-footer"><button className="btn-admin-secondary" onClick={() => setInscricoesModal(null)}>Fechar</button></div>
             </div>
-            <div className="admin-modal-footer"><button className="btn-admin-secondary" onClick={() => setInscricoesModal(null)}>Fechar</button></div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Ranking modal */}
       {rankingModal && (
@@ -1492,8 +1634,8 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Cabeçalho — 7 colunas: # | J1 | J2 | Pts | V | D | del */}
-            <div className="rank-entries-header" style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 64px 44px 44px 28px', gap: '.5rem', padding: '.5rem 1.7rem', margin: 0 }}>
+            {/* Cabeçalho — 7 colunas: # | J1 | J2 | Pts | V | D | del (some no mobile) */}
+            <div className="rank-entries-header">
               <span style={{ textAlign: 'center' }}>#</span>
               <span>Jogador 1 *</span>
               <span>Jogador 2</span>
@@ -1517,14 +1659,14 @@ export default function Admin() {
                 }));
                 const posClass = i === 0 ? 'pos-1' : i === 1 ? 'pos-2' : i === 2 ? 'pos-3' : '';
                 return (
-                  <div key={i} className="rank-entry-row" style={{ gridTemplateColumns: '32px 1fr 1fr 64px 44px 44px 28px' }}>
+                  <div key={i} className="rank-entry-row">
                     <span className={`rank-entry-num ${posClass}`}>{i + 1}</span>
                     <UserSearchInput
                       nome={e.nome1}
                       userId={e.userId1}
                       placeholder="Jogador 1 *"
                       usuarios={usuarios}
-                      generoFilter={rankForm.genero}
+                      generoFilter={rankForm.categoria}
                       onChange={({ nome, userId }) => { upd('nome1', nome); upd('userId1', userId); }}
                     />
                     <UserSearchInput
@@ -1532,12 +1674,21 @@ export default function Admin() {
                       userId={e.userId2}
                       placeholder="Jogador 2"
                       usuarios={usuarios}
-                      generoFilter={rankForm.genero}
+                      generoFilter={rankForm.categoria}
                       onChange={({ nome, userId }) => { upd('nome2', nome); upd('userId2', userId); }}
                     />
-                    <input className="rank-entry-input num-input" type="number" min="0" value={e.pts} onChange={ev => upd('pts', Number(ev.target.value))} />
-                    <input className="rank-entry-input num-input" type="number" min="0" value={e.v} onChange={ev => upd('v', Number(ev.target.value))} />
-                    <input className="rank-entry-input num-input" type="number" min="0" value={e.d} onChange={ev => upd('d', Number(ev.target.value))} />
+                    <div className="rank-mini-field">
+                      <span className="rank-mini-label">Pontos</span>
+                      <input className="rank-entry-input num-input" type="text" inputMode="numeric" placeholder="0" value={e.pts === 0 ? '' : e.pts} onChange={ev => upd('pts', ev.target.value.replace(/\D/g, '').slice(0, 5))} onFocus={ev => ev.target.select()} />
+                    </div>
+                    <div className="rank-mini-field">
+                      <span className="rank-mini-label">Vitórias</span>
+                      <input className="rank-entry-input num-input" type="text" inputMode="numeric" placeholder="0" value={e.v === 0 ? '' : e.v} onChange={ev => upd('v', ev.target.value.replace(/\D/g, '').slice(0, 4))} onFocus={ev => ev.target.select()} />
+                    </div>
+                    <div className="rank-mini-field">
+                      <span className="rank-mini-label">Derrotas</span>
+                      <input className="rank-entry-input num-input" type="text" inputMode="numeric" placeholder="0" value={e.d === 0 ? '' : e.d} onChange={ev => upd('d', ev.target.value.replace(/\D/g, '').slice(0, 4))} onFocus={ev => ev.target.select()} />
+                    </div>
                     <button className="rank-entry-del" title="Remover" onClick={() =>
                       setRankForm(prev => ({ ...prev, entries: prev.entries.filter((_, j) => j !== i) }))
                     }>
@@ -1621,6 +1772,14 @@ export default function Admin() {
 
         {/* SIDEBAR */}
         <aside className={`admin-sidebar${sidebarOpen ? ' open' : ''}`} id="adminSidebar">
+          {/* cabeçalho do drawer — só aparece no mobile (o drawer cobre a topbar) */}
+          <div className="admin-sidebar-mhead">
+            <img src="/img/logo.png" alt="Podium Arena" />
+            <div className="admin-sidebar-mhead-text"><strong>PODIUM ARENA</strong><span>Administração</span></div>
+            <button className="admin-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Fechar menu">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
           <div className="admin-sidebar-section">
             <div className="admin-sidebar-label">Visão Geral</div>
             <button className={`admin-nav-item${tab === 'dashboard' ? ' active' : ''}`} onClick={() => adminTab('dashboard')}>
@@ -1710,7 +1869,7 @@ export default function Admin() {
               <GradeOcupacao reservas={reservas} toast={toast} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+            <div className="dash-2col">
               <div className="admin-card">
                 <div className="admin-card-header"><h3>Receita — Últimos 7 Meses</h3></div>
                 <div style={{ padding: '.8rem 0' }}><MiniBarChart data={chartData} /></div>
@@ -1750,14 +1909,14 @@ export default function Admin() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <div className="dash-2col" style={{ marginBottom: 0 }}>
               <div className="admin-card">
                 <div className="admin-card-header"><h3>Últimas Reservas</h3><button className="admin-card-link" onClick={() => adminTab('reservas')}>Ver todas →</button></div>
                 {reservas.slice(0, 5).map(r => (
-                  <div key={r._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '.7rem 1.2rem', borderBottom: '1px solid var(--border)', fontSize: '.83rem' }}>
-                    <div>
-                      <div style={{ fontFamily: 'var(--font-cond)', letterSpacing: '1px', color: 'var(--white)' }}>{r.userName}</div>
-                      <div style={{ color: 'var(--gray)', fontSize: '.78rem' }}>{r.quadraId} · {fmtDate(r.date)}</div>
+                  <div key={r._id} className="dash-list-row">
+                    <div className="dash-list-main">
+                      <div className="dash-list-title">{r.userName}</div>
+                      <div className="dash-list-sub">{r.quadraId} · {fmtDate(r.date)}</div>
                     </div>
                     <span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span>
                   </div>
@@ -1766,11 +1925,11 @@ export default function Admin() {
               <div className="admin-card">
                 <div className="admin-card-header"><h3>Últimos Cadastros</h3><button className="admin-card-link" onClick={() => adminTab('usuarios')}>Ver todos →</button></div>
                 {usuarios.slice(0, 5).map(u => (
-                  <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '.8rem', padding: '.7rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
-                    <div className="admin-avatar-mini" style={{ width: 32, height: 32, fontSize: '.75rem' }}>{getInitials(u.nome)}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="admin-table-name" style={{ fontSize: '.85rem' }}>{u.nome}</div>
-                      <div className="admin-table-sub" style={{ fontSize: '.75rem' }}>{u.email}</div>
+                  <div key={u._id} className="dash-list-row">
+                    <div className="admin-avatar-mini dash-avatar">{getInitials(u.nome)}</div>
+                    <div className="dash-list-main">
+                      <div className="dash-list-title">{u.nome}</div>
+                      <div className="dash-list-sub">{u.email}</div>
                     </div>
                     <span className={`badge ${STATUS_CLS[u.status]}`}>{u.status}</span>
                   </div>
@@ -1843,6 +2002,48 @@ export default function Admin() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile/tablet: cards no lugar da tabela */}
+              <div className="adm-res-cards">
+                {pagedRes.map(r => (
+                  <div key={r._id} className="adm-res-card">
+                    <div className="adm-res-card-top">
+                      <div className="adm-res-card-who">
+                        <div className="adm-res-card-name">{r.userName || r.userId?.nome || '—'}</div>
+                        <div className="adm-res-card-sub">#{r._id?.slice(-6).toUpperCase()} · {fmtDate(r.date)}</div>
+                      </div>
+                      <span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span>
+                    </div>
+                    <div className="adm-res-card-info">
+                      <span className="adm-res-card-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        {r.dayUse ? 'Day Use' : (r.slots?.map(h => `${h}h`).join(', ') || '—')}
+                      </span>
+                      <span className="adm-res-card-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                        {r.quadraId || 'Day Use'}
+                      </span>
+                      <span className="adm-res-card-chip gold">{fmtMoney(r.total)}</span>
+                    </div>
+                    <div className="adm-res-card-actions">
+                      <button onClick={() => setDetalhesRes(r)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Detalhes
+                      </button>
+                      <button onClick={() => { setEditResForm({ status: r.status, total: r.total, payment: r.payment }); setEditRes(r); }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                        Editar
+                      </button>
+                      <button className="danger" disabled={r.status === 'cancelada'} onClick={() => cancelarReserva(r._id)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {pagedRes.length === 0 && <div className="adm-res-cards-empty">Nenhuma reserva encontrada</div>}
+              </div>
+
               <Pagination page={resPage} total={filteredRes.length} perPage={PER_PAGE} onChange={setResPage} />
             </div>
           </section>
@@ -1941,12 +2142,58 @@ export default function Admin() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile/tablet: cards no lugar da tabela */}
+              <div className="adm-res-cards">
+                {pagedUsr.map(u => {
+                  const shortId = `#U-${String(usrIndexMap.get(u._id) ?? 0).padStart(3, '0')}`;
+                  const generoLabel = u.genero === 'masculino' ? '♂ Masc.' : u.genero === 'feminino' ? '♀ Fem.' : 'Gênero —';
+                  const generoColor = u.genero === 'masculino' ? 'var(--gold)' : u.genero === 'feminino' ? '#e07faa' : 'var(--gray)';
+                  const nRes = reservas.filter(r => r.userId === u._id || r.userId?._id === u._id).length;
+                  return (
+                    <div key={u._id} className="adm-res-card">
+                      <div className="adm-res-card-top">
+                        <div className="adm-res-card-user">
+                          <div className="admin-avatar-mini">{getInitials(u.nome)}</div>
+                          <div className="adm-res-card-who">
+                            <div className="adm-res-card-name">{u.nome}</div>
+                            <div className="adm-res-card-sub">{u.email}</div>
+                          </div>
+                        </div>
+                        <span className={`badge ${STATUS_CLS[u.status]}`}>{u.status}</span>
+                      </div>
+                      <div className="adm-res-card-info">
+                        <span className="adm-res-card-chip" style={{ color: generoColor }}>{generoLabel}</span>
+                        <span className="adm-res-card-chip">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.15 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 2.18h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6.91 6.91l.44-.44a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                          {u.tel ? formatTel(u.tel) : '—'}
+                        </span>
+                        <span className="adm-res-card-chip gold">{nRes} reserva{nRes !== 1 ? 's' : ''}</span>
+                        {Number(u.creditos) > 0 && <span className="adm-res-card-chip gold">{fmtMoney(u.creditos)} em créditos</span>}
+                        <span className="adm-res-card-chip">{shortId} · {u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-BR') : '—'}</span>
+                      </div>
+                      <div className="adm-res-card-actions">
+                        <button onClick={() => { setEditUser(u); setEditUserForm({ tel: u.tel ? formatTel(u.tel) : '', genero: u.genero || '', nasc: u.nasc || '', status: u.status || 'ativo', novaSenha: '', confirmarSenha: '' }); }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                          Editar
+                        </button>
+                        <button onClick={() => setCreditoModal(u._id)}>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                          Crédito
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {pagedUsr.length === 0 && <div className="adm-res-cards-empty">Nenhum usuário encontrado</div>}
+              </div>
+
               <Pagination page={usrPage} total={filteredUsr.length} perPage={PER_PAGE} onChange={setUsrPage} />
             </div>
           </section>
 
           {/* EVENTOS */}
-          <section className={`admin-section${tab === 'eventos' ? ' active' : ''}`}>
+          <section id="admin-eventos" className={`admin-section${tab === 'eventos' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">EVENTOS</h2></div>
               <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 0, categoria: 'beachtennis', status: 'aberto', nivel: 'Todos os níveis', desc: '' }); setEventoImagemFile(null); setEventoImagemPreview(''); }}>
@@ -2033,18 +2280,44 @@ export default function Admin() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile/tablet: cards no lugar da tabela */}
+              <div className="adm-res-cards">
+                {inscricoes.slice(0, 15).map(i => (
+                  <div key={i._id} className="adm-res-card">
+                    <div className="adm-res-card-top">
+                      <div className="adm-res-card-user">
+                        <div className="admin-avatar-mini">{getInitials(i.userId?.nome || i.userName || '?')}</div>
+                        <div className="adm-res-card-who">
+                          <div className="adm-res-card-name">{i.userId?.nome || i.userName || '—'}</div>
+                          <div className="adm-res-card-sub">{i.eventId?.nome || '—'}</div>
+                        </div>
+                      </div>
+                      <span className={`badge ${STATUS_CLS[i.status] || 'badge-green'}`}>{i.status || 'confirmada'}</span>
+                    </div>
+                    <div className="adm-res-card-info">
+                      <span className="adm-res-card-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                        {fmtDate(i.eventId?.data)}
+                      </span>
+                      <span className="adm-res-card-chip gold">{fmtMoney(i.eventId?.preco)}</span>
+                    </div>
+                  </div>
+                ))}
+                {inscricoes.length === 0 && <div className="adm-res-cards-empty">Sem inscrições</div>}
+              </div>
             </div>
           </section>
 
           {/* FINANCEIRO */}
-          <section className={`admin-section${tab === 'financeiro' ? ' active' : ''}`}>
+          <section id="admin-financeiro" className={`admin-section${tab === 'financeiro' ? ' active' : ''}`}>
             <div className="admin-section-header"><div><p className="admin-eyebrow">Relatório</p><h2 className="admin-section-h2">FINANCEIRO</h2></div></div>
             <div className="admin-stats" style={{ marginBottom: '1.5rem' }}>
               {[
-                { label: 'Receita Total', value: fmtMoney(receitaTotal) },
-                { label: 'Receita Reservas', value: fmtMoney(reservas.filter(r => r.status !== 'cancelada').reduce((a, r) => a + Number(r.total || 0), 0)) },
-                { label: 'Receita Eventos', value: fmtMoney(inscricoes.reduce((a, i) => a + Number(i.eventId?.preco || 0), 0)) },
-                { label: 'Mês Atual', value: fmtMoney(receitaMes) },
+                { label: 'Receita Total', value: fmtMoney(receitaTotal + receitaEventos) },
+                { label: 'Receita Reservas', value: fmtMoney(receitaTotal) },
+                { label: 'Receita Eventos', value: fmtMoney(receitaEventos) },
+                { label: 'Mês Atual', value: fmtMoney(receitaMes + receitaEventosMes) },
               ].map(({ label, value }) => (
                 <div key={label} className="admin-stat">
                   <div className="admin-stat-value">{value}</div>
@@ -2057,25 +2330,73 @@ export default function Admin() {
               <div style={{ padding: '.8rem 0' }}><MiniBarChart data={chartData} /></div>
             </div>
             <div className="admin-card">
-              <div className="admin-card-header"><h3>Todas as Transações</h3></div>
+              <div className="admin-card-header">
+                <h3>Todas as Transações</h3>
+                <div className="admin-card-toolbar">
+                  <div className="admin-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" placeholder="Buscar cliente ou evento…" value={finSearch} onChange={e => { setFinSearch(e.target.value); setFinPage(1); }} />
+                  </div>
+                  <select className="admin-filter-select" value={finTipo} onChange={e => { setFinTipo(e.target.value); setFinPage(1); }}>
+                    <option value="todas">Todas</option>
+                    <option value="reserva">Reservas</option>
+                    <option value="evento">Eventos</option>
+                  </select>
+                </div>
+              </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead><tr><th>Cliente</th><th>Tipo</th><th>Data</th><th>Pagamento</th><th>Valor</th><th>Status</th></tr></thead>
                   <tbody>
-                    {reservas.map(r => (
-                      <tr key={r._id}>
-                        <td><div className="admin-table-name">{r.userName || '—'}</div></td>
-                        <td><span style={{ fontFamily: 'var(--font-cond)', fontSize: '.78rem', letterSpacing: '1px', color: 'var(--gray-light)' }}>RESERVA · {r.modalidade}</span></td>
-                        <td className="muted">{fmtDate(r.date)}</td>
-                        <td className="muted">{r.payment}</td>
-                        <td>{fmtMoney(r.total)}</td>
-                        <td><span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span></td>
+                    {pagedFin.map(t => (
+                      <tr key={`${t.tipo}-${t.id}`}>
+                        <td>
+                          <div className="admin-table-name">{t.nome}</div>
+                          <div className="admin-table-sub">{t.detalhe}</div>
+                        </td>
+                        <td><span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Evento'}</span></td>
+                        <td className="muted">{fmtDate(t.data)}</td>
+                        <td className="muted">{t.pagamento}</td>
+                        <td>{fmtMoney(t.valor)}</td>
+                        <td><span className={`badge ${STATUS_CLS[t.status] || 'badge-success'}`}>{t.status}</span></td>
                       </tr>
                     ))}
-                    {reservas.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Sem transações</td></tr>}
+                    {pagedFin.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Nenhuma transação encontrada</td></tr>}
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile/tablet: cards no lugar da tabela */}
+              <div className="adm-res-cards">
+                {pagedFin.map(t => (
+                  <div key={`${t.tipo}-${t.id}`} className="adm-res-card">
+                    <div className="adm-res-card-top">
+                      <div className="adm-res-card-who">
+                        <div className="adm-res-card-name">{t.nome}</div>
+                        <div className="adm-res-card-sub">{t.detalhe}</div>
+                      </div>
+                      <span className={`badge ${STATUS_CLS[t.status] || 'badge-success'}`}>{t.status}</span>
+                    </div>
+                    <div className="adm-res-card-info">
+                      <span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Evento'}</span>
+                      <span className="adm-res-card-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                        {fmtDate(t.data)}
+                      </span>
+                      {t.tipo === 'reserva' && (
+                        <span className="adm-res-card-chip">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                          {t.pagamento}
+                        </span>
+                      )}
+                      <span className="adm-res-card-chip gold">{fmtMoney(t.valor)}</span>
+                    </div>
+                  </div>
+                ))}
+                {pagedFin.length === 0 && <div className="adm-res-cards-empty">Nenhuma transação encontrada</div>}
+              </div>
+
+              <Pagination page={finPage} total={filteredFin.length} perPage={PER_PAGE} onChange={setFinPage} />
             </div>
           </section>
 
@@ -2091,8 +2412,10 @@ export default function Admin() {
             <div className="admin-rank-grid">
               {[['beachtennis', 'masculino'], ['beachtennis', 'feminino'], ['futevolei', 'masculino'], ['futevolei', 'feminino']].map(([mod, cat]) => {
                 const entries = rankings[`${mod}_${cat}`] || [];
+                const key = `${mod}_${cat}`;
+                const expanded = !!rankExpand[key];
                 return (
-                  <div key={`${mod}-${cat}`} className="admin-card">
+                  <div key={`${mod}-${cat}`} className={`admin-card${expanded ? ' rank-expanded' : ''}`}>
                     <div className="rank-admin-card-header">
                       <h3>{mod === 'beachtennis' ? 'Beach Tennis' : 'Futevôlei'} — {cat === 'masculino' ? 'Masculino' : 'Feminino'}</h3>
                       <button className="btn-rank-edit" onClick={() => { setRankForm({ modalidade: mod, categoria: cat, entries: [] }); setRankingModal(true); loadRanking(mod, cat); }}>
@@ -2103,7 +2426,7 @@ export default function Admin() {
                     {entries.length === 0 ? (
                       <div style={{ padding: '1rem 1.2rem', color: 'var(--gray)', fontSize: '.85rem' }}>Sem dados — clique em Editar para adicionar.</div>
                     ) : entries.map((p, i) => (
-                      <div key={i} className="rank-admin-row">
+                      <div key={i} className={`rank-admin-row${i >= 3 ? ' rank-row-extra' : ''}`}>
                         <div className={`rank-admin-pos${i === 0 ? ' p1' : i === 1 ? ' p2' : i === 2 ? ' p3' : ''}`}>{p.pos}</div>
                         <div>
                           <div className="rank-admin-name">{p.nome}</div>
@@ -2115,6 +2438,12 @@ export default function Admin() {
                         </div>
                       </div>
                     ))}
+                    {entries.length > 3 && (
+                      <button className="rank-see-all" onClick={() => setRankExpand(prev => ({ ...prev, [key]: !expanded }))}>
+                        {expanded ? 'Ver menos' : `Ver tudo (${entries.length})`}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -2136,13 +2465,13 @@ export default function Admin() {
                   <div className="admin-config-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></div>
                   <div><h3>Dados da Arena</h3><p>Informações exibidas para os clientes</p></div>
                 </div>
-                <div className="admin-field"><label>Nome do estabelecimento</label><input type="text" defaultValue="Podium Arena" className="cfg-input" /></div>
+                <div className="admin-field"><label>Nome do estabelecimento</label><input type="text" value={cfg.arenaName} onChange={e => updCfg('arenaName', e.target.value)} className="cfg-input" /></div>
                 <div className="admin-config-row2">
-                  <div className="admin-field"><label>CNPJ</label><input type="text" className="cfg-input" /></div>
-                  <div className="admin-field"><label>Telefone / WhatsApp</label><input type="text" className="cfg-input" /></div>
+                  <div className="admin-field"><label>CNPJ</label><input type="text" inputMode="numeric" value={cfg.cnpj} onChange={e => updCfg('cnpj', formatCnpj(e.target.value))} placeholder="00.000.000/0000-00" className="cfg-input" /></div>
+                  <div className="admin-field"><label>Telefone / WhatsApp</label><input type="text" value={cfg.phone} onChange={e => updCfg('phone', formatTel(e.target.value))} placeholder="(43) 99999-9999" className="cfg-input" /></div>
                 </div>
-                <div className="admin-field"><label>Endereço</label><input type="text" defaultValue="Telêmaco Borba — PR" className="cfg-input" /></div>
-                <div className="admin-field" style={{ marginBottom: 0 }}><label>E-mail de contato</label><input type="text" defaultValue="contato@podiumarena.com.br" className="cfg-input" /></div>
+                <div className="admin-field"><label>Endereço</label><input type="text" value={cfg.address} onChange={e => updCfg('address', e.target.value)} className="cfg-input" /></div>
+                <div className="admin-field" style={{ marginBottom: 0 }}><label>E-mail de contato</label><input type="text" value={cfg.email} onChange={e => updCfg('email', e.target.value)} className="cfg-input" /></div>
               </div>
 
               <div className="admin-config-2col">
@@ -2151,9 +2480,15 @@ export default function Admin() {
                     <div className="admin-config-card-icon blue"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
                     <div><h3>Funcionamento</h3><p>Janela disponível para reservas</p></div>
                   </div>
+                  <p className="admin-config-sub">Segunda a Sexta</p>
                   <div className="admin-config-row2">
-                    <div className="admin-field"><label>Abertura</label><input type="text" defaultValue="06:00" className="cfg-input" /></div>
-                    <div className="admin-field"><label>Fechamento</label><input type="text" defaultValue="23:00" className="cfg-input" /></div>
+                    <div className="admin-field"><label>Abertura</label><input type="time" value={cfg.openWeek} onChange={e => updCfg('openWeek', e.target.value)} className="cfg-input" /></div>
+                    <div className="admin-field"><label>Fechamento</label><input type="time" value={cfg.closeWeek} onChange={e => updCfg('closeWeek', e.target.value)} className="cfg-input" /></div>
+                  </div>
+                  <p className="admin-config-sub">Fim de Semana</p>
+                  <div className="admin-config-row2">
+                    <div className="admin-field"><label>Abertura</label><input type="time" value={cfg.openWeekend} onChange={e => updCfg('openWeekend', e.target.value)} className="cfg-input" /></div>
+                    <div className="admin-field"><label>Fechamento</label><input type="time" value={cfg.closeWeekend} onChange={e => updCfg('closeWeekend', e.target.value)} className="cfg-input" /></div>
                   </div>
                 </div>
                 <div className="admin-card admin-config-card">
@@ -2161,10 +2496,12 @@ export default function Admin() {
                     <div className="admin-config-card-icon green"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
                     <div><h3>Regras de Reserva</h3><p>Limites aplicados ao reservar</p></div>
                   </div>
+                  <p className="admin-config-sub">Limites para clientes</p>
                   <div className="admin-config-row2">
-                    <div className="admin-field"><label>Antecedência máx. (dias)</label><input type="number" value={cfgMaxAdvanceDays} onChange={e => setCfgMaxAdvanceDays(Number(e.target.value))} min="1" max="365" className="cfg-input" /></div>
-                    <div className="admin-field"><label>Prazo para cancelar (h após reservar)</label><input type="number" value={cfgCancelWindow} onChange={e => setCfgCancelWindow(Number(e.target.value))} min="0" max="168" className="cfg-input" /></div>
+                    <div className="admin-field"><label>Antecedência (dias)</label><input type="text" inputMode="numeric" value={cfg.maxAdvanceDays} onChange={e => updCfg('maxAdvanceDays', e.target.value.replace(/\D/g, '').slice(0, 3))} className="cfg-input" /></div>
+                    <div className="admin-field"><label>Cancelamento (horas)</label><input type="text" inputMode="numeric" value={cfg.cancelWindow} onChange={e => updCfg('cancelWindow', e.target.value.replace(/\D/g, '').slice(0, 3))} className="cfg-input" /></div>
                   </div>
+                  <p className="admin-config-hint">Clientes reservam com até <strong>{cfg.maxAdvanceDays || 0} dias</strong> de antecedência e cancelam até <strong>{cfg.cancelWindow || 0}h</strong> antes do horário — o site aplica as regras automaticamente.</p>
                 </div>
               </div>
 
@@ -2174,14 +2511,14 @@ export default function Admin() {
                   <div><h3>Notificações</h3><p>Avisos automáticos do sistema</p></div>
                 </div>
                 {[
-                  { label: 'Confirmação por e-mail', sub: 'Enviar comprovante ao confirmar uma reserva' },
-                  { label: 'Lembrete por WhatsApp', sub: 'Avisar o cliente 2h antes do horário reservado' },
-                  { label: 'Alerta de cancelamento', sub: 'Notificar o admin quando uma reserva for cancelada' },
-                  { label: 'Resumo semanal', sub: 'Relatório de ocupação e receita toda segunda-feira' },
-                ].map(({ label, sub }) => (
-                  <div key={label} className="admin-switch-row">
+                  { key: 'notifEmailConfirm', label: 'Confirmação por e-mail', sub: 'Enviar comprovante ao confirmar uma reserva' },
+                  { key: 'notifReminder', label: 'Lembrete de reserva', sub: 'Avisar o cliente 2h antes do horário (e-mail + WhatsApp)' },
+                  { key: 'notifCancelAlert', label: 'Alerta de cancelamento', sub: 'Notificar o admin quando uma reserva for cancelada' },
+                  { key: 'notifWeeklySummary', label: 'Resumo semanal', sub: 'Relatório de ocupação e receita toda segunda-feira' },
+                ].map(({ key, label, sub }) => (
+                  <div key={key} className="admin-switch-row">
                     <div><strong>{label}</strong><p>{sub}</p></div>
-                    <button className="admin-switch is-on" />
+                    <button className={`admin-switch${cfg[key] ? ' is-on' : ''}`} onClick={() => updCfg(key, !cfg[key])} aria-label={label} />
                   </div>
                 ))}
               </div>
