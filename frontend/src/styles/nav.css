@@ -33,20 +33,26 @@ nav#mainNav.scrolled {
   display:flex; gap:2.5rem;
   position:absolute; left:50%; transform:translateX(-50%);
 }
-.nav-links a {
+.nav-links a,
+.nav-links .nav-link-btn {
   font-family:var(--font-cond); font-size:.88rem; font-weight:600;
   letter-spacing:2px; text-transform:uppercase; color:var(--gray-light);
   position:relative; padding-bottom:3px;
   transition:color var(--trans-fast);
+  background:none; border:none; padding-top:0; padding-left:0; padding-right:0;
+  cursor:pointer;
 }
-.nav-links a::after {
+.nav-links a::after,
+.nav-links .nav-link-btn::after {
   content:''; position:absolute; bottom:0; left:0;
   width:0; height:1px; background:var(--gold);
   transition:width var(--trans-med);
 }
 .nav-links a:hover,
+.nav-links .nav-link-btn:hover,
 .nav-links a.active { color:var(--gold); }
 .nav-links a:hover::after,
+.nav-links .nav-link-btn:hover::after,
 .nav-links a.active::after { width:100%; }
 
 /* Nav direita */
@@ -189,24 +195,22 @@ nav#mainNav.scrolled {
 .mobile-toggle.open span:nth-child(2) { opacity:0; }
 .mobile-toggle.open span:nth-child(3) { transform:rotate(-45deg) translate(5px,-5px); }
 
-/* ─── MOBILE MENU — Drawer lateral ─── */
+/* ─── MOBILE MENU — Drawer lateral (mesma pegada da sidebar do painel) ─── */
 .mobile-menu {
   position: fixed;
   top: 0; right: 0;
-  width: min(320px, 85vw);
+  width: min(300px, 85vw);
   height: 100dvh;
-  background: rgba(10,10,10,.98);
-  backdrop-filter: blur(24px);
-  border-left: 1px solid rgba(197,160,40,.12);
+  background: var(--dark);
+  border-left: 1px solid var(--border);
   z-index: 990;
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 0;
-  padding: calc(var(--nav-h) + 1.5rem) 2rem 2rem;
+  padding: calc(var(--nav-h) + .5rem) 0 1.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   transform: translateX(100%);
   transition: transform .35s cubic-bezier(.4,0,.2,1);
-  display: flex; /* sempre flex, controla via transform */
   pointer-events: none;
 }
 
@@ -220,7 +224,7 @@ nav#mainNav.scrolled {
   content: '';
   position: fixed;
   inset: 0;
-  right: min(320px, 85vw);
+  right: min(300px, 85vw);
   background: rgba(0,0,0,.6);
   opacity: 0;
   transition: opacity .35s ease;
@@ -231,35 +235,105 @@ nav#mainNav.scrolled {
   pointer-events: all;
 }
 
-.mobile-menu a {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  letter-spacing: 3px;
-  color: var(--white);
-  width: 100%;
-  padding: 1rem 0;
-  border-bottom: 1px solid rgba(255,255,255,.05);
-  transition: color var(--trans-fast), padding-left var(--trans-fast);
+/* card do usuário no topo */
+.mm-user {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  padding: 1rem 1.4rem 1.2rem;
+  border-bottom: 1px solid var(--border);
 }
-.mobile-menu a:hover {
-  color: var(--gold);
-  padding-left: .5rem;
+.mm-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+  border: 2px solid var(--gold-light);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 1.15rem; color: var(--black);
+}
+.mm-avatar svg { stroke: var(--black); }
+.mm-user-info { min-width: 0; }
+.mm-user-name {
+  font-family: var(--font-cond); font-size: .95rem; font-weight: 700;
+  letter-spacing: 1px; color: var(--white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mm-user-email {
+  font-size: .75rem; color: var(--gray); margin-top: .1rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.mobile-menu .mobile-actions {
+/* grupos e itens (pegada do painel-nav) */
+.mm-group { border-bottom: 1px solid var(--border); padding-bottom: .5rem; }
+.mm-group:last-child { border-bottom: none; }
+.mm-label {
+  display: block;
+  padding: .85rem 1.4rem .3rem;
+  font-family: var(--font-cond);
+  font-size: .6rem; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--gray); opacity: .55;
+}
+.mm-item {
+  display: flex; align-items: center; gap: .9rem;
+  width: 100%;
+  padding: .8rem 1.4rem;
+  font-family: var(--font-cond);
+  font-size: .85rem; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--gray);
+  background: none; border: none;
+  border-left: 2px solid transparent;
+  text-align: left; cursor: pointer;
+  transition: all var(--trans-fast);
+}
+.mm-item svg { flex-shrink: 0; stroke: currentColor; }
+.mm-item:hover { color: var(--gold-light); background: var(--gold-faint); }
+.mm-item.active { color: var(--gold); border-left-color: var(--gold); background: rgba(224,172,107,.06); }
+
+/* botões de conta — contornados em dourado, destacados dos itens */
+.mm-account {
   display: flex;
   flex-direction: column;
-  gap: .8rem;
-  margin-top: 2rem;
-  width: 100%;
+  gap: .6rem;
+  padding: .4rem 1.4rem .9rem;
 }
-.mobile-menu .mobile-actions .btn-gold,
-.mobile-menu .mobile-actions .btn-outline {
+.mm-btn {
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
   width: 100%;
-  justify-content: center;
-  font-size: .82rem;
-  padding: .9rem 1rem;
+  padding: .8rem 1rem;
+  font-family: var(--font-cond);
+  font-size: .82rem; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  background: var(--gold-faint);
+  border: 1px solid rgba(224,172,107,.35);
+  color: var(--gold);
+  cursor: pointer;
+  transition: all var(--trans-fast);
 }
+.mm-btn svg { flex-shrink: 0; stroke: currentColor; }
+.mm-btn:hover,
+.mm-btn.active { background: rgba(224,172,107,.16); border-color: var(--gold); }
+
+/* CTA Reservar Quadra — dourado cheio, fixo embaixo de tudo */
+.mm-cta-wrap {
+  margin-top: auto;
+  padding: 1.2rem 1.4rem calc(.4rem + env(safe-area-inset-bottom, 0px));
+}
+.mm-cta {
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  width: 100%;
+  padding: 1rem;
+  font-family: var(--font-cond);
+  font-size: .88rem; font-weight: 800;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold), var(--gold-light));
+  color: var(--black);
+  border: none; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(224,172,107,.25);
+  transition: all var(--trans-fast);
+}
+.mm-cta svg { flex-shrink: 0; stroke: var(--black); }
+.mm-cta:hover { box-shadow: 0 4px 26px rgba(224,172,107,.4); filter: brightness(1.05); }
 
 @media(max-width:1024px) {
   nav#mainNav { padding:0 1.5rem; }
