@@ -81,7 +81,8 @@ body.admin-page.theme-light .admin-filter-select,
 body.admin-page.theme-light .admin-filter-date { background: #fff; color: var(--white); color-scheme: light; }
 body.admin-page.theme-light .custom-select option,
 body.admin-page.theme-light .admin-filter-select option { background: #fff; color: var(--white); }
-body.admin-page.theme-light .admin-field input[type="date"] { color-scheme: light; }
+body.admin-page.theme-light .admin-field input[type="date"],
+body.admin-page.theme-light .admin-field input[type="time"] { color-scheme: light; }
 body.admin-page.theme-light .admin-hamburger span { background: var(--white); }
 body.admin-page.theme-light .admin-topbar-theme .icon-moon { display: none; }
 body.admin-page.theme-light .admin-topbar-theme .icon-sun  { display: block; }
@@ -1178,9 +1179,10 @@ body.gate-active .admin-layout { display: none; }
 .admin-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .admin-grid-2 > .admin-field { min-width: 0; }
 
-/* input de data no iOS: o Safari dá tamanho/altura próprios ao campo nativo,
-   ignora o width e estoura a coluna — força o mesmo visual dos outros campos */
-.admin-field input[type="date"] {
+/* inputs de data/hora no iOS: o Safari dá tamanho/alinhamento próprios ao campo
+   nativo, ignora o width e desloca o valor — força o mesmo visual dos outros campos */
+.admin-field input[type="date"],
+.admin-field input[type="time"] {
   -webkit-appearance: none;
   appearance: none;
   display: block;
@@ -1189,8 +1191,9 @@ body.gate-active .admin-layout { display: none; }
   min-height: 40px; /* sem appearance nativa o campo vazio colapsa no iOS */
   color-scheme: dark;
 }
-.admin-field input[type="date"]::-webkit-date-and-time-value {
-  text-align: left; /* iOS centraliza o valor por padrão */
+.admin-field input[type="date"]::-webkit-date-and-time-value,
+.admin-field input[type="time"]::-webkit-date-and-time-value {
+  text-align: left; /* iOS centraliza/encosta o valor à direita por padrão */
   line-height: normal;
 }
 
@@ -2041,6 +2044,7 @@ body.gate-active .admin-layout { display: none; }
 .admin-config-card-head h3 { font-family: var(--font-cond); font-size: .92rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--white); }
 .admin-config-card-head p { font-size: .76rem; color: var(--gray); margin-top: .1rem; }
 .admin-config-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+.admin-config-row2 > .admin-field { min-width: 0; }
 @media (max-width: 700px) { .admin-config-row2, .admin-config-2col { grid-template-columns: 1fr !important; } }
 .admin-config-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; align-items: stretch; }
 .admin-config-2col .admin-config-card { display: flex; flex-direction: column; }
