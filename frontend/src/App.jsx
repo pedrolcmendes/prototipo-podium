@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './components/Toast';
@@ -15,12 +16,32 @@ import RedefinirSenha from './pages/RedefinirSenha';
 /* Páginas que têm seu próprio topbar e não devem exibir o Nav global */
 const NO_NAV_PATHS = ['/painel', '/admin'];
 
+/* Rola até a seção do hash (ex.: /#sobre) ou para o topo ao trocar de página */
+function ScrollManager() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => {
+    if (hash) {
+      const t = setTimeout(() => {
+        const el = document.getElementById(hash.slice(1));
+        if (el) {
+          const y = el.getBoundingClientRect().top + window.scrollY - 80;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      }, 60);
+      return () => clearTimeout(t);
+    }
+    window.scrollTo(0, 0);
+  }, [pathname, hash]);
+  return null;
+}
+
 function Layout() {
   const loc = useLocation();
   const hideNav = NO_NAV_PATHS.some(p => loc.pathname.startsWith(p));
 
   return (
     <>
+      <ScrollManager />
       {!hideNav && <Nav />}
       <CompletePerfilModal />
       <Routes>
