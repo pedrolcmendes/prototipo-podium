@@ -81,6 +81,7 @@ body.admin-page.theme-light .admin-filter-select,
 body.admin-page.theme-light .admin-filter-date { background: #fff; color: var(--white); color-scheme: light; }
 body.admin-page.theme-light .custom-select option,
 body.admin-page.theme-light .admin-filter-select option { background: #fff; color: var(--white); }
+body.admin-page.theme-light .admin-field input[type="date"] { color-scheme: light; }
 body.admin-page.theme-light .admin-hamburger span { background: var(--white); }
 body.admin-page.theme-light .admin-topbar-theme .icon-moon { display: none; }
 body.admin-page.theme-light .admin-topbar-theme .icon-sun  { display: block; }
@@ -1072,7 +1073,7 @@ body.gate-active .admin-layout { display: none; }
   transform: scale(.95) translateY(10px);
   transition: transform .3s var(--ease-out);
 }
-.admin-modal-body { overflow-y: auto; }
+.admin-modal-body { overflow-y: auto; overflow-x: hidden; }
 .admin-modal-overlay.open .admin-modal { transform: scale(1) translateY(0); }
 .admin-modal-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -1097,6 +1098,18 @@ body.gate-active .admin-layout { display: none; }
   display: flex; justify-content: flex-end; gap: .7rem;
   padding: 1.2rem 1.5rem;
   border-top: 1px solid var(--border);
+}
+
+/* ── Stats do modal editar usuário (Reservas/Eventos/Gasto/Crédito) ── */
+.edit-user-stats {
+  display: grid;
+  /* minmax(0,1fr): as células encolhem junto com o modal, sem scroll lateral */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .6rem;
+  margin-bottom: 1.4rem;
+}
+@media (max-width: 560px) {
+  .edit-user-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ── Acesso administrativo (modal editar usuário) ── */
@@ -1163,6 +1176,23 @@ body.gate-active .admin-layout { display: none; }
 .admin-field textarea:focus { border-color: var(--gold); }
 .admin-field textarea { resize: vertical; min-height: 80px; }
 .admin-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.admin-grid-2 > .admin-field { min-width: 0; }
+
+/* input de data no iOS: o Safari dá tamanho/altura próprios ao campo nativo,
+   ignora o width e estoura a coluna — força o mesmo visual dos outros campos */
+.admin-field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px; /* sem appearance nativa o campo vazio colapsa no iOS */
+  color-scheme: dark;
+}
+.admin-field input[type="date"]::-webkit-date-and-time-value {
+  text-align: left; /* iOS centraliza o valor por padrão */
+  line-height: normal;
+}
 
 /* Botões */
 .btn-admin-primary {
@@ -1995,6 +2025,10 @@ body.gate-active .admin-layout { display: none; }
    CONFIGURAÇÕES
    ══════════════════════════════════════ */
 .admin-config-wrap { display: flex; flex-direction: column; gap: 1.2rem; max-width: 1000px; }
+.admin-config-savebar { display: flex; justify-content: flex-end; max-width: 1000px; margin-top: 1.4rem; }
+@media (max-width: 600px) {
+  .admin-config-savebar .btn-admin-primary { width: 100%; justify-content: center; padding: .85rem; }
+}
 .admin-config-card { padding: 1.4rem 1.5rem; }
 .admin-config-card-head { display: flex; align-items: center; gap: .8rem; margin-bottom: 1.2rem; }
 .admin-config-card-icon {
