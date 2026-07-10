@@ -22,6 +22,8 @@ async function fixCpfIndex(db) {
 connectDB().then(async () => {
   const mongoose = require('mongoose');
   await fixCpfIndex(mongoose.connection.db);
+  const { iniciarScheduler } = require('./utils/scheduler');
+  iniciarScheduler();
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT} [${process.env.NODE_ENV}]`);
   });
