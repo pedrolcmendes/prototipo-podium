@@ -335,8 +335,17 @@ nav#mainNav.scrolled {
 .mm-cta svg { flex-shrink: 0; stroke: var(--black); }
 .mm-cta:hover { box-shadow: 0 4px 26px rgba(224,172,107,.4); filter: brightness(1.05); }
 
-@media(max-width:1024px) {
-  nav#mainNav { padding:0 1.5rem; }
+/* Tablets em pé (ex.: Galaxy Tab, iPad) — cabe tudo, só aperta os espaços */
+@media(max-width:1250px) {
+  nav#mainNav { padding:0 1rem; }
+  .nav-logo img { height:64px; }
+  .nav-links { gap:1.2rem; }
+  .nav-links a, .nav-links .nav-link-btn { font-size:.74rem; letter-spacing:1px; }
+  .nav-right { gap:.5rem; }
+  .nav-login-btn, .nav-cta {
+    height:34px; padding:0 .85rem; font-size:.72rem; letter-spacing:1px;
+  }
+  .user-avatar-name { max-width:70px; }
 }
 @media(max-width:860px) {
   .nav-links, .nav-cta { display:none; }
