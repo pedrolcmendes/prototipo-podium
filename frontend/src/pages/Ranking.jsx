@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import Footer from '../components/Footer';
+import useLive from '../hooks/useLive';
 
 const SPORTS = [
   {
@@ -37,6 +38,16 @@ export default function Ranking() {
       .catch(() => setRanking(null))
       .finally(() => setLoading(false));
   }, [sport, genero]);
+
+  // tempo real: admin salvou o ranking → tabela atualiza sozinha
+  useLive(['ranking'], () => {
+    api.get(`/ranking?esporte=${sport}&genero=${genero}`)
+      .then(r => {
+        const list = r.data.data || r.data;
+        setRanking(Array.isArray(list) ? list[0] : list);
+      })
+      .catch(() => {});
+  });
 
   const entries = ranking?.entries || [];
   const top3 = entries.slice(0, 3);

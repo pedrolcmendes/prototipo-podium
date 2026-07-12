@@ -5,6 +5,7 @@ import { useSettings, hourOf } from '../contexts/SettingsContext';
 import { useToast } from '../components/Toast';
 import AuthModal from '../components/AuthModal';
 import Footer from '../components/Footer';
+import useLive from '../hooks/useLive';
 import api from '../services/api';
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -159,6 +160,19 @@ export default function Reservas() {
       .then(r => setBusySlots(Array.isArray(r.data) ? r.data : []))
       .catch(() => {});
   }, [quadra, selectedDate]);
+
+  // tempo real: se alguém reservar/bloquear este horário agora, a grade reflete na hora
+  useLive(['bookings', 'blocked-slots'], () => {
+    if (!quadra || !selectedDate) return;
+    api.get(`/bookings/horarios-ocupados?quadraId=${quadra.id}&date=${selectedDate}`)
+      .then(r => {
+        const busy = Array.isArray(r.data) ? r.data : [];
+        setBusySlots(busy);
+        // desmarca horário que acabou de ser tomado por outra pessoa
+        setSelectedSlots(prev => prev.filter(h => !busy.includes(h)));
+      })
+      .catch(() => {});
+  });
 
   const toggleSlot = (h) => {
     if (busySlots.includes(h)) return;

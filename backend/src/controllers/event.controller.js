@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const Event = require('../models/Event');
 const Registration = require('../models/Registration');
+const { broadcast } = require('../utils/live');
 
 const listar = async (req, res) => {
   const filtro = {};
@@ -31,15 +32,16 @@ const criar = async (req, res) => {
   const dados = { ...req.body };
   if (req.file) dados.imagem = `/uploads/eventos/${req.file.filename}`;
   const event = await Event.create(dados);
+  broadcast('events');
   res.status(201).json(event);
 };
 
 const atualizar = async (req, res) => {
   const dados = { ...req.body };
   if (req.file) {
-    // remove imagem anterior se existir
+    // remove imagem anterior se existir (só quando era arquivo em disco — data-URI vive no Mongo)
     const anterior = await Event.findById(req.params.id);
-    if (anterior?.imagem) {
+    if (anterior?.imagem?.startsWith('/uploads')) {
       const oldPath = path.join(__dirname, '..', '..', '..', 'frontend', 'public', anterior.imagem);
       if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     }
@@ -47,16 +49,18 @@ const atualizar = async (req, res) => {
   }
   const event = await Event.findByIdAndUpdate(req.params.id, dados, { new: true, runValidators: true });
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
+  broadcast('events');
   res.json(event);
 };
 
 const remover = async (req, res) => {
   const event = await Event.findByIdAndDelete(req.params.id);
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
-  if (event.imagem) {
+  if (event.imagem?.startsWith('/uploads')) {
     const imgPath = path.join(__dirname, '..', '..', '..', 'frontend', 'public', event.imagem);
     if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
   }
+  broadcast('events');
   res.json({ message: 'Evento removido' });
 };
 

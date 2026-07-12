@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 const { enviarEmailResetSenha, enviarEmailSenhaAlterada } = require('../utils/email');
+const { broadcast } = require('../utils/live');
 
 const gerarToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
@@ -21,6 +22,7 @@ const register = async (req, res) => {
 
   const user = await User.create({ nome, email, senha, cpf, nasc, tel, genero });
 
+  broadcast('users');
   res.status(201).json({ token: gerarToken(user._id), user: user.toPublic() });
 };
 
@@ -66,6 +68,7 @@ const googleAuth = async (req, res) => {
 
     if (!user) {
       user = await User.create({ nome, email, googleId });
+      broadcast('users');
     } else if (!user.googleId) {
       user.googleId = googleId;
       await user.save();

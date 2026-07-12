@@ -9,12 +9,14 @@ const registrationRoutes = require('./routes/registration.routes');
 const rankingRoutes = require('./routes/ranking.routes');
 const blockedSlotRoutes = require('./routes/blockedSlot.routes');
 const settingsRoutes = require('./routes/settings.routes');
+const live = require('./utils/live');
 
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '12mb' })); // artes de evento vão em base64 no corpo
 
+app.get('/api/live', live.handler);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/bookings', bookingRoutes);

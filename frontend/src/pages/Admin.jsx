@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSettings, DEFAULT_SETTINGS, hourOf } from '../contexts/SettingsContext';
 import { useToast } from '../components/Toast';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import useLive from '../hooks/useLive';
 import api from '../services/api';
 
 // ── helpers ──────────────────────────────────────────────────
@@ -37,6 +38,11 @@ const QUADRAS_ALL = [
   { id: 'areia-1',   nome: 'Quadra 3' }, { id: 'areia-2',   nome: 'Quadra 4' },
   { id: 'areia-3',   nome: 'Quadra 5' },
 ];
+const QUADRA_NOMES = {
+  'coberta-1': 'Quadra 1', 'coberta-2': 'Quadra 2', 'areia-1': 'Quadra 3',
+  'areia-2': 'Quadra 4', 'areia-3': 'Quadra 5', 'PKB-DU': 'Pickleball',
+};
+const quadraNome = (id) => QUADRA_NOMES[id] || id || '—';
 const HOURS = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
 const MOD_COLOR = { 'beach-tennis': '#e0ac6b', 'futevolei': '#60a5fa', 'volei': '#34d399', 'pickleball': '#f472b6' };
 
@@ -47,6 +53,7 @@ const COURTS_GRADE = [
   { id: 'areia-1',   label: 'Quadra 3', tipo: 'descoberta', tag: 'Descoberta' },
   { id: 'areia-2',   label: 'Quadra 4', tipo: 'descoberta', tag: 'Descoberta' },
   { id: 'areia-3',   label: 'Quadra 5', tipo: 'descoberta', tag: 'Descoberta' },
+  { id: 'PKB-DU',    label: 'Pickleball', tipo: 'pickleball', tag: 'Day Use'  },
 ];
 const MOD_CLS = { 'beach-tennis': 'bt', futevolei: 'fv', volei: 'vl', pickleball: 'pb' };
 const MODALIDADE_LABELS = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };
@@ -182,11 +189,18 @@ function GradeOcupacao({ reservas, toast }) {
     api.get('/blocked-slots').then(r => setBlockedSlots(r.data)).catch(() => {});
   }, []);
 
+  // tempo real: bloqueio criado/removido em outra sessão aparece na hora
+  useLive(['blocked-slots'], () => {
+    api.get('/blocked-slots').then(r => setBlockedSlots(r.data)).catch(() => {});
+  });
+
   const getCellStatus = (courtId, dateStr, hour) => {
-    const booking = reservas.find(r =>
+    // day use (ex.: pickleball) não tem slots — ocupa o dia inteiro da quadra
+    const matches = reservas.filter(r =>
       r.status !== 'cancelada' && r.date === dateStr && r.quadraId === courtId &&
-      (r.slots || []).map(Number).includes(hour)
+      (r.dayUse || (r.slots || []).map(Number).includes(hour))
     );
+    const booking = matches.find(r => !r.dayUse) || matches[0];
     if (booking) {
       let status;
       if (dateStr < todayStr) status = 'concluida';
@@ -195,7 +209,7 @@ function GradeOcupacao({ reservas, toast }) {
         const nowHour = new Date().getHours();
         status = hour < nowHour ? 'concluida' : hour === nowHour ? 'andamento' : 'confirmada';
       }
-      return { status, booking };
+      return { status, booking, dayUsers: booking.dayUse ? matches.filter(m => m.dayUse).length : 0 };
     }
     const blocked = blockedSlots.find(s => s.courtId === courtId && s.date === dateStr && s.hour === hour);
     if (blocked) return { status: 'bloqueado', blocked };
@@ -260,7 +274,7 @@ function GradeOcupacao({ reservas, toast }) {
   const IconLock   = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 
   const dayCell = (court, hour) => {
-    const { status, booking } = getCellStatus(court.id, navDate, hour);
+    const { status, booking, dayUsers } = getCellStatus(court.id, navDate, hour);
     const modCls = booking ? ` mod-${MOD_CLS[booking.modalidade] || 'bt'}` : '';
     const cellCls = booking ? `grade-cell${modCls} st-${status}` : `grade-cell st-${status}`;
     return (
@@ -270,12 +284,12 @@ function GradeOcupacao({ reservas, toast }) {
         onClick={(e) => {
           if (status === 'livre' || status === 'bloqueado') { handleCellClick(court.id, navDate, hour); return; }
           // célula reservada: no touch (sem hover) o toque abre o tooltip com os dados
-          setTooltip({ court, dateStr: navDate, hour, status, booking });
+          setTooltip({ court, dateStr: navDate, hour, status, booking, dayUsers });
           setTooltipPos({ x: e.clientX, y: e.clientY });
           clearTimeout(tipTimer.current);
           tipTimer.current = setTimeout(() => setTooltip(null), 3500);
         }}
-        onMouseEnter={(e) => { setTooltip({ court, dateStr: navDate, hour, status, booking }); setTooltipPos({ x: e.clientX, y: e.clientY }); }}
+        onMouseEnter={(e) => { setTooltip({ court, dateStr: navDate, hour, status, booking, dayUsers }); setTooltipPos({ x: e.clientX, y: e.clientY }); }}
         onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
         onMouseLeave={() => { clearTimeout(tipTimer.current); setTooltip(null); }}
       >
@@ -397,10 +411,11 @@ function GradeOcupacao({ reservas, toast }) {
           <div className="grade-tip-court">{tooltip.court.label} · {tooltip.court.tag}</div>
           {tooltip.booking && (
             <>
-              <div className="grade-tip-row"><span>Cliente</span><strong>{tooltip.booking.userName || '—'}</strong></div>
+              <div className="grade-tip-row"><span>Cliente</span><strong>{tooltip.booking.userName || '—'}{tooltip.dayUsers > 1 ? ` +${tooltip.dayUsers - 1}` : ''}</strong></div>
               <div className="grade-tip-row"><span>Modalidade</span><strong>{MODALIDADE_LABELS[tooltip.booking.modalidade] || '—'}</strong></div>
+              {tooltip.booking.dayUse && <div className="grade-tip-row"><span>Tipo</span><strong>Day Use{tooltip.dayUsers > 1 ? ` · ${tooltip.dayUsers} pessoas` : ''}</strong></div>}
               {tooltip.booking.total != null && <div className="grade-tip-row"><span>Valor</span><strong>{fmtMoney(tooltip.booking.total)}</strong></div>}
-              <p className="grade-tip-note">{tooltip.status === 'concluida' ? 'Sessão finalizada.' : tooltip.status === 'andamento' ? 'Em andamento agora.' : 'Reserva confirmada.'}</p>
+              <p className="grade-tip-note">{tooltip.booking.dayUse ? 'Day Use — acesso livre no dia.' : tooltip.status === 'concluida' ? 'Sessão finalizada.' : tooltip.status === 'andamento' ? 'Em andamento agora.' : 'Reserva confirmada.'}</p>
             </>
           )}
           {tooltip.status === 'bloqueado' && <p className="grade-tip-note">Bloqueado pelo administrador.</p>}
@@ -705,6 +720,26 @@ export default function Admin() {
 
   useEffect(() => { if (!gateOpen) loadData(); }, [gateOpen]);
 
+  // ── Tempo real: refaz só o fetch do que mudou, sem recarregar a página ──
+  const reloadInscricoes = (evts) => Promise.all(
+    evts.map(ev => api.get(`/registrations/evento/${ev._id}`).then(r => r.data).catch(() => []))
+  ).then(all => setInscricoes(all.flat()));
+
+  useLive(['bookings', 'users', 'events', 'registrations', 'ranking'], (topic) => {
+    if (gateOpen || !user?.admin) return;
+    if (topic === 'bookings') {
+      api.get('/bookings').then(r => setReservas(r.data)).catch(() => {});
+    } else if (topic === 'users') {
+      api.get('/users').then(r => setUsuarios(r.data)).catch(() => {});
+    } else if (topic === 'events') {
+      api.get('/events').then(r => { setEventos(r.data); reloadInscricoes(r.data); }).catch(() => {});
+    } else if (topic === 'registrations') {
+      api.get('/events').then(r => { setEventos(r.data); reloadInscricoes(r.data); }).catch(() => {}); // vagasRestantes muda junto
+    } else if (topic === 'ranking') {
+      loadRankings();
+    }
+  });
+
   // ── Stats ──
   const hoje = today;
   const mesAtual = hoje.slice(0, 7);
@@ -852,18 +887,34 @@ export default function Admin() {
     });
   };
 
+  // Comprime a arte no navegador e devolve data-URI (vai pro MongoDB — o disco
+  // do Render é apagado a cada deploy, então arquivo em pasta não persiste)
+  const comprimirImagem = (file, maxW = 1080, quality = 0.85) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxW / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(img.src);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+
   const salvarEvento = async () => {
     try {
-      const fd = new FormData();
-      Object.entries(eventoForm).forEach(([k, v]) => fd.append(k, v));
-      if (eventoImagemFile) fd.append('imagem', eventoImagemFile);
-      const cfg = { headers: { 'Content-Type': 'multipart/form-data' } };
+      const payload = { ...eventoForm };
+      if (eventoImagemFile) payload.imagem = await comprimirImagem(eventoImagemFile);
+      else if (!eventoImagemPreview) payload.imagem = ''; // imagem removida no ✕
       if (eventoModal?._id) {
-        const { data } = await api.put(`/events/${eventoModal._id}`, fd, cfg);
+        const { data } = await api.put(`/events/${eventoModal._id}`, payload);
         setEventos(prev => prev.map(e => e._id === data._id ? data : e));
         toast('Evento atualizado', 'success');
       } else {
-        const { data } = await api.post('/events', fd, cfg);
+        const { data } = await api.post('/events', payload);
         setEventos(prev => [data, ...prev]);
         toast('Evento criado', 'success');
       }
@@ -1230,7 +1281,7 @@ export default function Admin() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                     {uReservas.slice(0, 5).map(r => (
                       <div key={r._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '.5rem .7rem', background: 'var(--dark)', fontSize: '.82rem' }}>
-                        <span>{fmtDate(r.date)} · {r.quadraId}</span>
+                        <span>{fmtDate(r.date)} · {quadraNome(r.quadraId)}</span>
                         <span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span>
                       </div>
                     ))}
@@ -1458,8 +1509,8 @@ export default function Admin() {
               </div>
               <div className="admin-grid-2" style={{ marginBottom: '1.1rem' }}>
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Data</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{fmtDate(detalhesRes.date)}</div></div>
-                <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Horário</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{detalhesRes.slots?.map(h => `${h}h`).join(', ')}</div></div>
-                <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Quadra</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{detalhesRes.quadraId}</div></div>
+                <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Horário</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{detalhesRes.dayUse ? 'Day Use' : detalhesRes.slots?.map(h => `${h}h`).join(', ')}</div></div>
+                <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Quadra</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{quadraNome(detalhesRes.quadraId)}</div></div>
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Pagamento</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{detalhesRes.payment}</div></div>
               </div>
               <div className="admin-balance-box" style={{ marginBottom: 0 }}>
@@ -1916,7 +1967,7 @@ export default function Admin() {
                   <div key={r._id} className="dash-list-row">
                     <div className="dash-list-main">
                       <div className="dash-list-title">{r.userName}</div>
-                      <div className="dash-list-sub">{r.quadraId} · {fmtDate(r.date)}</div>
+                      <div className="dash-list-sub">{quadraNome(r.quadraId)} · {fmtDate(r.date)}</div>
                     </div>
                     <span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span>
                   </div>
@@ -1977,8 +2028,8 @@ export default function Admin() {
                           <div className="admin-table-name">{r.userName || r.userId?.nome || '—'}</div>
                           <div className="admin-table-sub">{fmtDate(r.date)}</div>
                         </td>
-                        <td>{r.quadraId}</td>
-                        <td className="muted">{r.slots?.map(h => `${h}h`).join(', ')}</td>
+                        <td>{quadraNome(r.quadraId)}</td>
+                        <td className="muted">{r.dayUse ? 'Day Use' : r.slots?.map(h => `${h}h`).join(', ')}</td>
                         <td>{fmtMoney(r.total)}</td>
                         <td><span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span></td>
                         <td>
@@ -2021,7 +2072,7 @@ export default function Admin() {
                       </span>
                       <span className="adm-res-card-chip">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                        {r.quadraId || 'Day Use'}
+                        {quadraNome(r.quadraId) !== '—' ? quadraNome(r.quadraId) : 'Day Use'}
                       </span>
                       <span className="adm-res-card-chip gold">{fmtMoney(r.total)}</span>
                     </div>

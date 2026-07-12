@@ -1,5 +1,6 @@
 const Registration = require('../models/Registration');
 const Event = require('../models/Event');
+const { broadcast } = require('../utils/live');
 
 const minhasInscricoes = async (req, res) => {
   const registrations = await Registration.find({ userId: req.user._id })
@@ -43,6 +44,7 @@ const inscrever = async (req, res) => {
     }
     jaInscrito.status = 'confirmada';
     await jaInscrito.save();
+    broadcast('registrations');
     return res.json(jaInscrito);
   }
 
@@ -54,6 +56,7 @@ const inscrever = async (req, res) => {
     preco: event.preco,
   });
 
+  broadcast('registrations');
   res.status(201).json(registration);
 };
 
@@ -68,6 +71,7 @@ const cancelar = async (req, res) => {
 
   registration.status = 'cancelada';
   await registration.save();
+  broadcast('registrations');
   res.json({ message: 'Inscrição cancelada', registration });
 };
 

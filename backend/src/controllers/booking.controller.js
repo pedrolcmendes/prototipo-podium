@@ -3,6 +3,7 @@ const BlockedSlot = require('../models/BlockedSlot');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
 const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
+const { broadcast } = require('../utils/live');
 
 const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
   const query = { quadraId, date, status: { $ne: 'cancelada' }, slots: { $in: slots } };
@@ -19,7 +20,7 @@ const listarMinhas = async (req, res) => {
   if (req.query.status) filtro.status = req.query.status;
   const bookings = await Booking.find(filtro)
     .populate('userId', 'nome email')
-    .sort({ date: -1, createdAt: -1 });
+    .sort({ createdAt: -1 }); // última reserva feita aparece primeiro
   res.json(bookings);
 };
 
@@ -32,7 +33,7 @@ const listar = async (req, res) => {
 
   const bookings = await Booking.find(filtro)
     .populate('userId', 'nome email')
-    .sort({ date: -1, createdAt: -1 });
+    .sort({ createdAt: -1 }); // última reserva feita aparece primeiro
   res.json(bookings);
 };
 
@@ -77,6 +78,7 @@ const criar = async (req, res) => {
       .catch((e) => console.warn('Falha no e-mail de confirmação:', e.message));
   }
 
+  broadcast('bookings');
   res.status(201).json(booking);
 };
 
@@ -95,6 +97,7 @@ const atualizar = async (req, res) => {
 
   campos.forEach((c) => { if (req.body[c] !== undefined) booking[c] = req.body[c]; });
   await booking.save();
+  broadcast('bookings');
   res.json(booking);
 };
 
@@ -128,7 +131,9 @@ const cancelar = async (req, res) => {
   // Estorna como créditos no site (não devolve ao banco)
   if (ehDono && booking.total > 0) {
     await User.findByIdAndUpdate(booking.userId, { $inc: { creditos: booking.total } });
+    broadcast('users'); // saldo de créditos mudou
   }
+  broadcast('bookings');
 
   // Alerta de cancelamento para o admin (sem bloquear a resposta)
   Settings.findById('global')
@@ -173,6 +178,7 @@ const importar = async (req, res) => {
     throw err;
   });
 
+  broadcast('bookings');
   res.status(201).json({ importados: result.insertedCount ?? result.length });
 };
 

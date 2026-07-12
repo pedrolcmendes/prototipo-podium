@@ -1,4 +1,5 @@
 const BlockedSlot = require('../models/BlockedSlot');
+const { broadcast } = require('../utils/live');
 
 const listar = async (req, res) => {
   const filtro = {};
@@ -17,6 +18,7 @@ const criar = async (req, res) => {
 
   try {
     const slot = await BlockedSlot.create({ courtId, date, hour, motivo });
+    broadcast('blocked-slots');
     res.status(201).json(slot);
   } catch (err) {
     if (err.code === 11000) {
@@ -29,6 +31,7 @@ const criar = async (req, res) => {
 const remover = async (req, res) => {
   const slot = await BlockedSlot.findByIdAndDelete(req.params.id);
   if (!slot) return res.status(404).json({ message: 'Bloqueio não encontrado' });
+  broadcast('blocked-slots');
   res.json({ message: 'Bloqueio removido' });
 };
 

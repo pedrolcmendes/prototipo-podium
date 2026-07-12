@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import useLive from '../hooks/useLive';
 import api from '../services/api';
 
 /* Configurações globais da arena (aba Configurações do admin).
@@ -34,6 +35,9 @@ export function SettingsProvider({ children }) {
   }, []);
 
   useEffect(() => { refreshSettings(); }, [refreshSettings]);
+
+  // tempo real: admin salvou configurações → horários/contatos atualizam no site todo
+  useLive(['settings'], refreshSettings);
 
   return (
     <SettingsContext.Provider value={{ settings, refreshSettings }}>

@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { enviarEmailSenhaAlterada } = require('../utils/email');
+const { broadcast } = require('../utils/live');
 
 const me = async (req, res) => {
   res.json(req.user.toPublic());
@@ -16,6 +17,7 @@ const atualizarMe = async (req, res) => {
   if (cpf !== undefined) updates.cpf = cpf ? String(cpf).replace(/\D/g, '') : null;
   try {
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    broadcast('users');
     res.json(user.toPublic());
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ message: 'Este CPF já está cadastrado para outro usuário.' });
@@ -80,12 +82,14 @@ const atualizar = async (req, res) => {
   }).select('-senha');
 
   if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+  broadcast('users');
   res.json(user);
 };
 
 const remover = async (req, res) => {
   const user = await User.findByIdAndDelete(req.params.id);
   if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+  broadcast('users');
   res.json({ message: 'Usuário removido' });
 };
 
@@ -143,11 +147,13 @@ const importar = async (req, res) => {
   }
 
   console.log('[importar] importados:', importados, 'erros:', docs.length - importados);
+  broadcast('users');
   res.json({ importados, erros: docs.length - importados });
 };
 
 const limparNaoAdmins = async (req, res) => {
   const result = await User.deleteMany({ admin: { $ne: true } });
+  broadcast('users');
   res.json({ removidos: result.deletedCount });
 };
 

@@ -1,4 +1,5 @@
 const Settings = require('../models/Settings');
+const { broadcast } = require('../utils/live');
 
 const CAMPOS_TEXTO = ['arenaName', 'cnpj', 'phone', 'address', 'email', 'openWeek', 'closeWeek', 'openWeekend', 'closeWeekend'];
 const CAMPOS_NUMERO = ['cancelWindow', 'maxAdvanceDays'];
@@ -28,6 +29,7 @@ const updateSettings = async (req, res) => {
   CAMPOS_BOOL.forEach((c) => { if (req.body[c] !== undefined) update[c] = Boolean(req.body[c]); });
 
   const s = await Settings.findByIdAndUpdate('global', update, { upsert: true, new: true, setDefaultsOnInsert: true });
+  broadcast('settings');
   res.json(publicSettings(s));
 };
 

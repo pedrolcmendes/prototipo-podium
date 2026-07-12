@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 import LogoutModal from '../components/LogoutModal';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import useLive from '../hooks/useLive';
 import api from '../services/api';
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -147,6 +148,21 @@ export default function Painel() {
     api.get('/settings').then(r => setCancelWindow((r.data.data || r.data)?.cancelWindow || 24)).catch(() => {});
     loadMeuRanking();
   };
+
+  // ── Tempo real: atualiza reservas, créditos, eventos e ranking sem F5 ──
+  useLive(['bookings', 'users', 'events', 'registrations', 'ranking'], (topic) => {
+    if (!user) return;
+    if (topic === 'bookings') {
+      api.get('/bookings/me').then(r => setReservas(r.data.data || r.data || [])).catch(() => {});
+      api.get('/users/me').then(r => updateUser(r.data.data || r.data)).catch(() => {}); // estorno pode mudar créditos
+    } else if (topic === 'users') {
+      api.get('/users/me').then(r => updateUser(r.data.data || r.data)).catch(() => {});
+    } else if (topic === 'events' || topic === 'registrations') {
+      api.get('/events').then(r => setEventos(r.data.data || r.data || [])).catch(() => {});
+    } else if (topic === 'ranking') {
+      loadMeuRanking();
+    }
+  });
 
   const loadMeuRanking = async () => {
     if (!user?._id) return;
@@ -594,7 +610,7 @@ export default function Painel() {
                       <div key={ev._id} className="evento-card">
                         {ev.imagem && (
                           <div className="evento-card-img">
-                            <img src={ev.imagem} alt={ev.nome} />
+                            <img src={ev.imagem} alt={ev.nome} onError={(e) => { e.currentTarget.closest('.evento-card-img').style.display = 'none'; }} />
                           </div>
                         )}
                         <div className="evento-card-body">

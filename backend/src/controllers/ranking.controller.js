@@ -1,4 +1,5 @@
 const Ranking = require('../models/Ranking');
+const { broadcast } = require('../utils/live');
 
 const listar = async (req, res) => {
   const { esporte, genero } = req.query;
@@ -22,6 +23,7 @@ const atualizar = async (req, res) => {
     { new: true, upsert: true, runValidators: true }
   );
 
+  broadcast('ranking');
   res.json(ranking);
 };
 
