@@ -489,8 +489,8 @@ function UserSearchInput({ nome, userId, placeholder, usuarios, onChange, genero
 
   useEffect(() => { setQuery(nome || ''); }, [nome]);
 
-  const byGenero = generoFilter
-    ? usuarios.filter(u => !u.genero || u.genero === '' || u.genero === 'nao_informar' || u.genero === generoFilter)
+  const byGenero = generoFilter && generoFilter !== 'misto'
+    ? usuarios.filter(u => u.genero === generoFilter)
     : usuarios;
 
   const filtered = query.length >= 1
@@ -638,8 +638,10 @@ export default function Admin() {
   const [inscricoesModal, setInscricoesModal] = useState(null);
   const [rankingModal, setRankingModal] = useState(false);
   const [rankExpand, setRankExpand] = useState({}); // mobile: "ver tudo" por categoria
-  const [rankForm, setRankForm] = useState({ modalidade: 'beachtennis', categoria: 'masculino', entries: [] });
-  const newRankEntry = () => ({ pos: 0, userId1: null, nome1: '', userId2: null, nome2: '', pts: 0, v: 0, d: 0 });
+  const RANKING_ETAPAS = ['Etapa 1', 'Etapa 2', 'Etapa 3', 'Etapa 4', 'Etapa 5', 'Etapa 6'];
+  const [rankForm, setRankForm] = useState({ modalidade: 'beachtennis', categoria: 'masculino', nivel: 'A', ano: 2026, semestre: 1, etapas: RANKING_ETAPAS, entries: [] });
+  const [rankEtapaAtual, setRankEtapaAtual] = useState(0);
+  const newRankEntry = () => ({ userId: null, nome: '', clube: '', pontosPorEtapa: RANKING_ETAPAS.map(() => 0) });
   const [creditoModal, setCreditoModal] = useState(null);
   const [creditoForm, setCreditoForm] = useState({ valor: '', motivo: 'cancelamento', obs: '' });
   const [confirmModal, setConfirmModal] = useState(null);
@@ -669,14 +671,14 @@ export default function Admin() {
   useBodyScrollLock(sidebarOpen);
 
   const loadRankings = async () => {
-    const combos = [['beachtennis','masculino'],['beachtennis','feminino'],['futevolei','masculino'],['futevolei','feminino']];
+    const combos = ['beachtennis', 'futevolei'].flatMap(esporte => ['masculino', 'feminino', 'misto'].flatMap(genero => ['A', 'B', 'C', 'D'].map(nivel => [esporte, genero, nivel])));
     const results = {};
-    await Promise.all(combos.map(async ([esporte, genero]) => {
+    await Promise.all(combos.map(async ([esporte, genero, nivel]) => {
       try {
-        const { data } = await api.get(`/ranking?esporte=${esporte}&genero=${genero}`);
+        const { data } = await api.get(`/ranking?esporte=${esporte}&genero=${genero}&nivel=${nivel}&ano=2026&semestre=1`);
         const found = Array.isArray(data) ? data[0] : data;
-        results[`${esporte}_${genero}`] = found?.entries || [];
-      } catch { results[`${esporte}_${genero}`] = []; }
+        results[`${esporte}_${genero}_${nivel}`] = found || { entries: [] };
+      } catch { results[`${esporte}_${genero}_${nivel}`] = { entries: [] }; }
     }));
     setRankings(results);
   };
@@ -967,48 +969,22 @@ export default function Admin() {
     } catch { toast('Erro ao adicionar crédito', 'error'); }
   };
 
-  const loadRanking = async (esporte, genero) => {
+  const loadRanking = async (esporte, genero, nivel = rankForm.nivel, ano = rankForm.ano, semestre = rankForm.semestre) => {
     try {
-      const { data } = await api.get(`/ranking?esporte=${esporte}&genero=${genero}`);
+      const { data } = await api.get(`/ranking?esporte=${esporte}&genero=${genero}&nivel=${nivel}&ano=${ano}&semestre=${semestre}`);
       const found = Array.isArray(data) ? data[0] : data;
       if (found?.entries?.length) {
-        const parsed = found.entries.map(e => {
-          const parts = (e.nome || '').split(' / ');
-          return {
-            ...e,
-            userId1: e.userId || null,
-            nome1: parts[0]?.trim() || '',
-            userId2: e.userId2 || null,
-            nome2: parts[1]?.trim() || '',
-          };
-        });
-        setRankForm(prev => ({ ...prev, entries: parsed }));
+        setRankForm(prev => ({ ...prev, etapas: RANKING_ETAPAS, entries: found.entries.map(e => ({ ...e, pontosPorEtapa: RANKING_ETAPAS.map((_, i) => e.pontosPorEtapa?.[i] || 0) })) }));
       }
     } catch {}
   };
 
   const salvarRanking = async () => {
-    const vazio = rankForm.entries.find(e => !e.nome1?.trim());
-    if (vazio) { toast('Selecione ao menos o Jogador 1 em todas as linhas', 'error'); return; }
+    const vazio = rankForm.entries.find(e => !e.nome?.trim());
+    if (vazio) { toast('Selecione um atleta em todas as linhas', 'error'); return; }
     try {
-      const sorted = [...rankForm.entries].sort((a, b) => (Number(b.pts) || 0) - (Number(a.pts) || 0));
-      const entries = sorted.map((e, i) => {
-        const nome = e.nome2?.trim()
-          ? `${e.nome1.trim()} / ${e.nome2.trim()}`
-          : e.nome1.trim();
-        return {
-          pos: i + 1,
-          nome,
-          ...(e.userId1 && { userId: e.userId1 }),
-          ...(e.userId2 && { userId2: e.userId2 }),
-          clube: e.clube || '',
-          pts: Number(e.pts) || 0,
-          v: Number(e.v) || 0,
-          d: Number(e.d) || 0,
-          pj: (Number(e.v) || 0) + (Number(e.d) || 0),
-        };
-      });
-      await api.put('/ranking', { esporte: rankForm.modalidade, genero: rankForm.categoria, entries });
+      const entries = rankForm.entries.map(e => ({ nome: e.nome.trim(), ...(e.userId && { userId: e.userId }), clube: e.clube || '', pontosPorEtapa: e.pontosPorEtapa }));
+      await api.put('/ranking', { esporte: rankForm.modalidade, genero: rankForm.categoria, nivel: rankForm.nivel, ano: rankForm.ano, semestre: rankForm.semestre, etapas: rankForm.etapas, entries });
       toast('Ranking atualizado com sucesso!', 'success');
       setRankingModal(false);
       loadRankings();
@@ -1659,7 +1635,7 @@ export default function Admin() {
 
             {/* Seletores */}
             <div style={{ padding: '1.2rem 1.5rem .8rem', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                 <div className="admin-field" style={{ margin: 0 }}>
                   <label>Modalidade</label>
                   <select value={rankForm.modalidade} onChange={e => {
@@ -1680,19 +1656,21 @@ export default function Admin() {
                   }}>
                     <option value="masculino">Masculino</option>
                     <option value="feminino">Feminino</option>
+                    <option value="misto">Misto</option>
                   </select>
                 </div>
+                <div className="admin-field" style={{ margin: 0 }}><label>Nível</label><select value={rankForm.nivel} onChange={e => { const nivel = e.target.value; setRankForm(prev => ({ ...prev, nivel, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, nivel); }}><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
+                <div className="admin-field" style={{ margin: 0 }}><label>Ano</label><select value={rankForm.ano} onChange={e => { const ano = Number(e.target.value); setRankForm(prev => ({ ...prev, ano, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, ano); }}><option value={2026}>2026</option><option value={2027}>2027</option></select></div>
+                <div className="admin-field" style={{ margin: 0 }}><label>Semestre</label><select value={rankForm.semestre} onChange={e => { const semestre = Number(e.target.value); setRankForm(prev => ({ ...prev, semestre, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, rankForm.ano, semestre); }}><option value={1}>1º semestre</option><option value={2}>2º semestre</option></select></div>
               </div>
             </div>
 
-            {/* Cabeçalho — 7 colunas: # | J1 | J2 | Pts | V | D | del (some no mobile) */}
+            {/* Lançamento de uma etapa por vez */}
             <div className="rank-entries-header">
               <span style={{ textAlign: 'center' }}>#</span>
-              <span>Jogador 1 *</span>
-              <span>Jogador 2</span>
-              <span style={{ textAlign: 'center' }}>Pts</span>
-              <span style={{ textAlign: 'center' }}>V</span>
-              <span style={{ textAlign: 'center' }}>D</span>
+              <span>Atleta *</span>
+              <select className="rank-stage-select" value={rankEtapaAtual} onChange={e => setRankEtapaAtual(Number(e.target.value))} aria-label="Etapa para lançamento">{RANKING_ETAPAS.map((etapa, index) => <option key={etapa} value={index}>{etapa}</option>)}</select>
+              <span style={{ textAlign: 'center' }}>Total</span>
               <span />
             </div>
 
@@ -1700,7 +1678,7 @@ export default function Admin() {
             <div className="ranking-modal-entries" style={{ overflowY: 'auto', maxHeight: 340, padding: '0 1.5rem .5rem' }}>
               {rankForm.entries.length === 0 && (
                 <div style={{ padding: '2.5rem 0', textAlign: 'center', color: 'var(--gray)', fontSize: '.78rem', letterSpacing: '2px', fontFamily: 'var(--font-cond)', textTransform: 'uppercase' }}>
-                  Nenhuma dupla — clique em "+ Adicionar" abaixo
+                  Nenhum atleta — clique em "+ Adicionar" abaixo
                 </div>
               )}
               {rankForm.entries.map((e, i) => {
@@ -1713,33 +1691,15 @@ export default function Admin() {
                   <div key={i} className="rank-entry-row">
                     <span className={`rank-entry-num ${posClass}`}>{i + 1}</span>
                     <UserSearchInput
-                      nome={e.nome1}
-                      userId={e.userId1}
-                      placeholder="Jogador 1 *"
+                      nome={e.nome}
+                      userId={e.userId}
+                      placeholder="Atleta *"
                       usuarios={usuarios}
                       generoFilter={rankForm.categoria}
-                      onChange={({ nome, userId }) => { upd('nome1', nome); upd('userId1', userId); }}
+                      onChange={({ nome, userId }) => { upd('nome', nome); upd('userId', userId); }}
                     />
-                    <UserSearchInput
-                      nome={e.nome2}
-                      userId={e.userId2}
-                      placeholder="Jogador 2"
-                      usuarios={usuarios}
-                      generoFilter={rankForm.categoria}
-                      onChange={({ nome, userId }) => { upd('nome2', nome); upd('userId2', userId); }}
-                    />
-                    <div className="rank-mini-field">
-                      <span className="rank-mini-label">Pontos</span>
-                      <input className="rank-entry-input num-input" type="text" inputMode="numeric" placeholder="0" value={e.pts === 0 ? '' : e.pts} onChange={ev => upd('pts', ev.target.value.replace(/\D/g, '').slice(0, 5))} onFocus={ev => ev.target.select()} />
-                    </div>
-                    <div className="rank-mini-field">
-                      <span className="rank-mini-label">Vitórias</span>
-                      <input className="rank-entry-input num-input" type="text" inputMode="numeric" placeholder="0" value={e.v === 0 ? '' : e.v} onChange={ev => upd('v', ev.target.value.replace(/\D/g, '').slice(0, 4))} onFocus={ev => ev.target.select()} />
-                    </div>
-                    <div className="rank-mini-field">
-                      <span className="rank-mini-label">Derrotas</span>
-                      <input className="rank-entry-input num-input" type="text" inputMode="numeric" placeholder="0" value={e.d === 0 ? '' : e.d} onChange={ev => upd('d', ev.target.value.replace(/\D/g, '').slice(0, 4))} onFocus={ev => ev.target.select()} />
-                    </div>
+                    <input className="rank-entry-input num-input" title={RANKING_ETAPAS[rankEtapaAtual]} type="text" inputMode="numeric" value={e.pontosPorEtapa?.[rankEtapaAtual] || ''} onChange={ev => { const pontosPorEtapa = RANKING_ETAPAS.map((_, index) => e.pontosPorEtapa?.[index] || 0); pontosPorEtapa[rankEtapaAtual] = ev.target.value.replace(/\D/g, '').slice(0, 5); upd('pontosPorEtapa', pontosPorEtapa); }} placeholder="0" />
+                    <div className="rank-mini-field"><span className="rank-mini-label">Total</span><strong>{(e.pontosPorEtapa || []).reduce((total, pontos) => total + (Number(pontos) || 0), 0)}</strong></div>
                     <button className="rank-entry-del" title="Remover" onClick={() =>
                       setRankForm(prev => ({ ...prev, entries: prev.entries.filter((_, j) => j !== i) }))
                     }>
@@ -1752,13 +1712,13 @@ export default function Admin() {
                 setRankForm(prev => ({ ...prev, entries: [...prev.entries, newRankEntry()] }))
               }>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                Adicionar Dupla
+                Adicionar Atleta
               </button>
             </div>
 
             <div className="admin-modal-footer" style={{ justifyContent: 'space-between' }}>
               <span style={{ fontSize: '.74rem', color: 'var(--gray)', fontFamily: 'var(--font-body)', letterSpacing: '1px', alignSelf: 'center' }}>
-                {rankForm.entries.length} dupla{rankForm.entries.length !== 1 ? 's' : ''}
+                {rankForm.entries.length} atleta{rankForm.entries.length !== 1 ? 's' : ''}
               </span>
               <div style={{ display: 'flex', gap: '.7rem' }}>
                 <button className="btn-admin-secondary" onClick={() => setRankingModal(false)}>Cancelar</button>
@@ -2455,21 +2415,22 @@ export default function Admin() {
           <section className={`admin-section${tab === 'ranking' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">RANKING</h2></div>
-              <button className="btn-admin-primary" onClick={() => { setRankForm({ modalidade: 'beachtennis', categoria: 'masculino', entries: [] }); setRankingModal(true); loadRanking('beachtennis', 'masculino'); }}>
+              <button className="btn-admin-primary" onClick={() => { setRankForm({ modalidade: 'beachtennis', categoria: 'masculino', nivel: 'A', ano: 2026, semestre: 1, etapas: RANKING_ETAPAS, entries: [] }); setRankEtapaAtual(0); setRankingModal(true); loadRanking('beachtennis', 'masculino', 'A', 2026, 1); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                 Atualizar Ranking
               </button>
             </div>
             <div className="admin-rank-grid">
-              {[['beachtennis', 'masculino'], ['beachtennis', 'feminino'], ['futevolei', 'masculino'], ['futevolei', 'feminino']].map(([mod, cat]) => {
-                const entries = rankings[`${mod}_${cat}`] || [];
-                const key = `${mod}_${cat}`;
+              {['beachtennis', 'futevolei'].flatMap(mod => ['masculino', 'feminino', 'misto'].flatMap(cat => ['A', 'B', 'C', 'D'].map(nivel => [mod, cat, nivel]))).map(([mod, cat, nivel]) => {
+                const rankingData = rankings[`${mod}_${cat}_${nivel}`] || { entries: [] };
+                const entries = rankingData.entries || [];
+                const key = `${mod}_${cat}_${nivel}`;
                 const expanded = !!rankExpand[key];
                 return (
                   <div key={`${mod}-${cat}`} className={`admin-card${expanded ? ' rank-expanded' : ''}`}>
                     <div className="rank-admin-card-header">
-                      <h3>{mod === 'beachtennis' ? 'Beach Tennis' : 'Futevôlei'} — {cat === 'masculino' ? 'Masculino' : 'Feminino'}</h3>
-                      <button className="btn-rank-edit" onClick={() => { setRankForm({ modalidade: mod, categoria: cat, entries: [] }); setRankingModal(true); loadRanking(mod, cat); }}>
+                      <h3>{mod === 'beachtennis' ? 'Beach Tennis' : 'Futevôlei'} — {cat === 'masculino' ? 'Masculino' : cat === 'feminino' ? 'Feminino' : 'Misto'} · Nível {nivel}</h3>
+                      <button className="btn-rank-edit" onClick={() => { setRankForm({ modalidade: mod, categoria: cat, nivel, ano: 2026, semestre: 1, etapas: RANKING_ETAPAS, entries: [] }); setRankEtapaAtual(0); setRankingModal(true); loadRanking(mod, cat, nivel, 2026, 1); }}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                         Editar
                       </button>
