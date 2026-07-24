@@ -36,48 +36,123 @@ function useReveal() {
 
 // TODO: Preencha os href com os links reais de cada patrocinador
 const SPONSORS = [
-  { nome: 'Hermanos Chopp',        tag: 'Bar & Choperia',       img: '/img/parceiros/hermanos.jpg',   href: '#' },
-  { nome: 'Neo Ortho',             tag: 'Clínica Odontológica', img: '/img/parceiros/neo-ortho.png',  href: '#' },
-  { nome: 'Technocoat',            tag: 'Revestimentos',        img: '/img/parceiros/technocoat.png', href: '#' },
-  { nome: 'Alfana',                tag: 'Parceiro',             img: null, initials: 'AL', href: '#' },
-  { nome: 'Anjos Colchões e Sofás',tag: 'Colchões & Sofás',     img: null, initials: 'AN', href: '#' },
-  { nome: 'Diniz e Diniz',         tag: 'Parceiro',             img: null, initials: 'DD', href: '#' },
-  { nome: 'Elecar',                tag: 'Parceiro',             img: null, initials: 'EL', href: '#' },
-  { nome: 'Fisiocross',            tag: 'Fisioterapia',         img: null, initials: 'FC', href: '#' },
-  { nome: 'Moromix',               tag: 'Parceiro',             img: null, initials: 'MM', href: '#' },
-  { nome: 'Mybox',                 tag: 'Parceiro',             img: null, initials: 'MB', href: '#' },
-  { nome: 'Realce',                tag: 'Parceiro',             img: null, initials: 'RL', href: '#' },
-  { nome: 'Santa Estância',        tag: 'Parceiro',             img: null, initials: 'SE', href: '#' },
-  { nome: 'Tecnoglass',            tag: 'Vidros & Esquadrias',  img: null, initials: 'TG', href: '#' },
-  { nome: 'ViaVisão',              tag: 'Ótica',                img: null, initials: 'VV', href: '#' },
+  { nome: 'Hermanos Chopp',         tag: 'Bar & Choperia',        img: '/img/parceiros/hermanos.jpg',        href: '#' },
+  { nome: 'Neo Ortho',              tag: 'Clínica Odontológica',  img: '/img/parceiros/neo-ortho.png',       href: '#' },
+  { nome: 'Technocoat',             tag: 'Revestimentos',         img: '/img/parceiros/technocoat.png',      href: '#' },
+  { nome: 'Alfana',                 tag: 'Engenharia',            img: '/img/parceiros/alfana.png',          href: '#' },
+  { nome: 'Anjos Colchões e Sofás', tag: 'Colchões & Sofás',      img: '/img/parceiros/anjos.png',           href: '#' },
+  { nome: 'Diniz e Diniz',          tag: 'Contabilidade',         img: '/img/parceiros/diniz.png',           href: '#' },
+  { nome: 'Elecar',                 tag: 'Energia Solar',         img: '/img/parceiros/elecar.png',          href: '#' },
+  { nome: 'Fisiocross',             tag: 'Espaço de Saúde',       img: '/img/parceiros/fisiocross.png',      href: '#' },
+  { nome: 'Moromix',                tag: 'Concreto Usinado',      img: '/img/parceiros/moromix.png',         href: '#' },
+  { nome: 'Mybox',                  tag: 'Marcenaria Moderna',    img: '/img/parceiros/mybox.png',           href: '#' },
+  { nome: 'Realce',                 tag: 'Soluções Metálicas',    img: '/img/parceiros/realce.png',          href: '#' },
+  { nome: 'Santa Estância',         tag: 'Parceiro',              img: '/img/parceiros/santa-estancia.png',  href: '#' },
+  { nome: 'Tecnoglass',             tag: 'Esquadrias & Vidros',   img: '/img/parceiros/tecnoglass.png',      href: '#' },
+  { nome: 'ViaVisão',               tag: 'Óticas',                img: '/img/parceiros/viavisao.png',        href: '#' },
 ];
 
 function SponsorsCarousel() {
-  const doubled = [...SPONSORS, ...SPONSORS];
+  const trackRef = useRef(null);
+  const stripRef = useRef(null);
+  const animRef = useRef(null);
+  const posRef = useRef(0);
+  const pausedRef = useRef(false);
+  const dragRef = useRef({ active: false, startX: 0, startPos: 0 });
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const step = () => {
+      if (!pausedRef.current && track) {
+        posRef.current += 0.9;
+        const half = track.scrollWidth / 2;
+        if (posRef.current >= half) posRef.current -= half;
+        track.style.transform = `translateX(-${posRef.current}px)`;
+      }
+      animRef.current = requestAnimationFrame(step);
+    };
+    animRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  const nudge = (dir) => {
+    const track = trackRef.current;
+    if (!track) return;
+    posRef.current += dir * 220;
+    const half = track.scrollWidth / 2;
+    if (posRef.current < 0) posRef.current += half;
+    if (posRef.current >= half) posRef.current -= half;
+    track.style.transition = 'transform .42s ease';
+    track.style.transform = `translateX(-${posRef.current}px)`;
+    setTimeout(() => { if (track) track.style.transition = ''; }, 430);
+  };
+
+  const onDragStart = (clientX) => {
+    dragRef.current = { active: true, startX: clientX, startPos: posRef.current };
+    pausedRef.current = true;
+    if (stripRef.current) stripRef.current.style.cursor = 'grabbing';
+  };
+
+  const onDragMove = (clientX) => {
+    if (!dragRef.current.active) return;
+    const dx = dragRef.current.startX - clientX;
+    const track = trackRef.current;
+    if (!track) return;
+    let next = dragRef.current.startPos + dx;
+    const half = track.scrollWidth / 2;
+    if (next < 0) next += half;
+    if (next >= half) next -= half;
+    posRef.current = next;
+    track.style.transform = `translateX(-${next}px)`;
+  };
+
+  const onDragEnd = (didMove) => {
+    dragRef.current.active = false;
+    pausedRef.current = false;
+    if (stripRef.current) stripRef.current.style.cursor = '';
+  };
+
   return (
-    <div className="sponsors-strip reveal">
-      <div className="sponsors-track">
-        {doubled.map((s, i) => (
-          <a
-            key={i}
-            href={s.href}
-            className={`sponsor-card${s.img ? ' sponsor-card-img' : ''}`}
-            aria-label={s.nome}
-            onClick={e => { if (s.href === '#') e.preventDefault(); }}
-          >
-            <div className="sponsor-logo-area">
-              {s.img
-                ? <img src={s.img} alt={s.nome} loading="lazy" />
-                : <span className="sponsor-initials">{s.initials}</span>
-              }
-            </div>
-            <div className="sponsor-info">
-              <div className="sponsor-name">{s.nome}</div>
-              <div className="sponsor-tag">{s.tag}</div>
-            </div>
-          </a>
-        ))}
+    <div className="sponsors-outer reveal">
+      <button className="spons-arrow" onClick={() => nudge(-1)} aria-label="Anterior">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div
+        ref={stripRef}
+        className="sponsors-strip"
+        onMouseEnter={() => { if (!dragRef.current.active) pausedRef.current = true; }}
+        onMouseLeave={() => { onDragEnd(); pausedRef.current = false; }}
+        onMouseDown={e => { e.preventDefault(); onDragStart(e.clientX); }}
+        onMouseMove={e => onDragMove(e.clientX)}
+        onMouseUp={() => onDragEnd()}
+        onTouchStart={e => onDragStart(e.touches[0].clientX)}
+        onTouchMove={e => { e.preventDefault(); onDragMove(e.touches[0].clientX); }}
+        onTouchEnd={() => onDragEnd()}
+      >
+        <div className="sponsors-track" ref={trackRef}>
+          {[...SPONSORS, ...SPONSORS].map((s, i) => (
+            <a
+              key={i}
+              href={s.href}
+              target={s.href !== '#' ? '_blank' : undefined}
+              rel="noopener noreferrer"
+              className="sponsor-item"
+              aria-label={s.nome}
+              draggable={false}
+              onClick={e => { if (s.href === '#' || Math.abs(dragRef.current.startX - e.clientX) > 5) e.preventDefault(); }}
+            >
+              <div className="sponsor-img-wrap">
+                <img src={s.img} alt={s.nome} loading="lazy" draggable={false} />
+              </div>
+              <span className="sponsor-label">{s.nome}</span>
+            </a>
+          ))}
+        </div>
       </div>
+      <button className="spons-arrow" onClick={() => nudge(1)} aria-label="Próximo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
     </div>
   );
 }
