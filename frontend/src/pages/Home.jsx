@@ -34,6 +34,54 @@ function useReveal() {
   }, []);
 }
 
+// TODO: Preencha os href com os links reais de cada patrocinador
+const SPONSORS = [
+  { nome: 'Hermanos Chopp',        tag: 'Bar & Choperia',       img: '/img/parceiros/hermanos.jpg',   href: '#' },
+  { nome: 'Neo Ortho',             tag: 'Clínica Odontológica', img: '/img/parceiros/neo-ortho.png',  href: '#' },
+  { nome: 'Technocoat',            tag: 'Revestimentos',        img: '/img/parceiros/technocoat.png', href: '#' },
+  { nome: 'Alfana',                tag: 'Parceiro',             img: null, initials: 'AL', href: '#' },
+  { nome: 'Anjos Colchões e Sofás',tag: 'Colchões & Sofás',     img: null, initials: 'AN', href: '#' },
+  { nome: 'Diniz e Diniz',         tag: 'Parceiro',             img: null, initials: 'DD', href: '#' },
+  { nome: 'Elecar',                tag: 'Parceiro',             img: null, initials: 'EL', href: '#' },
+  { nome: 'Fisiocross',            tag: 'Fisioterapia',         img: null, initials: 'FC', href: '#' },
+  { nome: 'Moromix',               tag: 'Parceiro',             img: null, initials: 'MM', href: '#' },
+  { nome: 'Mybox',                 tag: 'Parceiro',             img: null, initials: 'MB', href: '#' },
+  { nome: 'Realce',                tag: 'Parceiro',             img: null, initials: 'RL', href: '#' },
+  { nome: 'Santa Estância',        tag: 'Parceiro',             img: null, initials: 'SE', href: '#' },
+  { nome: 'Tecnoglass',            tag: 'Vidros & Esquadrias',  img: null, initials: 'TG', href: '#' },
+  { nome: 'ViaVisão',              tag: 'Ótica',                img: null, initials: 'VV', href: '#' },
+];
+
+function SponsorsCarousel() {
+  const doubled = [...SPONSORS, ...SPONSORS];
+  return (
+    <div className="sponsors-strip reveal">
+      <div className="sponsors-track">
+        {doubled.map((s, i) => (
+          <a
+            key={i}
+            href={s.href}
+            className={`sponsor-card${s.img ? ' sponsor-card-img' : ''}`}
+            aria-label={s.nome}
+            onClick={e => { if (s.href === '#') e.preventDefault(); }}
+          >
+            <div className="sponsor-logo-area">
+              {s.img
+                ? <img src={s.img} alt={s.nome} loading="lazy" />
+                : <span className="sponsor-initials">{s.initials}</span>
+              }
+            </div>
+            <div className="sponsor-info">
+              <div className="sponsor-name">{s.nome}</div>
+              <div className="sponsor-tag">{s.tag}</div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { settings } = useSettings();
   const wa = waLink(settings.phone);
@@ -239,12 +287,7 @@ export default function Home() {
         <h2 className="section-title reveal">PARCEIROS &amp; PATROCINADORES</h2>
         <div className="section-divider reveal" />
         <p className="reveal" style={{ color: 'var(--gray)', maxWidth: '640px', marginBottom: '3rem' }}>A Podium Arena conta com marcas parceiras que enriquecem a experiência dentro e fora das quadras.</p>
-        <div className="partners-grid reveal">
-          <div className="partner-card"><div className="partner-logo-ph">KUTZ<br />STUDIO</div><div className="partner-name">Kutz Studio</div><div className="partner-tag">Barbearia</div></div>
-          <div className="partner-card"><div className="partner-logo-ph">HERMANOS<br />CHOPP</div><div className="partner-name">Hermanos Chopp</div><div className="partner-tag">Bar &amp; Chopperia</div></div>
-          <div className="partner-card partner-card-empty"><div className="partner-logo-ph ph-empty">+</div><div className="partner-name">Sua marca aqui</div><div className="partner-tag">Seja um parceiro</div></div>
-          <div className="partner-card partner-card-empty"><div className="partner-logo-ph ph-empty">+</div><div className="partner-name">Sua marca aqui</div><div className="partner-tag">Seja um parceiro</div></div>
-        </div>
+        <SponsorsCarousel />
         <div className="reveal" style={{ textAlign: 'center', marginTop: '2.5rem' }}>
           <a href="#contato" className="btn-ghost">Quero ser parceiro →</a>
         </div>
