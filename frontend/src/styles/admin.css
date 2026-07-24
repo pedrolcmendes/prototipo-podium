@@ -1455,7 +1455,7 @@ body.gate-active .admin-layout { display: none; }
 }
 .rank-entries-header {
   display: grid;
-  grid-template-columns: 32px 1fr 1fr 64px 44px 44px 28px;
+  grid-template-columns: 32px 1fr 100px 64px 28px;
   align-items: center;
   gap: .5rem;
   padding: .5rem 1.7rem;
@@ -1470,9 +1470,18 @@ body.gate-active .admin-layout { display: none; }
   text-transform: uppercase;
   color: var(--gray);
 }
+.rank-stage-select {
+  width: 100%;
+  padding: .4rem;
+  border: 1px solid var(--border);
+  background: var(--dark);
+  color: var(--white);
+  font: 700 .66rem var(--font-body);
+  text-transform: uppercase;
+}
 .rank-entry-row {
   display: grid;
-  grid-template-columns: 32px 1fr 1fr 64px 44px 44px 28px;
+  grid-template-columns: 32px 1fr 100px 64px 28px;
   gap: .5rem;
   align-items: center;
   padding: .3rem .2rem;
@@ -1660,11 +1669,10 @@ body.gate-active .admin-layout { display: none; }
 
   /* Cada dupla vira um card: posição + lixeira em cima, jogadores empilhados, Pts/V/D lado a lado */
   .rank-entry-row {
-    grid-template-columns: 30px 1fr 1fr 1fr 36px;
+    grid-template-columns: 30px 1fr 1fr 36px;
     grid-template-areas:
-      "num j1  j1  j1  del"
-      ".   j2  j2  j2  del"
-      ".   pts v   d   .";
+      "num j1  j1  del"
+      ".   pts total .";
     gap: .5rem;
     align-items: center;
     background: var(--dark);
@@ -1676,11 +1684,9 @@ body.gate-active .admin-layout { display: none; }
   .rank-entry-row:hover { background: var(--dark); }
   .rank-entry-row > :nth-child(1) { grid-area: num; }
   .rank-entry-row > :nth-child(2) { grid-area: j1; min-width: 0; }
-  .rank-entry-row > :nth-child(3) { grid-area: j2; min-width: 0; }
-  .rank-entry-row > :nth-child(4) { grid-area: pts; }
-  .rank-entry-row > :nth-child(5) { grid-area: v; }
-  .rank-entry-row > :nth-child(6) { grid-area: d; }
-  .rank-entry-row > :nth-child(7) { grid-area: del; }
+  .rank-entry-row > :nth-child(3) { grid-area: pts; min-width: 0; }
+  .rank-entry-row > :nth-child(4) { grid-area: total; }
+  .rank-entry-row > :nth-child(5) { grid-area: del; }
   .rank-mini-field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
   .rank-mini-label {
     display: block; font-family: var(--font-body); font-size: .54rem; font-weight: 700;
