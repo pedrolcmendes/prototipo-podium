@@ -23,6 +23,8 @@ const bookingSchema = new mongoose.Schema({
     required: true,
   },
   total: { type: Number, required: true },
+  seasonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Season', default: null, index: true },
+  seasonCode: { type: String, default: null, index: true },
   status: {
     type: String,
     enum: ['confirmada', 'cancelada', 'concluida'],
