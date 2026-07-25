@@ -36,20 +36,20 @@ function useReveal() {
 
 // TODO: Preencha os href com os links reais de cada patrocinador
 const SPONSORS = [
-  { nome: 'Hermanos Chopp',         tag: 'Bar & Choperia',        img: '/img/parceiros/hermanos.jpg',        href: '#' },
-  { nome: 'Neo Ortho',              tag: 'Clínica Odontológica',  img: '/img/parceiros/neo-ortho.png',       href: '#' },
-  { nome: 'Technocoat',             tag: 'Revestimentos',         img: '/img/parceiros/technocoat.png',      href: '#' },
-  { nome: 'Alfana',                 tag: 'Engenharia',            img: '/img/parceiros/alfana.png',          href: '#' },
-  { nome: 'Anjos Colchões e Sofás', tag: 'Colchões & Sofás',      img: '/img/parceiros/anjos.png',           href: '#' },
-  { nome: 'Diniz e Diniz',          tag: 'Contabilidade',         img: '/img/parceiros/diniz.png',           href: '#' },
-  { nome: 'Elecar',                 tag: 'Energia Solar',         img: '/img/parceiros/elecar.png',          href: '#' },
-  { nome: 'Fisiocross',             tag: 'Espaço de Saúde',       img: '/img/parceiros/fisiocross.png',      href: '#' },
-  { nome: 'Moromix',                tag: 'Concreto Usinado',      img: '/img/parceiros/moromix.png',         href: '#' },
-  { nome: 'Mybox',                  tag: 'Marcenaria Moderna',    img: '/img/parceiros/mybox.png',           href: '#' },
-  { nome: 'Realce',                 tag: 'Soluções Metálicas',    img: '/img/parceiros/realce.png',          href: '#' },
-  { nome: 'Santa Estância',         tag: 'Parceiro',              img: '/img/parceiros/santa-estancia.png',  href: '#' },
-  { nome: 'Tecnoglass',             tag: 'Esquadrias & Vidros',   img: '/img/parceiros/tecnoglass.png',      href: '#' },
-  { nome: 'ViaVisão',               tag: 'Óticas',                img: '/img/parceiros/viavisao.png',        href: '#' },
+  { nome: 'Hermanos Chopp',         tag: 'Bar & Choperia',        img: '/img/parceiros/hermanos.jpg',        href: 'https://linktr.ee/intirepresentacoes?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnojlQ8Isno6tyQb_4ipaXuW_2UjXoPskSDQu5gTMoUbBmNMHH9U4aCZt3OeE_aem_VNL-sSKHj1xiyyvY4O39Ug' },
+  { nome: 'Neo Ortho',              tag: 'Clínica Odontológica',  img: '/img/parceiros/neo-ortho.png',       href: 'https://airgo.bio/neoortho?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGniaKQ672d2Pp8zT-ua_-6Y_qReE9pMgGujLNOX7WR7Q-2lr9VHpH5K0t-0tU_aem_yp06SjyOGPIK7_5rDLvYqA' },
+  { nome: 'Technocoat',             tag: 'Revestimentos',         img: '/img/parceiros/technocoat.png',      href: 'https://www.instagram.com/grupo.technocoat/' },
+  { nome: 'Alfana',                 tag: 'Engenharia',            img: '/img/parceiros/alfana.png',          href: 'https://linktr.ee/alfanaeng?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGniSDG7tkMNz49RJOVFVQFFXvaRndhrfoHM6wQYlqA29d9Iu-Wlp4WT9SfHT0_aem_-HS82vBmbOd81xypImEu6A' },
+  { nome: 'Anjos Colchões e Sofás', tag: 'Colchões & Sofás',      img: '/img/parceiros/anjos.png',           href: 'https://www.instagram.com/anjoscolchoes.telemacoborba/' },
+  { nome: 'Diniz e Diniz',          tag: 'Contabilidade',         img: '/img/parceiros/diniz.png',           href: 'https://linktr.ee/dinizEdiniz?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnrKnAhZuPFHldTsQk7QOyLMZxe1gMiuwvKDdHYGgaRiN1jLLxjuOvW6hC36Y_aem_37Kcg3A0e9rxz7r3cwS06A' },
+  { nome: 'Elecar',                 tag: 'Energia Solar',         img: '/img/parceiros/elecar.png',          href: 'https://www.instagram.com/elecar.energiasolar/' },
+  { nome: 'Fisiocross',             tag: 'Espaço de Saúde',       img: '/img/parceiros/fisiocross.png',      href: 'https://linkfisiocross.my.canva.site/clinica-fisiocross?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGn1ZUS_EKluUDRW1mEvTA0KYgZH3_Mvp-gEatv646yj1rMf_mM6Lh5HeGbnOk_aem_1xjoAhOcoonsXBzevGAR4g' },
+  { nome: 'Moromix',                tag: 'Concreto Usinado',      img: '/img/parceiros/moromix.png',         href: 'https://www.instagram.com/moromixconcreto/' },
+  { nome: 'Mybox',                  tag: 'Marcenaria Moderna',    img: '/img/parceiros/mybox.png',           href: 'https://myboxmarcenaria.com.br/' },
+  { nome: 'Realce',                 tag: 'Soluções Metálicas',    img: '/img/parceiros/realce.png',          href: 'https://linktr.ee/Realcesolucoesmetalicas?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnNPYrPxMsTSaC6LiKRhXeec-rHm-RbJa2IeEcylsPbhf1JIiGkR9MBXnhCNQ_aem_pgBaG5djH2bZYQSQJU5CIw' },
+  { nome: 'Santa Estância',         tag: 'Parceiro',              img: '/img/parceiros/santa-estancia.png',  href: 'https://linktr.ee/santaestancia?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnnuAC7Kwa0bcJ3vqEGW0bCMWTreh04Z98I6sx14PnW2hHRT7lDwtyu2-JvAE_aem_wUgPbTVakEaRKJkfWZGAbA' },
+  { nome: 'Tecnoglass',             tag: 'Esquadrias & Vidros',   img: '/img/parceiros/tecnoglass.png',      href: 'https://tecnoglassesquadriasevidros.shop/' },
+  { nome: 'ViaVisão',               tag: 'Óticas',                img: '/img/parceiros/viavisao.png',        href: 'https://oticasviavisao.com.br/' },
 ];
 
 function SponsorsCarousel() {
