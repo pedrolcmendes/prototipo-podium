@@ -9,6 +9,7 @@ const registrationRoutes = require('./routes/registration.routes');
 const rankingRoutes = require('./routes/ranking.routes');
 const blockedSlotRoutes = require('./routes/blockedSlot.routes');
 const settingsRoutes = require('./routes/settings.routes');
+const seasonRoutes = require('./routes/season.routes');
 const live = require('./utils/live');
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/registrations', registrationRoutes);
 app.use('/api/ranking', rankingRoutes);
 app.use('/api/blocked-slots', blockedSlotRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/seasons', seasonRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

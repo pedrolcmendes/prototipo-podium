@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings, DEFAULT_SETTINGS, hourOf } from '../contexts/SettingsContext';
 import { useToast } from '../components/Toast';
+import { SeasonCreationModal, SeasonDetailsModal, dateBR as seasonDateBR, money as seasonMoney } from '../components/AdminSeason';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
@@ -589,6 +590,7 @@ export default function Admin() {
   // Data
   const [usuarios, setUsuarios] = useState([]);
   const [reservas, setReservas] = useState([]);
+  const [temporadas, setTemporadas] = useState([]);
   const [eventos, setEventos] = useState([]);
   const [inscricoes, setInscricoes] = useState([]);
   const [rankings, setRankings] = useState({});
@@ -646,6 +648,8 @@ export default function Admin() {
   const [creditoForm, setCreditoForm] = useState({ valor: '', motivo: 'cancelamento', obs: '' });
   const [confirmModal, setConfirmModal] = useState(null);
   const [novaResModal, setNovaResModal] = useState(false);
+  const [novaTemporadaModal, setNovaTemporadaModal] = useState(false);
+  const [temporadaDetalhes, setTemporadaDetalhes] = useState(null);
   const [novaResForm, setNovaResForm] = useState({ userId: '', userName: '', quadraId: 'coberta-1', modalidade: 'beach-tennis', date: '', slots: [9], payment: 'pix', total: 80, status: 'confirmada' });
 
   // Config
@@ -687,16 +691,18 @@ export default function Admin() {
     if (!user?.admin) return;
     setLoading(true);
     try {
-      const [u, b, e, cfg] = await Promise.all([
+      const [u, b, e, cfg, s] = await Promise.all([
         api.get('/users'),
         api.get('/bookings'),
         api.get('/events'),
         api.get('/settings'),
+        api.get('/seasons'),
       ]);
       setUsuarios(u.data);
       setReservas(b.data);
       setEventos(e.data);
       setCfg(prev => ({ ...prev, ...cfg.data }));
+      setTemporadas(s.data);
       const allInsc = await Promise.all(e.data.map(ev => api.get(`/registrations/evento/${ev._id}`).then(r => r.data).catch(() => [])));
       setInscricoes(allInsc.flat());
       await loadRankings();
@@ -727,7 +733,7 @@ export default function Admin() {
     evts.map(ev => api.get(`/registrations/evento/${ev._id}`).then(r => r.data).catch(() => []))
   ).then(all => setInscricoes(all.flat()));
 
-  useLive(['bookings', 'users', 'events', 'registrations', 'ranking'], (topic) => {
+  useLive(['bookings', 'users', 'events', 'registrations', 'ranking', 'seasons'], (topic) => {
     if (gateOpen || !user?.admin) return;
     if (topic === 'bookings') {
       api.get('/bookings').then(r => setReservas(r.data)).catch(() => {});
@@ -737,6 +743,8 @@ export default function Admin() {
       api.get('/events').then(r => { setEventos(r.data); reloadInscricoes(r.data); }).catch(() => {});
     } else if (topic === 'registrations') {
       api.get('/events').then(r => { setEventos(r.data); reloadInscricoes(r.data); }).catch(() => {}); // vagasRestantes muda junto
+    } else if (topic === 'seasons') {
+      api.get('/seasons').then(r => setTemporadas(r.data)).catch(() => {});
     } else if (topic === 'ranking') {
       loadRankings();
     }
@@ -765,11 +773,53 @@ export default function Admin() {
   // ── Filtered Reservas ──
   const filteredRes = reservas.filter(r => {
     const q = resSearch.toLowerCase();
-    const matchSearch = !q || (r.userName || '').toLowerCase().includes(q) || (r.quadraId || '').toLowerCase().includes(q);
+    const matchSearch = !q
+      || (r.userName || '').toLowerCase().includes(q)
+      || (r.quadraId || '').toLowerCase().includes(q)
+      || (r.seasonCode || '').toLowerCase().includes(q);
     const matchStatus = resStatus === 'todas' || r.status === resStatus || (resStatus === 'proximas' && r.date >= hoje && r.status !== 'cancelada') || (resStatus === 'concluidas' && r.date < hoje) || (resStatus === 'canceladas' && r.status === 'cancelada');
     return matchSearch && matchStatus;
   });
-  const pagedRes = filteredRes.slice((resPage - 1) * PER_PAGE, resPage * PER_PAGE);
+  const groupedRes = [];
+  const seasonGroups = new Map();
+  filteredRes.forEach((booking) => {
+    if (!booking.seasonId && !booking.seasonCode) {
+      groupedRes.push(booking);
+      return;
+    }
+    const key = booking.seasonCode || String(booking.seasonId);
+    let group = seasonGroups.get(key);
+    if (!group) {
+      const season = temporadas.find((item) => item.code === booking.seasonCode || String(item._id) === String(booking.seasonId));
+      group = {
+        ...booking,
+        _id: `season-${key}`,
+        isSeasonGroup: true,
+        seasonKey: key,
+        season,
+        seasonId: String(booking.seasonId || season?._id || ''),
+        seasonCode: booking.seasonCode || season?.code || key,
+        bookings: [],
+      };
+      seasonGroups.set(key, group);
+      groupedRes.push(group);
+    }
+    group.bookings.push(booking);
+  });
+  seasonGroups.forEach((group) => {
+    group.bookings = reservas.filter((booking) => {
+      const key = booking.seasonCode || (booking.seasonId ? String(booking.seasonId) : '');
+      return key === group.seasonKey;
+    });
+    const dates = group.bookings.map((booking) => booking.date).filter(Boolean).sort();
+    const active = group.bookings.filter((booking) => booking.status !== 'cancelada');
+    group.startDate = group.season?.startDate || dates[0];
+    group.endDate = group.season?.endDate || dates[dates.length - 1];
+    group.total = group.season?.finalTotal ?? active.reduce((sum, booking) => sum + Number(booking.total || 0), 0);
+    group.status = group.season?.status === 'cancelled' || active.length === 0 ? 'cancelada' : 'confirmada';
+    group.activeCount = active.length;
+  });
+  const pagedRes = groupedRes.slice((resPage - 1) * PER_PAGE, resPage * PER_PAGE);
 
   // ── Filtered Usuários ──
   const norm = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -956,6 +1006,23 @@ export default function Admin() {
       toast('Reserva criada', 'success');
       setNovaResModal(false);
     } catch (ex) { toast(ex.response?.data?.message || 'Erro ao criar reserva', 'error'); }
+  };
+
+  const recarregarTemporadas = async () => {
+    const [seasonResponse, bookingResponse] = await Promise.all([
+      api.get('/seasons'),
+      api.get('/bookings'),
+    ]);
+    setTemporadas(seasonResponse.data);
+    setReservas(bookingResponse.data);
+  };
+
+  const abrirTemporadaDaReserva = (group) => {
+    setTemporadaDetalhes(group.season || {
+      _id: group.seasonId,
+      code: group.seasonCode,
+      status: group.status === 'cancelada' ? 'cancelled' : 'active',
+    });
   };
 
   const adicionarCredito = async () => {
@@ -1198,6 +1265,20 @@ export default function Admin() {
       <AdminGate onSuccess={() => setGateOpen(false)} />
 
       {/* ── MODAIS ── */}
+
+      <SeasonCreationModal
+        open={novaTemporadaModal}
+        users={usuarios}
+        toast={toast}
+        onClose={() => setNovaTemporadaModal(false)}
+        onCreated={() => recarregarTemporadas().catch(() => {})}
+      />
+      <SeasonDetailsModal
+        season={temporadaDetalhes}
+        toast={toast}
+        onClose={() => setTemporadaDetalhes(null)}
+        onChanged={() => recarregarTemporadas().catch(() => {})}
+      />
 
       {/* Confirm */}
       {confirmModal && (
@@ -1802,6 +1883,7 @@ export default function Admin() {
             <div className="admin-sidebar-label">Gestão</div>
             {[
               { id: 'reservas', label: 'Reservas', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg> },
+              { id: 'temporadas', label: 'Temporadas', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/><path d="M12 7v5l3 2"/></svg> },
               { id: 'usuarios', label: 'Usuários', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
               { id: 'eventos', label: 'Eventos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> },
               { id: 'ranking', label: 'Ranking', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg> },
@@ -1953,10 +2035,16 @@ export default function Admin() {
           <section id="admin-reservas" className={`admin-section${tab === 'reservas' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">RESERVAS</h2></div>
-              <button className="btn-admin-primary" onClick={() => setNovaResModal(true)}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                Nova Reserva
-              </button>
+              <div style={{ display: 'flex', gap: '.65rem', flexWrap: 'wrap' }}>
+                <button className="btn-admin-secondary" onClick={() => setNovaTemporadaModal(true)}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ width: 13, height: 13 }}><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
+                  Reserva por Temporada
+                </button>
+                <button className="btn-admin-primary" onClick={() => setNovaResModal(true)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+                  Nova Reserva
+                </button>
+              </div>
             </div>
             <div className="admin-card">
               <div className="admin-card-header">
@@ -1982,29 +2070,42 @@ export default function Admin() {
                   </thead>
                   <tbody>
                     {pagedRes.map(r => (
-                      <tr key={r._id}>
-                        <td className="muted" style={{ fontSize: '.75rem' }}>#{r._id?.slice(-6).toUpperCase()}</td>
+                      <tr key={r._id} className={r.isSeasonGroup ? 'season-group-row' : ''}>
+                        <td className="muted" style={{ fontSize: '.75rem' }}>
+                          {r.isSeasonGroup ? <span className="season-list-code">{r.seasonCode}</span> : `#${r._id?.slice(-6).toUpperCase()}`}
+                        </td>
                         <td>
-                          <div className="admin-table-name">{r.userName || r.userId?.nome || '—'}</div>
-                          <div className="admin-table-sub">{fmtDate(r.date)}</div>
+                          <div className="admin-table-name">
+                            {r.userName || r.userId?.nome || '—'}
+                            {r.isSeasonGroup ? <span className="season-list-pill">Temporada</span> : null}
+                          </div>
+                          <div className="admin-table-sub">
+                            {r.isSeasonGroup
+                              ? `${fmtDate(r.startDate)} → ${fmtDate(r.endDate)} · ${r.activeCount} de ${r.bookings.length} reservas ativas`
+                              : fmtDate(r.date)}
+                          </div>
                         </td>
                         <td>{quadraNome(r.quadraId)}</td>
                         <td className="muted">{r.dayUse ? 'Day Use' : r.slots?.map(h => `${h}h`).join(', ')}</td>
                         <td>{fmtMoney(r.total)}</td>
-                        <td><span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span></td>
+                        <td><span className={`badge ${STATUS_CLS[r.status]}`}>{r.isSeasonGroup ? (r.status === 'cancelada' ? 'temporada cancelada' : 'temporada ativa') : r.status}</span></td>
                         <td>
                           <div className="admin-row-actions">
-                            <button className="admin-action-btn" title="Ver detalhes" onClick={() => setDetalhesRes(r)}>
+                            <button className="admin-action-btn" title={r.isSeasonGroup ? 'Ver temporada' : 'Ver detalhes'} onClick={() => r.isSeasonGroup ? abrirTemporadaDaReserva(r) : setDetalhesRes(r)}>
                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                             </button>
-                            <button className="admin-action-btn" title="Editar" onClick={() => { setEditResForm({ status: r.status, total: r.total, payment: r.payment }); setEditRes(r); }}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                            </button>
-                            {r.status !== 'cancelada' && (
-                              <button className="admin-action-btn danger" title="Cancelar" onClick={() => cancelarReserva(r._id)}>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                              </button>
-                            )}
+                            {!r.isSeasonGroup ? (
+                              <>
+                                <button className="admin-action-btn" title="Editar" onClick={() => { setEditResForm({ status: r.status, total: r.total, payment: r.payment }); setEditRes(r); }}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                                </button>
+                                {r.status !== 'cancelada' ? (
+                                  <button className="admin-action-btn danger" title="Cancelar" onClick={() => cancelarReserva(r._id)}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                  </button>
+                                ) : null}
+                              </>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -2017,13 +2118,20 @@ export default function Admin() {
               {/* Mobile/tablet: cards no lugar da tabela */}
               <div className="adm-res-cards">
                 {pagedRes.map(r => (
-                  <div key={r._id} className="adm-res-card">
+                  <div key={r._id} className={`adm-res-card${r.isSeasonGroup ? ' season-group-card' : ''}`}>
                     <div className="adm-res-card-top">
                       <div className="adm-res-card-who">
-                        <div className="adm-res-card-name">{r.userName || r.userId?.nome || '—'}</div>
-                        <div className="adm-res-card-sub">#{r._id?.slice(-6).toUpperCase()} · {fmtDate(r.date)}</div>
+                        <div className="adm-res-card-name">
+                          {r.userName || r.userId?.nome || '—'}
+                          {r.isSeasonGroup ? <span className="season-list-pill">Temporada</span> : null}
+                        </div>
+                        <div className="adm-res-card-sub">
+                          {r.isSeasonGroup
+                            ? `${r.seasonCode} · ${fmtDate(r.startDate)} → ${fmtDate(r.endDate)}`
+                            : `#${r._id?.slice(-6).toUpperCase()} · ${fmtDate(r.date)}`}
+                        </div>
                       </div>
-                      <span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span>
+                      <span className={`badge ${STATUS_CLS[r.status]}`}>{r.isSeasonGroup ? (r.status === 'cancelada' ? 'cancelada' : 'ativa') : r.status}</span>
                     </div>
                     <div className="adm-res-card-info">
                       <span className="adm-res-card-chip">
@@ -2035,28 +2143,75 @@ export default function Admin() {
                         {quadraNome(r.quadraId) !== '—' ? quadraNome(r.quadraId) : 'Day Use'}
                       </span>
                       <span className="adm-res-card-chip gold">{fmtMoney(r.total)}</span>
+                      {r.isSeasonGroup ? <span className="adm-res-card-chip gold">{r.activeCount}/{r.bookings.length} reservas</span> : null}
                     </div>
                     <div className="adm-res-card-actions">
-                      <button onClick={() => setDetalhesRes(r)}>
+                      <button onClick={() => r.isSeasonGroup ? abrirTemporadaDaReserva(r) : setDetalhesRes(r)}>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        Detalhes
+                        {r.isSeasonGroup ? 'Ver temporada' : 'Detalhes'}
                       </button>
-                      <button onClick={() => { setEditResForm({ status: r.status, total: r.total, payment: r.payment }); setEditRes(r); }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                        Editar
-                      </button>
-                      <button className="danger" disabled={r.status === 'cancelada'} onClick={() => cancelarReserva(r._id)}>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        Cancelar
-                      </button>
+                      {!r.isSeasonGroup ? (
+                        <>
+                          <button onClick={() => { setEditResForm({ status: r.status, total: r.total, payment: r.payment }); setEditRes(r); }}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                            Editar
+                          </button>
+                          <button className="danger" disabled={r.status === 'cancelada'} onClick={() => cancelarReserva(r._id)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            Cancelar
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 ))}
                 {pagedRes.length === 0 && <div className="adm-res-cards-empty">Nenhuma reserva encontrada</div>}
               </div>
 
-              <Pagination page={resPage} total={filteredRes.length} perPage={PER_PAGE} onChange={setResPage} />
+              <Pagination page={resPage} total={groupedRes.length} perPage={PER_PAGE} onChange={setResPage} />
             </div>
+          </section>
+
+          {/* TEMPORADAS */}
+          <section id="admin-temporadas" className={`admin-section${tab === 'temporadas' ? ' active' : ''}`}>
+            <div className="admin-section-header">
+              <div><p className="admin-eyebrow">Reservas recorrentes</p><h2 className="admin-section-h2">TEMPORADAS</h2></div>
+              <button className="btn-admin-primary" onClick={() => setNovaTemporadaModal(true)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+                Nova Temporada
+              </button>
+            </div>
+            {temporadas.length ? (
+              <div className="season-cards">
+                {temporadas.map((season) => (
+                  <article className="season-card" key={season._id}>
+                    <div className="season-card-head">
+                      <div>
+                        <div className="season-card-code">{season.code}</div>
+                        <h3>{season.userName}</h3>
+                      </div>
+                      <span className={`badge ${season.status === 'active' ? 'badge-green' : 'badge-red'}`}>
+                        {season.status === 'active' ? 'ativa' : 'cancelada'}
+                      </span>
+                    </div>
+                    <div className="season-card-info">
+                      <div><small>Quadra</small><span>{season.courtName}</span></div>
+                      <div><small>Horário</small><span>{String(season.startHour).padStart(2, '0')}h–{String(season.endHour).padStart(2, '0')}h</span></div>
+                      <div><small>Período</small><span>{seasonDateBR(season.startDate)} → {seasonDateBR(season.endDate)}</span></div>
+                      <div><small>Reservas</small><span>{season.occurrencesGenerated} geradas · {season.conflictsCount} conflitos</span></div>
+                    </div>
+                    <div className="season-card-total">
+                      <strong>{seasonMoney(season.finalTotal)}</strong>
+                      <button onClick={() => setTemporadaDetalhes(season)}>Ver temporada →</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="admin-card season-empty">
+                Nenhuma temporada criada. Use “Nova Temporada” para gerar reservas recorrentes.
+              </div>
+            )}
           </section>
 
           {/* USUÁRIOS */}
