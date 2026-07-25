@@ -34,6 +34,129 @@ function useReveal() {
   }, []);
 }
 
+// TODO: Preencha os href com os links reais de cada patrocinador
+const SPONSORS = [
+  { nome: 'Hermanos Chopp',         tag: 'Bar & Choperia',        img: '/img/parceiros/hermanos.jpg',        href: 'https://linktr.ee/intirepresentacoes?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnojlQ8Isno6tyQb_4ipaXuW_2UjXoPskSDQu5gTMoUbBmNMHH9U4aCZt3OeE_aem_VNL-sSKHj1xiyyvY4O39Ug' },
+  { nome: 'Neo Ortho',              tag: 'Clínica Odontológica',  img: '/img/parceiros/neo-ortho.png',       href: 'https://airgo.bio/neoortho?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGniaKQ672d2Pp8zT-ua_-6Y_qReE9pMgGujLNOX7WR7Q-2lr9VHpH5K0t-0tU_aem_yp06SjyOGPIK7_5rDLvYqA' },
+  { nome: 'Technocoat',             tag: 'Revestimentos',         img: '/img/parceiros/technocoat.png',      href: 'https://www.instagram.com/grupo.technocoat/' },
+  { nome: 'Alfana',                 tag: 'Engenharia',            img: '/img/parceiros/alfana.png',          href: 'https://linktr.ee/alfanaeng?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGniSDG7tkMNz49RJOVFVQFFXvaRndhrfoHM6wQYlqA29d9Iu-Wlp4WT9SfHT0_aem_-HS82vBmbOd81xypImEu6A' },
+  { nome: 'Anjos Colchões e Sofás', tag: 'Colchões & Sofás',      img: '/img/parceiros/anjos.png',           href: 'https://www.instagram.com/anjoscolchoes.telemacoborba/' },
+  { nome: 'Diniz e Diniz',          tag: 'Contabilidade',         img: '/img/parceiros/diniz.png',           href: 'https://linktr.ee/dinizEdiniz?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnrKnAhZuPFHldTsQk7QOyLMZxe1gMiuwvKDdHYGgaRiN1jLLxjuOvW6hC36Y_aem_37Kcg3A0e9rxz7r3cwS06A' },
+  { nome: 'Elecar',                 tag: 'Energia Solar',         img: '/img/parceiros/elecar.png',          href: 'https://www.instagram.com/elecar.energiasolar/' },
+  { nome: 'Fisiocross',             tag: 'Espaço de Saúde',       img: '/img/parceiros/fisiocross.png',      href: 'https://linkfisiocross.my.canva.site/clinica-fisiocross?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGn1ZUS_EKluUDRW1mEvTA0KYgZH3_Mvp-gEatv646yj1rMf_mM6Lh5HeGbnOk_aem_1xjoAhOcoonsXBzevGAR4g' },
+  { nome: 'Moromix',                tag: 'Concreto Usinado',      img: '/img/parceiros/moromix.png',         href: 'https://www.instagram.com/moromixconcreto/' },
+  { nome: 'Mybox',                  tag: 'Marcenaria Moderna',    img: '/img/parceiros/mybox.png',           href: 'https://myboxmarcenaria.com.br/' },
+  { nome: 'Realce',                 tag: 'Soluções Metálicas',    img: '/img/parceiros/realce.png',          href: 'https://linktr.ee/Realcesolucoesmetalicas?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnNPYrPxMsTSaC6LiKRhXeec-rHm-RbJa2IeEcylsPbhf1JIiGkR9MBXnhCNQ_aem_pgBaG5djH2bZYQSQJU5CIw' },
+  { nome: 'Santa Estância',         tag: 'Parceiro',              img: '/img/parceiros/santa-estancia.png',  href: 'https://linktr.ee/santaestancia?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQPOTM2NjE5NzQzMzkyNDU5AAGnnuAC7Kwa0bcJ3vqEGW0bCMWTreh04Z98I6sx14PnW2hHRT7lDwtyu2-JvAE_aem_wUgPbTVakEaRKJkfWZGAbA' },
+  { nome: 'Tecnoglass',             tag: 'Esquadrias & Vidros',   img: '/img/parceiros/tecnoglass.png',      href: 'https://tecnoglassesquadriasevidros.shop/' },
+  { nome: 'ViaVisão',               tag: 'Óticas',                img: '/img/parceiros/viavisao.png',        href: 'https://oticasviavisao.com.br/' },
+];
+
+function SponsorsCarousel() {
+  const trackRef = useRef(null);
+  const stripRef = useRef(null);
+  const animRef = useRef(null);
+  const posRef = useRef(0);
+  const pausedRef = useRef(false);
+  const dragRef = useRef({ active: false, startX: 0, startPos: 0 });
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const step = () => {
+      if (!pausedRef.current && track) {
+        posRef.current += 0.9;
+        const half = track.scrollWidth / 2;
+        if (posRef.current >= half) posRef.current -= half;
+        track.style.transform = `translateX(-${posRef.current}px)`;
+      }
+      animRef.current = requestAnimationFrame(step);
+    };
+    animRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(animRef.current);
+  }, []);
+
+  const nudge = (dir) => {
+    const track = trackRef.current;
+    if (!track) return;
+    posRef.current += dir * 220;
+    const half = track.scrollWidth / 2;
+    if (posRef.current < 0) posRef.current += half;
+    if (posRef.current >= half) posRef.current -= half;
+    track.style.transition = 'transform .42s ease';
+    track.style.transform = `translateX(-${posRef.current}px)`;
+    setTimeout(() => { if (track) track.style.transition = ''; }, 430);
+  };
+
+  const onDragStart = (clientX) => {
+    dragRef.current = { active: true, startX: clientX, startPos: posRef.current };
+    pausedRef.current = true;
+    if (stripRef.current) stripRef.current.style.cursor = 'grabbing';
+  };
+
+  const onDragMove = (clientX) => {
+    if (!dragRef.current.active) return;
+    const dx = dragRef.current.startX - clientX;
+    const track = trackRef.current;
+    if (!track) return;
+    let next = dragRef.current.startPos + dx;
+    const half = track.scrollWidth / 2;
+    if (next < 0) next += half;
+    if (next >= half) next -= half;
+    posRef.current = next;
+    track.style.transform = `translateX(-${next}px)`;
+  };
+
+  const onDragEnd = (didMove) => {
+    dragRef.current.active = false;
+    pausedRef.current = false;
+    if (stripRef.current) stripRef.current.style.cursor = '';
+  };
+
+  return (
+    <div className="sponsors-outer reveal">
+      <button className="spons-arrow" onClick={() => nudge(-1)} aria-label="Anterior">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div
+        ref={stripRef}
+        className="sponsors-strip"
+        onMouseEnter={() => { if (!dragRef.current.active) pausedRef.current = true; }}
+        onMouseLeave={() => { onDragEnd(); pausedRef.current = false; }}
+        onMouseDown={e => { e.preventDefault(); onDragStart(e.clientX); }}
+        onMouseMove={e => onDragMove(e.clientX)}
+        onMouseUp={() => onDragEnd()}
+        onTouchStart={e => onDragStart(e.touches[0].clientX)}
+        onTouchMove={e => { e.preventDefault(); onDragMove(e.touches[0].clientX); }}
+        onTouchEnd={() => onDragEnd()}
+      >
+        <div className="sponsors-track" ref={trackRef}>
+          {[...SPONSORS, ...SPONSORS].map((s, i) => (
+            <a
+              key={i}
+              href={s.href}
+              target={s.href !== '#' ? '_blank' : undefined}
+              rel="noopener noreferrer"
+              className="sponsor-item"
+              aria-label={s.nome}
+              draggable={false}
+              onClick={e => { if (s.href === '#' || Math.abs(dragRef.current.startX - e.clientX) > 5) e.preventDefault(); }}
+            >
+              <div className="sponsor-img-wrap">
+                <img src={s.img} alt={s.nome} loading="lazy" draggable={false} />
+              </div>
+              <span className="sponsor-label">{s.nome}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+      <button className="spons-arrow" onClick={() => nudge(1)} aria-label="Próximo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  );
+}
+
 export default function Home() {
   const { settings } = useSettings();
   const wa = waLink(settings.phone);
@@ -239,12 +362,7 @@ export default function Home() {
         <h2 className="section-title reveal">PARCEIROS &amp; PATROCINADORES</h2>
         <div className="section-divider reveal" />
         <p className="reveal" style={{ color: 'var(--gray)', maxWidth: '640px', marginBottom: '3rem' }}>A Podium Arena conta com marcas parceiras que enriquecem a experiência dentro e fora das quadras.</p>
-        <div className="partners-grid reveal">
-          <div className="partner-card"><div className="partner-logo-ph">KUTZ<br />STUDIO</div><div className="partner-name">Kutz Studio</div><div className="partner-tag">Barbearia</div></div>
-          <div className="partner-card"><div className="partner-logo-ph">HERMANOS<br />CHOPP</div><div className="partner-name">Hermanos Chopp</div><div className="partner-tag">Bar &amp; Chopperia</div></div>
-          <div className="partner-card partner-card-empty"><div className="partner-logo-ph ph-empty">+</div><div className="partner-name">Sua marca aqui</div><div className="partner-tag">Seja um parceiro</div></div>
-          <div className="partner-card partner-card-empty"><div className="partner-logo-ph ph-empty">+</div><div className="partner-name">Sua marca aqui</div><div className="partner-tag">Seja um parceiro</div></div>
-        </div>
+        <SponsorsCarousel />
         <div className="reveal" style={{ textAlign: 'center', marginTop: '2.5rem' }}>
           <a href="#contato" className="btn-ghost">Quero ser parceiro →</a>
         </div>
