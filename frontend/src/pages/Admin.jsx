@@ -12,6 +12,13 @@ import PodiumNumberInput from '../components/PodiumNumberInput';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
+import {
+  BOOKING_COURTS,
+  PICKLEBALL_DAY_USE_PRICE,
+  buildBookingHours,
+  getBookingPrice,
+  isWeekendDate,
+} from '../utils/booking';
 import { rankByRelevance } from '../utils/search';
 
 // ── helpers ──────────────────────────────────────────────────
@@ -43,7 +50,15 @@ const formatCnpj = (v) => {
   if (n.length <= 12) return `${n.slice(0, 2)}.${n.slice(2, 5)}.${n.slice(5, 8)}/${n.slice(8)}`;
   return `${n.slice(0, 2)}.${n.slice(2, 5)}.${n.slice(5, 8)}/${n.slice(8, 12)}-${n.slice(12)}`;
 };
+const formatCpf = (value) => {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 11);
+  if (digits.length !== 11) return digits || 'CPF não informado';
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+};
 const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+const localDateIso = (date = new Date()) => (
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
 const fmtMoney = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const fmtCompactMoney = (value) => {
   const number = Number(value || 0);
@@ -62,16 +77,21 @@ const STATUS_LABELS = {
 };
 const PAYMENT_LABELS = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro' };
 
-const QUADRAS_ALL = [
-  { id: 'coberta-1', nome: 'Quadra 1' }, { id: 'coberta-2', nome: 'Quadra 2' },
-  { id: 'areia-1',   nome: 'Quadra 3' }, { id: 'areia-2',   nome: 'Quadra 4' },
-  { id: 'areia-3',   nome: 'Quadra 5' },
-];
+const QUADRAS_ALL = BOOKING_COURTS;
 const QUADRA_NOMES = {
   'coberta-1': 'Quadra 1', 'coberta-2': 'Quadra 2', 'areia-1': 'Quadra 3',
   'areia-2': 'Quadra 4', 'areia-3': 'Quadra 5', 'PKB-DU': 'Pickleball',
 };
 const quadraNome = (id) => QUADRA_NOMES[id] || id || '—';
+const NEW_BOOKING_FORM = {
+  userId: '',
+  userName: '',
+  quadraId: 'coberta-1',
+  modalidade: 'beach-tennis',
+  date: '',
+  slots: [],
+  payment: 'pix',
+};
 const HOURS = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
 const MOD_COLOR = { 'beach-tennis': '#e0ac6b', 'futevolei': '#60a5fa', 'volei': '#34d399', 'pickleball': '#f472b6' };
 
@@ -666,7 +686,7 @@ export default function Admin() {
   const [finTipo, setFinTipo] = useState('todas');
   const [finPage, setFinPage] = useState(1);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateIso();
 
   // Modals
   const [viewUser, setViewUser] = useState(null);
@@ -697,15 +717,34 @@ export default function Admin() {
   const [creditoForm, setCreditoForm] = useState({ valor: '', motivo: 'cancelamento', obs: '' });
   const [confirmModal, setConfirmModal] = useState(null);
   const [novaResModal, setNovaResModal] = useState(false);
+  const [novaResBusySlots, setNovaResBusySlots] = useState([]);
+  const [novaResSlotsLoading, setNovaResSlotsLoading] = useState(false);
+  const [novaResSaving, setNovaResSaving] = useState(false);
   const [novaTemporadaModal, setNovaTemporadaModal] = useState(false);
   const [temporadaDetalhes, setTemporadaDetalhes] = useState(null);
-  const [novaResForm, setNovaResForm] = useState({ userId: '', userName: '', quadraId: 'coberta-1', modalidade: 'beach-tennis', date: '', slots: [9], payment: 'pix', total: 80, status: 'confirmada' });
+  const [novaResForm, setNovaResForm] = useState(() => ({ ...NEW_BOOKING_FORM }));
 
   // Config
   const { refreshSettings } = useSettings();
   const [cfg, setCfg] = useState({ ...DEFAULT_SETTINGS });
   const [cfgSaving, setCfgSaving] = useState(false);
   const updCfg = (field, val) => setCfg(prev => ({ ...prev, [field]: val }));
+  const novaResDayUse = novaResForm.modalidade === 'pickleball';
+  const novaResCourt = novaResDayUse
+    ? { id: 'PKB-DU', tipo: 'pickleball', nome: 'Pickleball', desc: 'Day Use' }
+    : QUADRAS_ALL.find((court) => court.id === novaResForm.quadraId);
+  const novaResWeekend = isWeekendDate(novaResForm.date);
+  const novaResHours = useMemo(() => (
+    novaResWeekend
+      ? buildBookingHours(hourOf(cfg.openWeekend, 6), hourOf(cfg.closeWeekend, 22))
+      : buildBookingHours(hourOf(cfg.openWeek, 6), hourOf(cfg.closeWeek, 23))
+  ), [cfg.closeWeek, cfg.closeWeekend, cfg.openWeek, cfg.openWeekend, novaResWeekend]);
+  const novaResTotal = novaResDayUse
+    ? PICKLEBALL_DAY_USE_PRICE
+    : novaResForm.slots.reduce(
+      (total, hour) => total + getBookingPrice(hour, novaResCourt?.tipo, novaResWeekend),
+      0,
+    );
 
   useEffect(() => {
     document.body.classList.add('admin-page');
@@ -722,6 +761,29 @@ export default function Admin() {
     window.scrollTo(0, 0);
     root.style.scrollBehavior = previousScrollBehavior;
   }, [tab]);
+
+  useEffect(() => {
+    if (!novaResModal || novaResDayUse || !novaResForm.date || !novaResForm.quadraId) {
+      setNovaResBusySlots([]);
+      setNovaResSlotsLoading(false);
+      return undefined;
+    }
+    let active = true;
+    setNovaResSlotsLoading(true);
+    api.get(`/bookings/horarios-ocupados?quadraId=${novaResForm.quadraId}&date=${novaResForm.date}`)
+      .then(({ data }) => {
+        if (!active) return;
+        const busy = Array.isArray(data) ? data.map(Number) : [];
+        setNovaResBusySlots(busy);
+        setNovaResForm((current) => ({
+          ...current,
+          slots: current.slots.filter((hour) => !busy.includes(hour)),
+        }));
+      })
+      .catch(() => active && setNovaResBusySlots([]))
+      .finally(() => active && setNovaResSlotsLoading(false));
+    return () => { active = false; };
+  }, [novaResDayUse, novaResForm.date, novaResForm.quadraId, novaResModal]);
 
   useEffect(() => {
     if (gateOpen) document.body.classList.add('gate-active');
@@ -1063,13 +1125,55 @@ export default function Admin() {
     } catch { toast('Erro ao salvar', 'error'); }
   };
 
+  const abrirNovaRes = () => {
+    setNovaResForm({ ...NEW_BOOKING_FORM });
+    setNovaResBusySlots([]);
+    setNovaResModal(true);
+  };
+
+  const toggleNovaResSlot = (hour) => {
+    if (novaResBusySlots.includes(hour)) return;
+    setNovaResForm((current) => ({
+      ...current,
+      slots: current.slots.includes(hour)
+        ? current.slots.filter((slot) => slot !== hour)
+        : [...current.slots, hour].sort((a, b) => a - b),
+    }));
+  };
+
   const salvarNovaRes = async () => {
+    if (novaResSaving) return;
+    if (!novaResForm.userId) { toast('Selecione o cliente', 'error'); return; }
+    if (!novaResForm.date) { toast('Selecione a data da reserva', 'error'); return; }
+    if (novaResForm.date < today) { toast('Não é possível reservar em uma data passada', 'error'); return; }
+    if (!novaResDayUse && !novaResForm.slots.length) { toast('Selecione pelo menos um horário', 'error'); return; }
+    if (!novaResCourt) { toast('Selecione uma quadra válida', 'error'); return; }
+
+    const payload = {
+      userId: novaResForm.userId,
+      userName: novaResForm.userName,
+      modalidade: novaResForm.modalidade,
+      quadra: novaResCourt.tipo,
+      quadraId: novaResCourt.id,
+      date: novaResForm.date,
+      slots: novaResDayUse ? [] : [...novaResForm.slots].sort((a, b) => a - b),
+      dayUse: novaResDayUse,
+      payment: novaResForm.payment,
+      total: novaResTotal,
+    };
+
+    setNovaResSaving(true);
     try {
-      const { data } = await api.post('/bookings', novaResForm);
+      const { data } = await api.post('/bookings', payload);
       setReservas(prev => [data, ...prev]);
       toast('Reserva criada', 'success');
       setNovaResModal(false);
-    } catch (ex) { toast(ex.response?.data?.message || 'Erro ao criar reserva', 'error'); }
+      setNovaResForm({ ...NEW_BOOKING_FORM });
+    } catch (ex) {
+      toast(ex.response?.data?.message || 'Erro ao criar reserva', 'error');
+    } finally {
+      setNovaResSaving(false);
+    }
   };
 
   const recarregarTemporadas = async () => {
@@ -1720,50 +1824,109 @@ export default function Admin() {
       </AdminModal>
 
       {/* Nova reserva */}
-      <AdminModal open={novaResModal} onClose={() => setNovaResModal(false)} eyebrow="Reserva Interna" title="NOVA RESERVA" maxWidth={560}
-        footer={<><button className="btn-admin-secondary" onClick={() => setNovaResModal(false)}>Cancelar</button><button className="btn-admin-primary" onClick={salvarNovaRes}>Criar Reserva</button></>}>
+      <AdminModal open={novaResModal} onClose={() => !novaResSaving && setNovaResModal(false)} eyebrow="Reserva Interna" title="NOVA RESERVA" maxWidth={720}
+        footer={<><button className="btn-admin-secondary" disabled={novaResSaving} onClick={() => setNovaResModal(false)}>Cancelar</button><button className="btn-admin-primary" disabled={novaResSaving} onClick={salvarNovaRes}>{novaResSaving ? 'Criando…' : 'Criar Reserva'}</button></>}>
         <div className="admin-grid-2">
           <div className="admin-field" style={{ gridColumn: '1/-1' }}>
             <label>Cliente</label>
             <PodiumSelect value={novaResForm.userId} onChange={e => {
               const u = usuarios.find(x => x._id === e.target.value);
-              setNovaResForm({ ...novaResForm, userId: e.target.value, userName: u?.nome || '' });
+              setNovaResForm((current) => ({ ...current, userId: e.target.value, userName: u?.nome || '' }));
             }}>
               <option value="">Selecione...</option>
-              {usuarios.map(u => <option key={u._id} value={u._id}>{u.nome}</option>)}
+              {usuarios.filter(u => !['bloqueado', 'inativo'].includes(u.status)).map(u => (
+                <option key={u._id} value={u._id}>{u.nome} · CPF {formatCpf(u.cpf)} · {u.email}</option>
+              ))}
             </PodiumSelect>
           </div>
           <div className="admin-field">
             <label>Quadra</label>
-            <PodiumSelect value={novaResForm.quadraId} onChange={e => setNovaResForm({ ...novaResForm, quadraId: e.target.value })}>
-              {QUADRAS_ALL.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}
+            <PodiumSelect
+              value={novaResDayUse ? 'PKB-DU' : novaResForm.quadraId}
+              disabled={novaResDayUse}
+              onChange={e => setNovaResForm((current) => ({ ...current, quadraId: e.target.value, slots: [] }))}
+            >
+              {novaResDayUse
+                ? <option value="PKB-DU">Pickleball · Day Use</option>
+                : QUADRAS_ALL.map(q => <option key={q.id} value={q.id}>{q.nome} · {q.desc}</option>)}
             </PodiumSelect>
           </div>
           <div className="admin-field">
             <label>Modalidade</label>
-            <PodiumSelect value={novaResForm.modalidade} onChange={e => setNovaResForm({ ...novaResForm, modalidade: e.target.value })}>
+            <PodiumSelect value={novaResForm.modalidade} onChange={e => setNovaResForm((current) => ({
+              ...current,
+              modalidade: e.target.value,
+              quadraId: e.target.value === 'pickleball'
+                ? 'PKB-DU'
+                : (current.quadraId === 'PKB-DU' ? 'coberta-1' : current.quadraId),
+              slots: [],
+            }))}>
               <option value="beach-tennis">Beach Tennis</option>
               <option value="futevolei">Futevôlei</option>
               <option value="volei">Vôlei</option>
               <option value="pickleball">Pickleball</option>
             </PodiumSelect>
           </div>
-          <div className="admin-field"><label>Data</label><PodiumDatePicker value={novaResForm.date} onChange={e => setNovaResForm({ ...novaResForm, date: e.target.value })} aria-label="Data da reserva" /></div>
-          <div className="admin-field"><label>Valor (R$)</label><PodiumNumberInput min={0} step={0.01} prefix="R$" value={novaResForm.total} aria-label="Valor da nova reserva" onChange={e => setNovaResForm({ ...novaResForm, total: Number(e.target.value) })} /></div>
+          <div className="admin-field">
+            <label>Data</label>
+            <PodiumDatePicker min={today} value={novaResForm.date} onChange={e => setNovaResForm((current) => ({ ...current, date: e.target.value, slots: [] }))} aria-label="Data da reserva" />
+          </div>
           <div className="admin-field">
             <label>Pagamento</label>
-            <PodiumSelect value={novaResForm.payment} onChange={e => setNovaResForm({ ...novaResForm, payment: e.target.value })}>
+            <PodiumSelect value={novaResForm.payment} onChange={e => setNovaResForm((current) => ({ ...current, payment: e.target.value }))}>
               <option value="pix">PIX</option>
               <option value="credito">Crédito</option>
+              <option value="debito">Débito</option>
               <option value="dinheiro">Dinheiro</option>
             </PodiumSelect>
           </div>
-          <div className="admin-field">
-            <label>Status</label>
-            <PodiumSelect value={novaResForm.status} onChange={e => setNovaResForm({ ...novaResForm, status: e.target.value })}>
-              <option value="confirmada">Confirmada</option>
-              <option value="pendente">Pendente</option>
-            </PodiumSelect>
+
+          {novaResDayUse ? (
+            <div className="admin-booking-dayuse">
+              <div>
+                <strong>Day Use de Pickleball</strong>
+                <span>Acesso na data selecionada, sem escolha de horário.</span>
+              </div>
+              <b>{fmtMoney(PICKLEBALL_DAY_USE_PRICE)}</b>
+            </div>
+          ) : (
+            <div className="admin-booking-slots">
+              <div className="admin-booking-slots-head">
+                <div>
+                  <label>Horários</label>
+                  <span>{novaResForm.date ? `${novaResCourt?.nome} · ${novaResCourt?.desc}` : 'Selecione uma data para consultar a disponibilidade'}</span>
+                </div>
+                {novaResSlotsLoading ? <small>Consultando…</small> : <small>{novaResForm.slots.length} selecionado{novaResForm.slots.length === 1 ? '' : 's'}</small>}
+              </div>
+              <div className="admin-booking-slot-grid">
+                {novaResHours.map((hour) => {
+                  const busy = !novaResForm.date || novaResBusySlots.includes(hour);
+                  const selected = novaResForm.slots.includes(hour);
+                  const price = getBookingPrice(hour, novaResCourt?.tipo, novaResWeekend);
+                  return (
+                    <button
+                      type="button"
+                      key={hour}
+                      className={`admin-booking-slot${selected ? ' selected' : ''}${busy ? ' busy' : ''}`}
+                      disabled={busy || novaResSlotsLoading}
+                      aria-pressed={selected}
+                      onClick={() => toggleNovaResSlot(hour)}
+                    >
+                      <strong>{String(hour).padStart(2, '0')}h</strong>
+                      <span>{novaResForm.date && novaResBusySlots.includes(hour) ? 'Ocupado' : fmtMoney(price)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="admin-booking-total">
+            <div>
+              <span>Valor calculado</span>
+              <small>{novaResDayUse ? 'Day Use por pessoa' : `${novaResForm.slots.length} hora${novaResForm.slots.length === 1 ? '' : 's'} selecionada${novaResForm.slots.length === 1 ? '' : 's'}`}</small>
+            </div>
+            <strong>{fmtMoney(novaResTotal)}</strong>
           </div>
         </div>
       </AdminModal>
@@ -2144,7 +2307,7 @@ export default function Admin() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ width: 13, height: 13 }}><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
                   Reserva por Temporada
                 </button>
-                <button className="btn-admin-primary" onClick={() => setNovaResModal(true)}>
+                <button className="btn-admin-primary" onClick={abrirNovaRes}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
                   Nova Reserva
                 </button>

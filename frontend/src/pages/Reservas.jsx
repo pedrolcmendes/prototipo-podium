@@ -7,6 +7,13 @@ import AuthModal from '../components/AuthModal';
 import Footer from '../components/Footer';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
+import {
+  BOOKING_COURTS,
+  PICKLEBALL_DAY_USE_PRICE,
+  buildBookingHours,
+  getBookingPrice,
+  isWeekendDate,
+} from '../utils/booking';
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -18,45 +25,13 @@ const MODALIDADES = [
   { id: 'Pickleball', enum: 'pickleball', nome: 'Pickleball', desc: 'Apenas Day Use — R$ 25/pessoa. Acesso à quadra durante o período.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 2.5c3.6 0 6.5 2.9 6.5 6.5 0 3.9-2.9 6.5-6.5 6.5S4.5 12.9 4.5 9c0-3.6 2.9-6.5 6.5-6.5Z"/><path d="M11 15.5V22"/><circle cx="18.5" cy="19" r="2.5"/></svg>, dayuse: true },
 ];
 
-const QUADRAS = [
-  { id: 'coberta-1', tipo: 'coberta',    nome: 'Quadra 1', desc: 'Coberta' },
-  { id: 'coberta-2', tipo: 'coberta',    nome: 'Quadra 2', desc: 'Coberta' },
-  { id: 'areia-1',   tipo: 'descoberta', nome: 'Quadra 3', desc: 'Descoberta' },
-  { id: 'areia-2',   tipo: 'descoberta', nome: 'Quadra 4', desc: 'Descoberta' },
-  { id: 'areia-3',   tipo: 'descoberta', nome: 'Quadra 5', desc: 'Descoberta' },
-];
-
-// Retorna preço por hora baseado no tipo de quadra e dia
-function getPrice(h, tipo, isWeekend) {
-  const coberta = tipo === 'coberta';  // descoberta → false
-  if (isWeekend) {
-    if (h < 11) return coberta ? 80 : 60;
-    if (h < 14) return coberta ? 60 : 50;
-    return coberta ? 100 : 80; // 14h+
-  } else {
-    if (h < 16) return coberta ? 60 : 50;
-    if (h < 18) return coberta ? 80 : 60;
-    if (h < 21) return coberta ? 100 : 80;
-    return coberta ? 80 : 60; // 21h+
-  }
-}
-
-// Horários reserváveis vêm das configurações do admin (abertura → última hora antes do fechamento)
-const buildHours = (open, close) => {
-  const out = [];
-  for (let h = open; h < close; h++) out.push(h);
-  return out;
-};
-const DAY_USE_PRICE = 25;
+const QUADRAS = BOOKING_COURTS;
+const getPrice = getBookingPrice;
+const buildHours = buildBookingHours;
+const DAY_USE_PRICE = PICKLEBALL_DAY_USE_PRICE;
 
 function padDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-function isWeekendDate(dateStr) {
-  if (!dateStr) return false;
-  const day = new Date(dateStr + 'T12:00:00').getDay();
-  return day === 0 || day === 6;
 }
 
 function Calendar({ year, month, onPrev, onNext, selectedDate, onSelect, busyDates, maxDate }) {

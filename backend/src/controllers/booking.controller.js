@@ -1,9 +1,25 @@
+const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const BlockedSlot = require('../models/BlockedSlot');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
 const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
 const { broadcast } = require('../utils/live');
+
+const COURT_TYPE_BY_ID = {
+  'coberta-1': 'coberta',
+  'coberta-2': 'coberta',
+  'areia-1': 'descoberta',
+  'areia-2': 'descoberta',
+  'areia-3': 'descoberta',
+  'PKB-DU': 'pickleball',
+};
+const BOOKING_MODALITIES = new Set(['beach-tennis', 'futevolei', 'volei', 'pickleball']);
+const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'dinheiro']);
+const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball']);
+const localDateIso = (date = new Date()) => (
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
 
 const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
   const query = { quadraId, date, status: { $ne: 'cancelada' }, slots: { $in: slots } };
@@ -38,9 +54,26 @@ const listar = async (req, res) => {
 };
 
 const criar = async (req, res) => {
-  const { modalidade, quadra, quadraId, date, slots, dayUse, payment, total, userId: bodyUserId, userName: bodyUserName } = req.body;
+  const { modalidade, quadra, quadraId, date, slots, dayUse, payment, total, userId: bodyUserId } = req.body;
+  const isDayUse = Boolean(dayUse);
+  const normalizedSlots = Array.isArray(slots)
+    ? [...new Set(slots.map(Number).filter((slot) => Number.isInteger(slot) && slot >= 0 && slot <= 23))]
+    : [];
+  const resolvedQuadra = quadra || COURT_TYPE_BY_ID[quadraId];
+  const numericTotal = Number(total);
 
-  if (!dayUse && slots?.length && await verificarConflito(quadraId, date, slots)) {
+  if (!BOOKING_MODALITIES.has(modalidade)) return res.status(400).json({ message: 'Modalidade inválida' });
+  if (!BOOKING_PAYMENTS.has(payment)) return res.status(400).json({ message: 'Forma de pagamento inválida' });
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ message: 'Informe uma data válida' });
+  if (date < localDateIso()) return res.status(400).json({ message: 'Não é possível criar reservas em datas passadas' });
+  if (!quadraId || !BOOKING_COURT_TYPES.has(resolvedQuadra)) return res.status(400).json({ message: 'Informe uma quadra válida' });
+  if (!isDayUse && normalizedSlots.length === 0) return res.status(400).json({ message: 'Selecione pelo menos um horário' });
+  if (!Number.isFinite(numericTotal) || numericTotal < 0) return res.status(400).json({ message: 'Valor da reserva inválido' });
+  if (req.user.admin && (!bodyUserId || !mongoose.isValidObjectId(bodyUserId))) {
+    return res.status(400).json({ message: 'Selecione um cliente válido' });
+  }
+
+  if (!isDayUse && await verificarConflito(quadraId, date, normalizedSlots)) {
     return res.status(409).json({ message: 'Horário já reservado ou bloqueado' });
   }
 
@@ -56,19 +89,22 @@ const criar = async (req, res) => {
   }
 
   const targetUserId = (req.user.admin && bodyUserId) ? bodyUserId : req.user._id;
-  const targetUserName = (req.user.admin && bodyUserName) ? bodyUserName : req.user.nome;
+  const targetUser = req.user.admin
+    ? await User.findById(targetUserId).select('nome email')
+    : req.user;
+  if (!targetUser) return res.status(404).json({ message: 'Cliente não encontrado' });
 
   const booking = await Booking.create({
     userId: targetUserId,
-    userName: targetUserName,
+    userName: targetUser.nome,
     modalidade,
-    quadra,
+    quadra: resolvedQuadra,
     quadraId,
     date,
-    slots,
-    dayUse: dayUse || false,
+    slots: normalizedSlots,
+    dayUse: isDayUse,
     payment,
-    total,
+    total: numericTotal,
   });
 
   // Comprovante por e-mail (sem bloquear a resposta)
