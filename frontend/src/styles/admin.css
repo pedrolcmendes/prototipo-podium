@@ -1188,10 +1188,10 @@ body.gate-active .admin-layout { display: none; }
   .finance-kpi-head small { text-align: left; }
   .finance-kpi-card > strong { font-size: 1.15rem; }
   .finance-toolbar { grid-template-columns: 1fr; padding: .8rem 1rem; }
-  .mini-bar-chart { gap: .28rem; height: 175px; padding-inline: .75rem; }
+  .mini-bar-chart { gap: .28rem; height: 158px; padding: .8rem .75rem .9rem; }
   .mini-chart-grid { left: .75rem; right: .75rem; }
   .mini-bar { width: clamp(12px, 58%, 34px); border-radius: 5px 5px 2px 2px; }
-  .mini-bar-value { font-size: .5rem; }
+  .mini-bar-value { min-height: 12px; font-size: .46rem; letter-spacing: -.15px; }
 }
 @media (max-width: 360px) {
   .finance-kpi-grid { grid-template-columns: 1fr; }
@@ -1200,9 +1200,20 @@ body.gate-active .admin-layout { display: none; }
 @media (max-width: 430px) {
   .finance-total-card { padding: 1.15rem; }
   .finance-total-meta { grid-template-columns: 1fr; }
-  .finance-chart-total { align-items: flex-start; }
-  .finance-chart-card .admin-card-header { align-items: flex-start; }
-  .mini-bar-value { writing-mode: vertical-rl; transform: rotate(180deg); min-height: 46px; }
+  .finance-chart-card .admin-card-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .65rem;
+    padding: 1rem;
+  }
+  .finance-chart-total { align-items: flex-end; }
+  .finance-chart-total strong { font-size: .8rem; }
+  .mini-bar-value {
+    writing-mode: horizontal-tb;
+    transform: none;
+    min-height: 12px;
+  }
 }
 
 /* Transação item */
@@ -1749,12 +1760,35 @@ body.gate-active .admin-layout { display: none; }
 
 @media (max-width: 600px) {
   .admin-topbar-badge span { display: none; }
-  /* toolbar de busca/filtros ocupa a largura toda, um item por linha quando aperta */
-  .admin-card-toolbar { width: 100%; }
-  .admin-search { flex: 1 1 100%; }
+  .admin-section-header {
+    gap: .8rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+  }
+  .admin-card-header {
+    align-items: flex-start;
+    gap: .75rem;
+    padding: 1rem;
+  }
+  .admin-card-header > h3 { width: 100%; }
+
+  /* No mobile o toolbar vira coluna. Os flex-basis usados no desktop não podem
+     virar altura, senão o select fechado reserva 140px vazios. */
+  .admin-card-toolbar {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-card-toolbar .admin-search,
+  .admin-card-toolbar .podium-select.admin-filter-select,
+  .admin-card-toolbar .btn-admin-secondary {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+  .admin-search { flex: 0 0 auto; }
   .admin-search input { width: 100%; flex: 1; padding: .65rem .6rem .65rem 0; }
-  .admin-filter-select { flex: 1; padding-top: .6rem; padding-bottom: .6rem; }
-  .admin-card-toolbar .btn-admin-secondary { flex: 1; justify-content: center; padding-top: .7rem; padding-bottom: .7rem; }
+  .admin-card-toolbar .btn-admin-secondary { justify-content: center; padding-top: .7rem; padding-bottom: .7rem; }
   .admin-section-header .btn-admin-primary { width: 100%; justify-content: center; padding: .85rem 1rem; }
   .admin-pagination { justify-content: center; }
   .admin-page-btn { width: 36px; height: 36px; }
