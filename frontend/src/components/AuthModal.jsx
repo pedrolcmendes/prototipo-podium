@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
+import PodiumDatePicker from './PodiumDatePicker';
 
 function formatCPF(v) {
   return v.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2').slice(0, 14);
@@ -309,7 +310,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
                     </div>
                     <div className={`field${cadErr.nasc ? ' error' : ''}`} id="field-cadNasc">
                       <label>Nascimento</label>
-                      <input type="date" value={cadData.nasc} onChange={e => setCadData({ ...cadData, nasc: e.target.value })} />
+                      <PodiumDatePicker value={cadData.nasc} onChange={e => setCadData({ ...cadData, nasc: e.target.value })} aria-label="Data de nascimento" />
                       <span className="field-error">{cadErr.nasc || 'Informe a data'}</span>
                     </div>
                   </div>

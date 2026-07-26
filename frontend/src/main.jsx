@@ -14,6 +14,10 @@ import './styles/painel.css';
 import './styles/admin.css';
 import './styles/ranking.css';
 import './styles/calendar.css';
+import './styles/select.css';
+import './styles/date-picker.css';
+import './styles/time-picker.css';
+import './styles/number-input.css';
 
 /* ── Toast (único CSS novo, não sobrepõe nada) ── */
 import './styles/toast.css';

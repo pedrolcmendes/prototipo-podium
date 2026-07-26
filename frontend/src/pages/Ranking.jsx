@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import Footer from '../components/Footer';
+import PodiumSelect from '../components/PodiumSelect';
 import useLive from '../hooks/useLive';
 
 const SPORTS = [{ id: 'beachtennis', label: 'Beach Tennis' }, { id: 'futevolei', label: 'Futevôlei' }];
@@ -46,10 +47,10 @@ export default function Ranking() {
     <main className="ranking-page-wrap">
       <div className="ranking-tabs-nav">{SPORTS.map(item => <button key={item.id} className={`ranking-tab${sport === item.id ? ' active' : ''}`} onClick={() => setSport(item.id)}>{item.label}</button>)}</div>
       <div className="ranking-filters">
-        <select value={categoria} onChange={e => setCategoria(e.target.value)} aria-label="Categoria">{CATEGORIAS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
-        <select value={nivel} onChange={e => setNivel(e.target.value)} aria-label="Nível">{niveis.map(item => <option key={item}>Nível {item}</option>)}</select>
-        <select value={ano} onChange={e => setAno(Number(e.target.value))} aria-label="Ano">{anos.map(item => <option key={item}>{item}</option>)}</select>
-        <select value={semestre} onChange={e => setSemestre(Number(e.target.value))} aria-label="Semestre"><option value={1}>1º semestre</option><option value={2}>2º semestre</option></select>
+        <PodiumSelect value={categoria} onChange={e => setCategoria(e.target.value)} aria-label="Categoria">{CATEGORIAS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</PodiumSelect>
+        <PodiumSelect value={nivel} onChange={e => setNivel(e.target.value)} aria-label="Nível">{niveis.map(item => <option key={item} value={item}>Nível {item}</option>)}</PodiumSelect>
+        <PodiumSelect value={ano} onChange={e => setAno(Number(e.target.value))} aria-label="Ano">{anos.map(item => <option key={item}>{item}</option>)}</PodiumSelect>
+        <PodiumSelect value={semestre} onChange={e => setSemestre(Number(e.target.value))} aria-label="Semestre"><option value={1}>1º semestre</option><option value={2}>2º semestre</option></PodiumSelect>
       </div>
       {loading ? <div className="ranking-loading">Carregando ranking…</div> : !entries.length ? <div className="ranking-empty"><p>Nenhum ranking disponível para estes filtros.</p><span>O ranking será publicado após as etapas.</span></div> : <>
         <div className="ranking-summary"><strong>{CATEGORIAS.find(c => c.id === categoria)?.label} · Nível {nivel}</strong><span>{semestre}º semestre de {ano} · {entries.length} atleta{entries.length !== 1 ? 's' : ''}</span></div>

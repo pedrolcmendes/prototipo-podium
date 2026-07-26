@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 import api from '../services/api';
+import PodiumDatePicker from './PodiumDatePicker';
 
 const fmtTel = (v) => {
   const n = v.replace(/\D/g, '').slice(0, 11);
@@ -133,10 +134,11 @@ export default function CompletePerfilModal() {
         {falta.nasc && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             <label style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '1px', color: 'var(--gray)' }}>DATA DE NASCIMENTO</label>
-            <input
-              type="date" value={nasc} onChange={e => setNasc(e.target.value)}
+            <PodiumDatePicker
+              value={nasc} onChange={e => setNasc(e.target.value)}
               max={new Date().toISOString().slice(0, 10)}
               style={inputStyle}
+              aria-label="Data de nascimento"
             />
           </div>
         )}

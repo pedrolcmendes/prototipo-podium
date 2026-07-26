@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 import LogoutModal from '../components/LogoutModal';
+import PodiumDatePicker from '../components/PodiumDatePicker';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
@@ -810,7 +811,7 @@ export default function Painel() {
                     </div>
                     <div className="field">
                       <label>Data de Nascimento</label>
-                      <input type="date" value={perfil.dataNascimento} onChange={e => setPerfil({ ...perfil, dataNascimento: e.target.value })} />
+                      <PodiumDatePicker value={perfil.dataNascimento} onChange={e => setPerfil({ ...perfil, dataNascimento: e.target.value })} aria-label="Data de nascimento" />
                     </div>
                   </div>
                 </div>

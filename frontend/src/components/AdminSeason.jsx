@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
+import PodiumSelect from './PodiumSelect';
+import PodiumDatePicker from './PodiumDatePicker';
+import PodiumTimePicker from './PodiumTimePicker';
+import PodiumNumberInput from './PodiumNumberInput';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 const COURTS = [
@@ -53,15 +57,23 @@ function DiscountFields({ title, value, onChange, withCode = false }) {
         ) : null}
         <div className="admin-field">
           <label>Tipo</label>
-          <select value={value.type} onChange={(event) => onChange({ ...value, type: event.target.value })}>
+          <PodiumSelect value={value.type} onChange={(event) => onChange({ ...value, type: event.target.value })}>
             <option value="percent">Percentual (%)</option>
             <option value="fixed">Valor fixo (R$)</option>
-          </select>
+          </PodiumSelect>
         </div>
         <div className="admin-field">
           <label>Valor</label>
-          <input type="number" min="0" max={value.type === 'percent' ? 100 : undefined} step="0.01"
-            value={value.value} onChange={(event) => onChange({ ...value, value: Number(event.target.value) })} />
+          <PodiumNumberInput
+            min={0}
+            max={value.type === 'percent' ? 100 : undefined}
+            step={0.01}
+            prefix={value.type === 'fixed' ? 'R$' : undefined}
+            suffix={value.type === 'percent' ? '%' : undefined}
+            value={value.value}
+            aria-label={`Valor de ${title.toLowerCase()}`}
+            onChange={(event) => onChange({ ...value, value: Number(event.target.value) })}
+          />
         </div>
       </div>
     </div>
@@ -141,39 +153,66 @@ export function SeasonCreationModal({ open, users, onClose, onCreated, toast }) 
               <div className="admin-grid-2">
                 <div className="admin-field">
                   <label>Cliente</label>
-                  <select value={form.userId} onChange={(event) => setField('userId', event.target.value)}>
+                  <PodiumSelect value={form.userId} onChange={(event) => setField('userId', event.target.value)}>
                     <option value="">Selecione...</option>
                     {users.filter((user) => !['bloqueado', 'inativo'].includes(user.status)).map((user) => (
                       <option key={user._id} value={user._id}>{user.nome} · {user.email}</option>
                     ))}
-                  </select>
+                  </PodiumSelect>
                 </div>
                 <div className="admin-field">
                   <label>Quadra</label>
-                  <select value={form.courtId} onChange={(event) => setField('courtId', event.target.value)}>
+                  <PodiumSelect value={form.courtId} onChange={(event) => setField('courtId', event.target.value)}>
                     {COURTS.map((court) => <option key={court.id} value={court.id}>{court.name} · {court.type}</option>)}
-                  </select>
+                  </PodiumSelect>
                 </div>
                 <div className="admin-field">
                   <label>Modalidade</label>
-                  <select value={form.modalidade} onChange={(event) => setField('modalidade', event.target.value)}>
+                  <PodiumSelect value={form.modalidade} onChange={(event) => setField('modalidade', event.target.value)}>
                     {Object.entries(MODALITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  </PodiumSelect>
                 </div>
                 <div className="admin-field">
                   <label>Pagamento</label>
-                  <select value={form.payment} onChange={(event) => setField('payment', event.target.value)}>
+                  <PodiumSelect value={form.payment} onChange={(event) => setField('payment', event.target.value)}>
                     {Object.entries(PAYMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  </PodiumSelect>
                 </div>
               </div>
 
               <div className="season-step-title"><span>2</span> Período e horário</div>
               <div className="admin-grid-2">
-                <div className="admin-field"><label>Data inicial</label><input type="date" value={form.startDate} onChange={(event) => setField('startDate', event.target.value)} /></div>
-                <div className="admin-field"><label>Data final</label><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setField('endDate', event.target.value)} /></div>
-                <div className="admin-field"><label>Hora inicial</label><input type="number" min="0" max="23" value={form.startHour} onChange={(event) => setField('startHour', Number(event.target.value))} /></div>
-                <div className="admin-field"><label>Hora final</label><input type="number" min="1" max="24" value={form.endHour} onChange={(event) => setField('endHour', Number(event.target.value))} /></div>
+                <div className="admin-field"><label>Data inicial</label><PodiumDatePicker value={form.startDate} onChange={(event) => setField('startDate', event.target.value)} aria-label="Data inicial da temporada" /></div>
+                <div className="admin-field"><label>Data final</label><PodiumDatePicker min={form.startDate} value={form.endDate} onChange={(event) => setField('endDate', event.target.value)} aria-label="Data final da temporada" /></div>
+                <div className="admin-field">
+                  <label>Hora inicial</label>
+                  <PodiumTimePicker
+                    value={`${String(form.startHour).padStart(2, '0')}:00`}
+                    min="00:00"
+                    max="23:00"
+                    step={60}
+                    clearable={false}
+                    label="Início da reserva"
+                    aria-label="Hora inicial da temporada"
+                    onChange={(event) => {
+                      const startHour = Number(event.target.value.slice(0, 2));
+                      setForm((current) => ({ ...current, startHour, endHour: Math.max(current.endHour, startHour + 1) }));
+                    }}
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>Hora final</label>
+                  <PodiumTimePicker
+                    value={`${String(form.endHour).padStart(2, '0')}:00`}
+                    min={`${String(Math.min(form.startHour + 1, 24)).padStart(2, '0')}:00`}
+                    max="24:00"
+                    step={60}
+                    clearable={false}
+                    label="Fim da reserva"
+                    aria-label="Hora final da temporada"
+                    onChange={(event) => setField('endHour', Number(event.target.value.slice(0, 2)))}
+                  />
+                </div>
               </div>
 
               <div className="season-step-title"><span>3</span> Recorrência</div>
@@ -184,7 +223,10 @@ export function SeasonCreationModal({ open, users, onClose, onCreated, toast }) 
               {form.recurrence.type === 'daily' ? (
                 <div className="admin-field season-inline-field">
                   <label>Repetir a cada</label>
-                  <div><input type="number" min="1" max="365" value={form.recurrence.dailyInterval} onChange={(event) => setRecurrence('dailyInterval', Number(event.target.value))} /><span>dia(s)</span></div>
+                  <div>
+                    <PodiumNumberInput min={1} max={365} value={form.recurrence.dailyInterval} aria-label="Intervalo em dias" onChange={(event) => setRecurrence('dailyInterval', Number(event.target.value))} />
+                    <span>dia(s)</span>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -195,7 +237,10 @@ export function SeasonCreationModal({ open, users, onClose, onCreated, toast }) 
                   </div>
                   <div className="admin-field season-inline-field">
                     <label>Repetir a cada</label>
-                    <div><input type="number" min="1" max="52" value={form.recurrence.weeklyInterval} onChange={(event) => setRecurrence('weeklyInterval', Number(event.target.value))} /><span>semana(s)</span></div>
+                    <div>
+                      <PodiumNumberInput min={1} max={52} value={form.recurrence.weeklyInterval} aria-label="Intervalo em semanas" onChange={(event) => setRecurrence('weeklyInterval', Number(event.target.value))} />
+                      <span>semana(s)</span>
+                    </div>
                   </div>
                 </>
               )}

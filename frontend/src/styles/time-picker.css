@@ -1,0 +1,235 @@
+/* Seletor global de horário Podium. */
+.podium-time {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.podium-time-trigger {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: .68rem .9rem .68rem 1rem;
+  border: 1px solid rgba(197, 160, 40, .23);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(25, 24, 20, .98), rgba(12, 12, 11, .98));
+  color: var(--white);
+  font: 650 .82rem var(--font-body);
+  letter-spacing: .055em;
+  text-align: left;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.podium-time-trigger:hover {
+  border-color: rgba(218, 163, 91, .58);
+}
+
+.podium-time-trigger:focus-visible,
+.podium-time.is-open .podium-time-trigger {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(207, 151, 78, .13);
+}
+
+.podium-time.is-disabled {
+  opacity: .5;
+}
+
+.podium-time.is-disabled .podium-time-trigger {
+  cursor: not-allowed;
+}
+
+.podium-time-value.is-placeholder {
+  color: var(--gray);
+}
+
+.podium-time-trigger > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.podium-time-menu {
+  position: fixed;
+  z-index: 12020;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: .7rem;
+  border: 1px solid rgba(207, 151, 78, .4);
+  border-radius: 12px;
+  background: rgba(14, 14, 13, .99);
+  color: var(--white);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .62), 0 0 0 1px rgba(255, 255, 255, .025) inset;
+  animation: podium-time-in .16s ease-out;
+}
+
+@keyframes podium-time-in {
+  from { opacity: 0; transform: translateY(-5px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.podium-time-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .25rem .25rem .7rem;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+}
+
+.podium-time-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: .16rem;
+}
+
+.podium-time-head small {
+  color: var(--gold);
+  font: 700 .56rem var(--font-body);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.podium-time-head strong {
+  color: var(--white);
+  font: 700 .75rem var(--font-body);
+}
+
+.podium-time-head > span {
+  color: var(--gold);
+  font: 700 1.05rem var(--font-cond);
+  letter-spacing: .06em;
+}
+
+.podium-time-options {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .35rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: .65rem .15rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(207, 151, 78, .5) transparent;
+}
+
+.podium-time-options::-webkit-scrollbar { width: 5px; }
+.podium-time-options::-webkit-scrollbar-track { background: transparent; }
+.podium-time-options::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(207, 151, 78, .5);
+}
+
+.podium-time-options button {
+  min-height: 35px;
+  padding: .45rem .25rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .025);
+  color: #aaa9a4;
+  font: 700 .68rem var(--font-body);
+  letter-spacing: .04em;
+  outline: none;
+  cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+
+.podium-time-options button:hover,
+.podium-time-options button:focus-visible,
+.podium-time-options button.is-active {
+  border-color: rgba(207, 151, 78, .34);
+  background: rgba(207, 151, 78, .08);
+  color: var(--white);
+}
+
+.podium-time-options button.is-selected {
+  border-color: var(--gold);
+  background: linear-gradient(145deg, #e2ad68, #b97835);
+  color: #100d09;
+  box-shadow: 0 4px 12px rgba(185, 120, 53, .2);
+}
+
+.podium-time-footer {
+  min-height: 34px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .55rem .25rem 0;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+}
+
+.podium-time-footer button {
+  padding: .25rem;
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  font: 700 .65rem var(--font-body);
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+
+.podium-time-footer button:disabled {
+  opacity: .25;
+  cursor: not-allowed;
+}
+
+.event-time-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: .5rem;
+}
+
+.event-time-range > span {
+  color: var(--gray);
+  font: 700 .62rem var(--font-body);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+body.admin-page.theme-light .podium-time-trigger {
+  background: linear-gradient(145deg, #fff, #f7f7f5);
+  color: #1d1d1a;
+}
+
+body.admin-page.theme-light .podium-time-menu {
+  border-color: rgba(160, 111, 45, .35);
+  background: rgba(255, 255, 253, .995);
+  color: #1d1d1a;
+  box-shadow: 0 22px 55px rgba(33, 27, 18, .18);
+}
+
+body.admin-page.theme-light .podium-time-head strong,
+body.admin-page.theme-light .podium-time-options button {
+  color: #44423e;
+}
+
+@media (max-width: 480px) {
+  .podium-time-menu {
+    padding: .6rem;
+  }
+  .podium-time-options {
+    gap: .28rem;
+  }
+  .event-time-range {
+    grid-template-columns: 1fr;
+  }
+  .event-time-range > span {
+    padding-left: .2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .podium-time-menu { animation: none; }
+}

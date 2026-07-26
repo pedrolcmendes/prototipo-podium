@@ -5,6 +5,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSettings, DEFAULT_SETTINGS, hourOf } from '../contexts/SettingsContext';
 import { useToast } from '../components/Toast';
 import { SeasonCreationModal, SeasonDetailsModal, dateBR as seasonDateBR, money as seasonMoney } from '../components/AdminSeason';
+import PodiumSelect from '../components/PodiumSelect';
+import PodiumDatePicker from '../components/PodiumDatePicker';
+import PodiumTimePicker, { formatTime as formatPickerTime, parseTime as parsePickerTime } from '../components/PodiumTimePicker';
+import PodiumNumberInput from '../components/PodiumNumberInput';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
@@ -16,6 +20,19 @@ const formatTel = (v) => {
   if (n.length <= 6) return `(${n.slice(0, 2)}) ${n.slice(2)}`;
   if (n.length <= 10) return `(${n.slice(0, 2)}) ${n.slice(2, 6)}-${n.slice(6)}`;
   return `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`;
+};
+
+const parseEventTimeRange = (value) => {
+  const match = /(\d{1,2})(?:[:h](\d{2}))?\s*h?\s*[–—-]\s*(\d{1,2})(?:[:h](\d{2}))?/i.exec(value || '');
+  if (!match) return ['08:00', '19:00'];
+  const start = `${String(Number(match[1])).padStart(2, '0')}:${match[2] || '00'}`;
+  const end = `${String(Number(match[3])).padStart(2, '0')}:${match[4] || '00'}`;
+  return [start, end];
+};
+
+const formatEventTimeRange = (start, end) => {
+  const compact = (time) => time.endsWith(':00') ? `${time.slice(0, 2)}h` : `${time.slice(0, 2)}h${time.slice(3)}`;
+  return `${compact(start)}–${compact(end)}`;
 };
 const formatCnpj = (v) => {
   const n = v.replace(/\D/g, '').slice(0, 14);
@@ -58,6 +75,15 @@ const COURTS_GRADE = [
 ];
 const MOD_CLS = { 'beach-tennis': 'bt', futevolei: 'fv', volei: 'vl', pickleball: 'pb' };
 const MODALIDADE_LABELS = { 'beach-tennis': 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball' };
+const EVENT_CATEGORY_LABELS = {
+  beachtennis: 'Beach Tennis',
+  futevolei: 'Futevôlei',
+  volei: 'Vôlei',
+  pickleball: 'Pickleball',
+  taekwondo: 'Taekwondo',
+  geral: 'Geral',
+};
+const eventCategoryLabel = (category) => EVENT_CATEGORY_LABELS[category] || category || 'Geral';
 const WEEKDAYS_S = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const WEEKDAYS_L = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const MONTHS_L  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -1025,6 +1051,8 @@ export default function Admin() {
     });
   };
 
+  const [eventStartTime, eventEndTime] = parseEventTimeRange(eventoForm.hora);
+
   const adicionarCredito = async () => {
     try {
       const novoCredito = (usuarios.find(u => u._id === creditoModal)?.creditos || 0) + Number(creditoForm.valor);
@@ -1396,7 +1424,7 @@ export default function Admin() {
               </div>
               <div className="admin-field">
                 <label>Data de Nascimento</label>
-                <input type="date" value={editUserForm.nasc} onChange={e => setEditUserForm({ ...editUserForm, nasc: e.target.value })} />
+                <PodiumDatePicker value={editUserForm.nasc} onChange={e => setEditUserForm({ ...editUserForm, nasc: e.target.value })} aria-label="Data de nascimento" />
               </div>
               <div className="admin-field">
                 <label>Idade</label>
@@ -1499,24 +1527,59 @@ export default function Admin() {
         footer={<><button className="btn-admin-secondary" onClick={() => setEventoModal(null)}>Cancelar</button><button className="btn-admin-primary" onClick={salvarEvento}>Salvar Evento</button></>}>
         <div className="admin-grid-2">
           <div className="admin-field" style={{ gridColumn: '1/-1' }}><label>Nome do Evento *</label><input type="text" value={eventoForm.nome} onChange={e => setEventoForm({ ...eventoForm, nome: e.target.value })} placeholder="Ex: Copa Podium Arena" /></div>
-          <div className="admin-field"><label>Data *</label><input type="date" value={eventoForm.data} onChange={e => setEventoForm({ ...eventoForm, data: e.target.value })} /></div>
-          <div className="admin-field"><label>Horário</label><input type="text" value={eventoForm.hora} onChange={e => setEventoForm({ ...eventoForm, hora: e.target.value })} placeholder="08h–19h" /></div>
+          <div className="admin-field"><label>Data *</label><PodiumDatePicker value={eventoForm.data} onChange={e => setEventoForm({ ...eventoForm, data: e.target.value })} aria-label="Data do evento" /></div>
+          <div className="admin-field">
+            <label>Horário</label>
+            <div className="event-time-range">
+              <PodiumTimePicker
+                value={eventStartTime}
+                max="23:30"
+                step={30}
+                clearable={false}
+                label="Início do evento"
+                aria-label="Início do evento"
+                onChange={(event) => {
+                  const start = event.target.value;
+                  const minimumEnd = formatPickerTime(Math.min(parsePickerTime(start, 0) + 30, 1440));
+                  const end = parsePickerTime(eventEndTime, 0) <= parsePickerTime(start, 0) ? minimumEnd : eventEndTime;
+                  setEventoForm({ ...eventoForm, hora: formatEventTimeRange(start, end) });
+                }}
+              />
+              <span>até</span>
+              <PodiumTimePicker
+                value={eventEndTime}
+                min={formatPickerTime(Math.min(parsePickerTime(eventStartTime, 0) + 30, 1440))}
+                max="24:00"
+                step={30}
+                clearable={false}
+                label="Fim do evento"
+                aria-label="Fim do evento"
+                onChange={(event) => setEventoForm({ ...eventoForm, hora: formatEventTimeRange(eventStartTime, event.target.value) })}
+              />
+            </div>
+          </div>
           <div className="admin-field"><label>Local</label><input type="text" value={eventoForm.local} onChange={e => setEventoForm({ ...eventoForm, local: e.target.value })} /></div>
-          <div className="admin-field"><label>Vagas</label><input type="number" value={eventoForm.vagas} onChange={e => setEventoForm({ ...eventoForm, vagas: Number(e.target.value) })} /></div>
-          <div className="admin-field"><label>Preço (R$)</label><input type="number" value={eventoForm.preco} onChange={e => setEventoForm({ ...eventoForm, preco: Number(e.target.value) })} step="0.01" /></div>
+          <div className="admin-field">
+            <label>Vagas</label>
+            <PodiumNumberInput min={0} value={eventoForm.vagas} aria-label="Quantidade de vagas" onChange={e => setEventoForm({ ...eventoForm, vagas: Number(e.target.value) })} />
+          </div>
+          <div className="admin-field">
+            <label>Preço (R$)</label>
+            <PodiumNumberInput min={0} step={0.01} prefix="R$" value={eventoForm.preco} aria-label="Preço do evento" onChange={e => setEventoForm({ ...eventoForm, preco: Number(e.target.value) })} />
+          </div>
           <div className="admin-field">
             <label>Categoria</label>
-            <select value={eventoForm.categoria} onChange={e => setEventoForm({ ...eventoForm, categoria: e.target.value })}>
-              {['beachtennis','futevolei','volei','pickleball','taekwondo','geral'].map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <PodiumSelect value={eventoForm.categoria} onChange={e => setEventoForm({ ...eventoForm, categoria: e.target.value })}>
+              {Object.entries(EVENT_CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </PodiumSelect>
           </div>
           <div className="admin-field">
             <label>Status</label>
-            <select value={eventoForm.status} onChange={e => setEventoForm({ ...eventoForm, status: e.target.value })}>
+            <PodiumSelect value={eventoForm.status} onChange={e => setEventoForm({ ...eventoForm, status: e.target.value })}>
               <option value="aberto">Inscrições Abertas</option>
               <option value="breve">Em Breve</option>
               <option value="encerrado">Encerrado</option>
-            </select>
+            </PodiumSelect>
           </div>
           <div className="admin-field" style={{ gridColumn: '1/-1' }}>
             <label>Imagem do Evento</label>
@@ -1592,24 +1655,24 @@ export default function Admin() {
           <div className="admin-grid-2">
             <div className="admin-field">
               <label>Status</label>
-              <select value={editResForm.status} onChange={e => setEditResForm({ ...editResForm, status: e.target.value })}>
+              <PodiumSelect value={editResForm.status} onChange={e => setEditResForm({ ...editResForm, status: e.target.value })}>
                 <option value="confirmada">Confirmada</option>
                 <option value="pendente">Pendente</option>
                 <option value="concluida">Concluída</option>
                 <option value="cancelada">Cancelada</option>
-              </select>
+              </PodiumSelect>
             </div>
             <div className="admin-field">
               <label>Pagamento</label>
-              <select value={editResForm.payment} onChange={e => setEditResForm({ ...editResForm, payment: e.target.value })}>
+              <PodiumSelect value={editResForm.payment} onChange={e => setEditResForm({ ...editResForm, payment: e.target.value })}>
                 <option value="pix">PIX</option>
                 <option value="credito">Crédito</option>
                 <option value="dinheiro">Dinheiro</option>
-              </select>
+              </PodiumSelect>
             </div>
             <div className="admin-field" style={{ gridColumn: '1/-1' }}>
               <label>Valor (R$)</label>
-              <input type="number" value={editResForm.total} onChange={e => setEditResForm({ ...editResForm, total: Number(e.target.value) })} step="0.01" />
+              <PodiumNumberInput min={0} step={0.01} prefix="R$" value={editResForm.total} aria-label="Valor da reserva" onChange={e => setEditResForm({ ...editResForm, total: Number(e.target.value) })} />
             </div>
           </div>
         )}
@@ -1621,45 +1684,45 @@ export default function Admin() {
         <div className="admin-grid-2">
           <div className="admin-field" style={{ gridColumn: '1/-1' }}>
             <label>Cliente</label>
-            <select value={novaResForm.userId} onChange={e => {
+            <PodiumSelect value={novaResForm.userId} onChange={e => {
               const u = usuarios.find(x => x._id === e.target.value);
               setNovaResForm({ ...novaResForm, userId: e.target.value, userName: u?.nome || '' });
             }}>
               <option value="">Selecione...</option>
               {usuarios.map(u => <option key={u._id} value={u._id}>{u.nome}</option>)}
-            </select>
+            </PodiumSelect>
           </div>
           <div className="admin-field">
             <label>Quadra</label>
-            <select value={novaResForm.quadraId} onChange={e => setNovaResForm({ ...novaResForm, quadraId: e.target.value })}>
+            <PodiumSelect value={novaResForm.quadraId} onChange={e => setNovaResForm({ ...novaResForm, quadraId: e.target.value })}>
               {QUADRAS_ALL.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}
-            </select>
+            </PodiumSelect>
           </div>
           <div className="admin-field">
             <label>Modalidade</label>
-            <select value={novaResForm.modalidade} onChange={e => setNovaResForm({ ...novaResForm, modalidade: e.target.value })}>
+            <PodiumSelect value={novaResForm.modalidade} onChange={e => setNovaResForm({ ...novaResForm, modalidade: e.target.value })}>
               <option value="beach-tennis">Beach Tennis</option>
               <option value="futevolei">Futevôlei</option>
               <option value="volei">Vôlei</option>
               <option value="pickleball">Pickleball</option>
-            </select>
+            </PodiumSelect>
           </div>
-          <div className="admin-field"><label>Data</label><input type="date" value={novaResForm.date} onChange={e => setNovaResForm({ ...novaResForm, date: e.target.value })} /></div>
-          <div className="admin-field"><label>Valor (R$)</label><input type="number" value={novaResForm.total} onChange={e => setNovaResForm({ ...novaResForm, total: Number(e.target.value) })} step="0.01" /></div>
+          <div className="admin-field"><label>Data</label><PodiumDatePicker value={novaResForm.date} onChange={e => setNovaResForm({ ...novaResForm, date: e.target.value })} aria-label="Data da reserva" /></div>
+          <div className="admin-field"><label>Valor (R$)</label><PodiumNumberInput min={0} step={0.01} prefix="R$" value={novaResForm.total} aria-label="Valor da nova reserva" onChange={e => setNovaResForm({ ...novaResForm, total: Number(e.target.value) })} /></div>
           <div className="admin-field">
             <label>Pagamento</label>
-            <select value={novaResForm.payment} onChange={e => setNovaResForm({ ...novaResForm, payment: e.target.value })}>
+            <PodiumSelect value={novaResForm.payment} onChange={e => setNovaResForm({ ...novaResForm, payment: e.target.value })}>
               <option value="pix">PIX</option>
               <option value="credito">Crédito</option>
               <option value="dinheiro">Dinheiro</option>
-            </select>
+            </PodiumSelect>
           </div>
           <div className="admin-field">
             <label>Status</label>
-            <select value={novaResForm.status} onChange={e => setNovaResForm({ ...novaResForm, status: e.target.value })}>
+            <PodiumSelect value={novaResForm.status} onChange={e => setNovaResForm({ ...novaResForm, status: e.target.value })}>
               <option value="confirmada">Confirmada</option>
               <option value="pendente">Pendente</option>
-            </select>
+            </PodiumSelect>
           </div>
         </div>
       </AdminModal>
@@ -1719,18 +1782,18 @@ export default function Admin() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                 <div className="admin-field" style={{ margin: 0 }}>
                   <label>Modalidade</label>
-                  <select value={rankForm.modalidade} onChange={e => {
+                  <PodiumSelect value={rankForm.modalidade} onChange={e => {
                     const mod = e.target.value;
                     setRankForm(prev => ({ ...prev, modalidade: mod, entries: [] }));
                     loadRanking(mod, rankForm.categoria);
                   }}>
                     <option value="beachtennis">Beach Tennis</option>
                     <option value="futevolei">Futevôlei</option>
-                  </select>
+                  </PodiumSelect>
                 </div>
                 <div className="admin-field" style={{ margin: 0 }}>
                   <label>Categoria</label>
-                  <select value={rankForm.categoria} onChange={e => {
+                  <PodiumSelect value={rankForm.categoria} onChange={e => {
                     const cat = e.target.value;
                     setRankForm(prev => ({ ...prev, categoria: cat, entries: [] }));
                     loadRanking(rankForm.modalidade, cat);
@@ -1738,11 +1801,11 @@ export default function Admin() {
                     <option value="masculino">Masculino</option>
                     <option value="feminino">Feminino</option>
                     <option value="misto">Misto</option>
-                  </select>
+                  </PodiumSelect>
                 </div>
-                <div className="admin-field" style={{ margin: 0 }}><label>Nível</label><select value={rankForm.nivel} onChange={e => { const nivel = e.target.value; setRankForm(prev => ({ ...prev, nivel, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, nivel); }}><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
-                <div className="admin-field" style={{ margin: 0 }}><label>Ano</label><select value={rankForm.ano} onChange={e => { const ano = Number(e.target.value); setRankForm(prev => ({ ...prev, ano, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, ano); }}><option value={2026}>2026</option><option value={2027}>2027</option></select></div>
-                <div className="admin-field" style={{ margin: 0 }}><label>Semestre</label><select value={rankForm.semestre} onChange={e => { const semestre = Number(e.target.value); setRankForm(prev => ({ ...prev, semestre, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, rankForm.ano, semestre); }}><option value={1}>1º semestre</option><option value={2}>2º semestre</option></select></div>
+                <div className="admin-field" style={{ margin: 0 }}><label>Nível</label><PodiumSelect value={rankForm.nivel} onChange={e => { const nivel = e.target.value; setRankForm(prev => ({ ...prev, nivel, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, nivel); }}><option>A</option><option>B</option><option>C</option><option>D</option></PodiumSelect></div>
+                <div className="admin-field" style={{ margin: 0 }}><label>Ano</label><PodiumSelect value={rankForm.ano} onChange={e => { const ano = Number(e.target.value); setRankForm(prev => ({ ...prev, ano, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, ano); }}><option value={2026}>2026</option><option value={2027}>2027</option></PodiumSelect></div>
+                <div className="admin-field" style={{ margin: 0 }}><label>Semestre</label><PodiumSelect value={rankForm.semestre} onChange={e => { const semestre = Number(e.target.value); setRankForm(prev => ({ ...prev, semestre, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, rankForm.ano, semestre); }}><option value={1}>1º semestre</option><option value={2}>2º semestre</option></PodiumSelect></div>
               </div>
             </div>
 
@@ -1750,7 +1813,7 @@ export default function Admin() {
             <div className="rank-entries-header">
               <span style={{ textAlign: 'center' }}>#</span>
               <span>Atleta *</span>
-              <select className="rank-stage-select" value={rankEtapaAtual} onChange={e => setRankEtapaAtual(Number(e.target.value))} aria-label="Etapa para lançamento">{RANKING_ETAPAS.map((etapa, index) => <option key={etapa} value={index}>{etapa}</option>)}</select>
+              <PodiumSelect className="rank-stage-select" value={rankEtapaAtual} onChange={e => setRankEtapaAtual(Number(e.target.value))} aria-label="Etapa para lançamento">{RANKING_ETAPAS.map((etapa, index) => <option key={etapa} value={index}>{etapa}</option>)}</PodiumSelect>
               <span style={{ textAlign: 'center' }}>Total</span>
               <span />
             </div>
@@ -1819,24 +1882,24 @@ export default function Admin() {
         </div>
         <div className="admin-field">
           <label>Cliente</label>
-          <select value={creditoModal || ''} onChange={e => setCreditoModal(e.target.value)}>
+          <PodiumSelect value={creditoModal || ''} onChange={e => setCreditoModal(e.target.value)}>
             {usuarios.map(u => <option key={u._id} value={u._id}>{u.nome} — Saldo: {fmtMoney(u.creditos)}</option>)}
-          </select>
+          </PodiumSelect>
         </div>
         <div className="admin-balance-box">
           <span>Saldo atual</span>
           <strong>{fmtMoney(usuarios.find(u => u._id === creditoModal)?.creditos)}</strong>
         </div>
         <div className="admin-grid-2">
-          <div className="admin-field" style={{ margin: 0 }}><label>Valor (R$)</label><input type="number" value={creditoForm.valor} onChange={e => setCreditoForm({ ...creditoForm, valor: e.target.value })} placeholder="0,00" step="0.01" /></div>
+          <div className="admin-field" style={{ margin: 0 }}><label>Valor (R$)</label><PodiumNumberInput min={0} step={0.01} prefix="R$" value={creditoForm.valor} onChange={e => setCreditoForm({ ...creditoForm, valor: e.target.value })} placeholder="0,00" aria-label="Valor do crédito" /></div>
           <div className="admin-field" style={{ margin: 0 }}>
             <label>Motivo</label>
-            <select value={creditoForm.motivo} onChange={e => setCreditoForm({ ...creditoForm, motivo: e.target.value })}>
+            <PodiumSelect value={creditoForm.motivo} onChange={e => setCreditoForm({ ...creditoForm, motivo: e.target.value })}>
               <option value="cancelamento">Cancelamento &lt; 24h</option>
               <option value="bonus">Bônus promocional</option>
               <option value="ajuste">Ajuste manual</option>
               <option value="estorno">Estorno</option>
-            </select>
+            </PodiumSelect>
           </div>
         </div>
         <div className="admin-field" style={{ marginBottom: 0 }}><label>Observação</label><input type="text" value={creditoForm.obs} onChange={e => setCreditoForm({ ...creditoForm, obs: e.target.value })} placeholder="Opcional..." /></div>
@@ -2054,13 +2117,13 @@ export default function Admin() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     <input type="text" placeholder="Buscar usuário ou quadra…" value={resSearch} onChange={e => { setResSearch(e.target.value); setResPage(1); }} />
                   </div>
-                  <select className="admin-filter-select" value={resStatus} onChange={e => { setResStatus(e.target.value); setResPage(1); }}>
+                  <PodiumSelect className="admin-filter-select" value={resStatus} onChange={e => { setResStatus(e.target.value); setResPage(1); }}>
                     <option value="todas">Todas</option>
                     <option value="confirmada">Confirmadas</option>
                     <option value="proximas">Próximas</option>
                     <option value="concluidas">Concluídas</option>
                     <option value="canceladas">Canceladas</option>
-                  </select>
+                  </PodiumSelect>
                 </div>
               </div>
               <div className="admin-table-wrap">
@@ -2233,19 +2296,19 @@ export default function Admin() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     <input type="text" placeholder="Buscar por nome…" value={usrSearch} onChange={e => { setUsrSearch(e.target.value); setUsrPage(1); }} />
                   </div>
-                  <select className="admin-filter-select" value={usrGenero} onChange={e => { setUsrGenero(e.target.value); setUsrPage(1); }}>
+                  <PodiumSelect className="admin-filter-select" value={usrGenero} onChange={e => { setUsrGenero(e.target.value); setUsrPage(1); }}>
                     <option value="todos">Todos gêneros</option>
                     <option value="masculino">♂ Masculino</option>
                     <option value="feminino">♀ Feminino</option>
                     <option value="nd">Não declarado</option>
-                  </select>
-                  <select className="admin-filter-select" value={usrStatus} onChange={e => { setUsrStatus(e.target.value); setUsrPage(1); }}>
+                  </PodiumSelect>
+                  <PodiumSelect className="admin-filter-select" value={usrStatus} onChange={e => { setUsrStatus(e.target.value); setUsrPage(1); }}>
                     <option value="todos">Todos status</option>
                     <option value="ativos">Ativos</option>
                     <option value="pendentes">Pendentes</option>
                     <option value="bloqueados">Bloqueados</option>
                     <option value="inativos">Inativos</option>
-                  </select>
+                  </PodiumSelect>
                   <button className="btn-admin-secondary" style={{ whiteSpace: 'nowrap', gap: '.4rem' }} title="Importar usuários de planilha Excel ou CSV" onClick={() => importUsersRef.current?.click()}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                     Importar Planilha
@@ -2375,12 +2438,12 @@ export default function Admin() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     <input type="text" placeholder="Buscar evento…" value={evtSearch} onChange={e => setEvtSearch(e.target.value)} />
                   </div>
-                  <select className="admin-filter-select" value={evtStatus} onChange={e => setEvtStatus(e.target.value)}>
+                  <PodiumSelect className="admin-filter-select" value={evtStatus} onChange={e => setEvtStatus(e.target.value)}>
                     <option value="todos">Todos</option>
                     <option value="aberto">Abertos</option>
                     <option value="breve">Em Breve</option>
                     <option value="encerrado">Encerrados</option>
-                  </select>
+                  </PodiumSelect>
                 </div>
               </div>
               <div style={{ padding: '1.2rem' }}>
@@ -2391,7 +2454,7 @@ export default function Admin() {
                     return (
                       <div key={ev._id} className="admin-event-card">
                         <div className="admin-event-banner" style={ev.imagem ? { backgroundImage: `url(${ev.imagem})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}>
-                          <span className="admin-event-cat">{ev.categoria}</span>
+                          <span className="admin-event-cat">{eventCategoryLabel(ev.categoria)}</span>
                           <span className={`badge ${STATUS_CLS[ev.status]}`}>{ev.status}</span>
                         </div>
                         <div className="admin-event-body">
@@ -2503,11 +2566,11 @@ export default function Admin() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     <input type="text" placeholder="Buscar cliente ou evento…" value={finSearch} onChange={e => { setFinSearch(e.target.value); setFinPage(1); }} />
                   </div>
-                  <select className="admin-filter-select" value={finTipo} onChange={e => { setFinTipo(e.target.value); setFinPage(1); }}>
+                  <PodiumSelect className="admin-filter-select" value={finTipo} onChange={e => { setFinTipo(e.target.value); setFinPage(1); }}>
                     <option value="todas">Todas</option>
                     <option value="reserva">Reservas</option>
                     <option value="evento">Eventos</option>
-                  </select>
+                  </PodiumSelect>
                 </div>
               </div>
               <div className="admin-table-wrap">
@@ -2645,13 +2708,13 @@ export default function Admin() {
                   </div>
                   <p className="admin-config-sub">Segunda a Sexta</p>
                   <div className="admin-config-row2">
-                    <div className="admin-field"><label>Abertura</label><input type="time" value={cfg.openWeek} onChange={e => updCfg('openWeek', e.target.value)} className="cfg-input" /></div>
-                    <div className="admin-field"><label>Fechamento</label><input type="time" value={cfg.closeWeek} onChange={e => updCfg('closeWeek', e.target.value)} className="cfg-input" /></div>
+                    <div className="admin-field"><label>Abertura</label><PodiumTimePicker value={cfg.openWeek} onChange={e => updCfg('openWeek', e.target.value)} className="cfg-input" step={30} label="Abertura em dias úteis" aria-label="Abertura em dias úteis" /></div>
+                    <div className="admin-field"><label>Fechamento</label><PodiumTimePicker value={cfg.closeWeek} onChange={e => updCfg('closeWeek', e.target.value)} className="cfg-input" step={30} label="Fechamento em dias úteis" aria-label="Fechamento em dias úteis" /></div>
                   </div>
                   <p className="admin-config-sub">Fim de Semana</p>
                   <div className="admin-config-row2">
-                    <div className="admin-field"><label>Abertura</label><input type="time" value={cfg.openWeekend} onChange={e => updCfg('openWeekend', e.target.value)} className="cfg-input" /></div>
-                    <div className="admin-field"><label>Fechamento</label><input type="time" value={cfg.closeWeekend} onChange={e => updCfg('closeWeekend', e.target.value)} className="cfg-input" /></div>
+                    <div className="admin-field"><label>Abertura</label><PodiumTimePicker value={cfg.openWeekend} onChange={e => updCfg('openWeekend', e.target.value)} className="cfg-input" step={30} label="Abertura no fim de semana" aria-label="Abertura no fim de semana" /></div>
+                    <div className="admin-field"><label>Fechamento</label><PodiumTimePicker value={cfg.closeWeekend} onChange={e => updCfg('closeWeekend', e.target.value)} className="cfg-input" step={30} label="Fechamento no fim de semana" aria-label="Fechamento no fim de semana" /></div>
                   </div>
                 </div>
                 <div className="admin-card admin-config-card">
@@ -2731,13 +2794,13 @@ export default function Admin() {
                   ].map(({ field, label }) => (
                     <div key={field} className="admin-field" style={{ marginBottom: 0 }}>
                       <label style={{ fontSize: '.72rem' }}>{label}</label>
-                      <select
+                      <PodiumSelect
                         value={importMapping[field] || ''}
                         onChange={e => setImportMapping(prev => ({ ...prev, [field]: e.target.value || undefined }))}
                       >
                         <option value="">— não importar —</option>
                         {importUsersData.headers.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
+                      </PodiumSelect>
                     </div>
                   ))}
                 </div>

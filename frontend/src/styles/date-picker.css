@@ -1,0 +1,321 @@
+/* Calendário global Podium. */
+.podium-date {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.podium-date-trigger {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: .68rem .9rem  .68rem 1rem;
+  border: 1px solid rgba(197, 160, 40, .23);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(25, 24, 20, .98), rgba(12, 12, 11, .98));
+  color: var(--white);
+  font: 600 .82rem var(--font-body);
+  letter-spacing: .035em;
+  text-align: left;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.podium-date-trigger:hover {
+  border-color: rgba(218, 163, 91, .58);
+}
+
+.podium-date-trigger:focus-visible,
+.podium-date.is-open .podium-date-trigger {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(207, 151, 78, .13);
+}
+
+.podium-date.is-disabled {
+  opacity: .5;
+}
+
+.podium-date.is-disabled .podium-date-trigger {
+  cursor: not-allowed;
+}
+
+.podium-date-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium-date-value.is-placeholder {
+  color: var(--gray);
+}
+
+.podium-date-trigger > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.podium-calendar {
+  position: fixed;
+  z-index: 12010;
+  overflow: auto;
+  padding: .75rem;
+  border: 1px solid rgba(207, 151, 78, .4);
+  border-radius: 12px;
+  background: rgba(14, 14, 13, .99);
+  color: var(--white);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .62), 0 0 0 1px rgba(255, 255, 255, .025) inset;
+  animation: podium-calendar-in .16s ease-out;
+}
+
+@keyframes podium-calendar-in {
+  from { opacity: 0; transform: translateY(-5px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.podium-calendar-head {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  gap: .35rem;
+  min-height: 38px;
+  margin-bottom: .55rem;
+}
+
+.podium-calendar-nav {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--gray-light);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.podium-calendar-nav:hover:not(:disabled) {
+  border-color: rgba(207, 151, 78, .35);
+  background: rgba(207, 151, 78, .08);
+  color: var(--gold);
+}
+
+.podium-calendar-nav:disabled {
+  opacity: .25;
+  cursor: not-allowed;
+}
+
+.podium-calendar-nav svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.podium-calendar-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .2rem;
+}
+
+.podium-calendar-title button {
+  padding: .4rem .45rem;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--white);
+  font: 700 .78rem var(--font-body);
+  letter-spacing: .035em;
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+
+.podium-calendar-title button:hover,
+.podium-calendar-title button.active {
+  background: rgba(207, 151, 78, .1);
+  color: var(--gold);
+}
+
+.podium-calendar-weekdays,
+.podium-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.podium-calendar-weekdays {
+  margin-bottom: .3rem;
+}
+
+.podium-calendar-weekdays span {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  color: #777670;
+  font: 700 .6rem var(--font-body);
+  letter-spacing: .08em;
+}
+
+.podium-calendar-days button {
+  aspect-ratio: 1;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #cfcec9;
+  font: 650 .72rem var(--font-body);
+  outline: none;
+  cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+
+.podium-calendar-days button:hover:not(:disabled),
+.podium-calendar-days button:focus-visible {
+  border-color: rgba(207, 151, 78, .38);
+  background: rgba(207, 151, 78, .09);
+  color: var(--white);
+}
+
+.podium-calendar-days button.is-outside {
+  color: #55544f;
+}
+
+.podium-calendar-days button.is-today {
+  border-color: rgba(207, 151, 78, .45);
+  color: var(--gold);
+}
+
+.podium-calendar-days button.is-selected {
+  border-color: var(--gold);
+  background: linear-gradient(145deg, #e2ad68, #b97835);
+  color: #100d09;
+  font-weight: 800;
+  box-shadow: 0 5px 14px rgba(185, 120, 53, .22);
+}
+
+.podium-calendar-days button:disabled {
+  color: #393936;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+.podium-calendar-months,
+.podium-calendar-years {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .45rem;
+  min-height: 224px;
+  align-content: center;
+}
+
+.podium-calendar-months button,
+.podium-calendar-years button {
+  min-height: 45px;
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .025);
+  color: #b8b7b2;
+  font: 700 .7rem var(--font-body);
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.podium-calendar-months button:hover:not(:disabled),
+.podium-calendar-years button:hover:not(:disabled),
+.podium-calendar-months button.is-current,
+.podium-calendar-years button.is-current {
+  border-color: rgba(207, 151, 78, .42);
+  background: rgba(207, 151, 78, .1);
+  color: var(--gold);
+}
+
+.podium-calendar-months button:disabled,
+.podium-calendar-years button:disabled {
+  opacity: .25;
+  cursor: not-allowed;
+}
+
+.podium-calendar-footer {
+  min-height: 38px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: .5rem;
+  padding: .55rem .25rem 0;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+}
+
+.podium-calendar-footer button {
+  padding: .25rem;
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  font: 700 .66rem var(--font-body);
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+
+.podium-calendar-footer button:hover:not(:disabled) {
+  color: #edbe82;
+}
+
+.podium-calendar-footer button:disabled {
+  opacity: .25;
+  cursor: not-allowed;
+}
+
+body.admin-page.theme-light .podium-date-trigger {
+  background: linear-gradient(145deg, #fff, #f7f7f5);
+  color: #1d1d1a;
+}
+
+body.admin-page.theme-light .podium-calendar {
+  border-color: rgba(160, 111, 45, .35);
+  background: rgba(255, 255, 253, .995);
+  color: #1d1d1a;
+  box-shadow: 0 22px 55px rgba(33, 27, 18, .18);
+}
+
+body.admin-page.theme-light .podium-calendar-title button,
+body.admin-page.theme-light .podium-calendar-days button {
+  color: #44423e;
+}
+
+body.admin-page.theme-light .podium-calendar-days button.is-outside {
+  color: #aaa79f;
+}
+
+body.admin-page.theme-light .podium-calendar-days button.is-selected {
+  color: #100d09;
+}
+
+@media (max-width: 480px) {
+  .podium-calendar {
+    padding: .65rem;
+  }
+  .podium-calendar-days button {
+    font-size: .7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .podium-calendar { animation: none; }
+}
