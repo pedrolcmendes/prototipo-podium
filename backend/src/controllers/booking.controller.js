@@ -69,7 +69,10 @@ const criar = async (req, res) => {
   if (!quadraId || !BOOKING_COURT_TYPES.has(resolvedQuadra)) return res.status(400).json({ message: 'Informe uma quadra válida' });
   if (!isDayUse && normalizedSlots.length === 0) return res.status(400).json({ message: 'Selecione pelo menos um horário' });
   if (!Number.isFinite(numericTotal) || numericTotal < 0) return res.status(400).json({ message: 'Valor da reserva inválido' });
-  if (req.user.admin && (!bodyUserId || !mongoose.isValidObjectId(bodyUserId))) {
+  // No fluxo público, inclusive um administrador reserva para a própria conta
+  // sem enviar userId. O campo só é obrigatório/validado quando o painel interno
+  // escolhe explicitamente outro cliente.
+  if (bodyUserId !== undefined && (!req.user.admin || !mongoose.isValidObjectId(bodyUserId))) {
     return res.status(400).json({ message: 'Selecione um cliente válido' });
   }
 
