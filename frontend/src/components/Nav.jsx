@@ -16,6 +16,7 @@ export default function Nav() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [ddOpen, setDdOpen] = useState(false);
   const pillRef = useRef(null);
+  const painelTab = new URLSearchParams(location.search).get('tab');
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -68,7 +69,9 @@ export default function Nav() {
     <>
       {/* MOBILE DRAWER */}
       <div
+        id="mobileMenu"
         className={`mobile-menu ${menuOpen ? 'open' : ''}`}
+        aria-hidden={!menuOpen}
         onClick={(e) => { if (e.target === e.currentTarget) setMenuOpen(false); }}
       >
         <div className="mm-user">
@@ -116,14 +119,19 @@ export default function Nav() {
           <div className="mm-account">
             {user ? (
               <>
-                <Link className={`mm-btn${location.pathname === '/painel' ? ' active' : ''}`} to="/painel" onClick={() => setMenuOpen(false)}>
+                <Link className={`mm-btn${location.pathname === '/painel' && painelTab !== 'reservas' ? ' active' : ''}`} to="/painel" onClick={() => setMenuOpen(false)}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   Meu Painel
                 </Link>
-                {user.admin && (
+                {user.admin ? (
                   <Link className={`mm-btn${location.pathname === '/admin' ? ' active' : ''}`} to="/admin" onClick={() => setMenuOpen(false)}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                     Admin
+                  </Link>
+                ) : (
+                  <Link className={`mm-btn${location.pathname === '/painel' && painelTab === 'reservas' ? ' active' : ''}`} to="/painel?tab=reservas" onClick={() => setMenuOpen(false)}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Minhas Reservas
                   </Link>
                 )}
               </>
@@ -145,7 +153,7 @@ export default function Nav() {
       </div>
 
       {/* NAV */}
-      <nav id="mainNav" className={scrolled ? 'scrolled' : ''}>
+      <nav id="mainNav" className={`${scrolled ? 'scrolled' : ''}${menuOpen ? ' menu-open' : ''}`}>
         <Link to="/" className="nav-logo">
           <img src="/img/logo.png" alt="Podium Arena" />
         </Link>
@@ -209,7 +217,13 @@ export default function Nav() {
         <button
           className={`mobile-toggle ${menuOpen ? 'open' : ''}`}
           id="menuToggle"
-          onClick={() => setMenuOpen(!menuOpen)}
+          aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+          aria-controls="mobileMenu"
+          aria-expanded={menuOpen}
+          onClick={() => {
+            setDdOpen(false);
+            setMenuOpen(open => !open);
+          }}
         >
           <span /><span /><span />
         </button>

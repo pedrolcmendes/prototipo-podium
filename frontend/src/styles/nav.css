@@ -58,6 +58,7 @@ nav#mainNav.scrolled {
 /* Nav direita */
 .nav-right {
   display:flex; align-items:center; gap:1.2rem;
+  transition:opacity .2s ease, visibility .2s ease;
 }
 
 /* ── Botão Login (deslogado) ── */
@@ -350,6 +351,11 @@ nav#mainNav.scrolled {
 @media(max-width:860px) {
   .nav-links, .nav-cta { display:none; }
   .mobile-toggle { display:flex; }
+  nav#mainNav.menu-open .nav-right {
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+  }
 }
 @media(max-width:640px) {
   .nav-logo img { height:56px; }

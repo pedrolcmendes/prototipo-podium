@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 import LogoutModal from '../components/LogoutModal';
@@ -10,6 +10,7 @@ import api from '../services/api';
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const PAINEL_TABS = new Set(['inicio', 'reservas', 'eventos', 'ranking', 'carteira', 'perfil']);
 
 const QUADRA_LABEL = {
   // IDs atuais
@@ -107,9 +108,11 @@ function NavItem({ id, label, icon, activeTab, onSelect }) {
 export default function Painel() {
   const { user, updateUser, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
 
-  const [tab, setTab] = useState('inicio');
+  const requestedTab = searchParams.get('tab');
+  const tab = PAINEL_TABS.has(requestedTab) ? requestedTab : 'inicio';
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reservaFilter, setReservaFilter] = useState('proximas');
@@ -268,7 +271,10 @@ export default function Painel() {
     }
   };
 
-  const handleNavSelect = (id) => { setTab(id); setSidebarOpen(false); };
+  const handleNavSelect = (id) => {
+    setSidebarOpen(false);
+    setSearchParams(id === 'inicio' ? {} : { tab: id }, { replace: true });
+  };
 
   return (
     <>
@@ -868,7 +874,7 @@ export default function Painel() {
           { id: 'ranking',  label: 'Ranking',   icon: <IcoBar /> },
           { id: 'perfil',   label: 'Perfil',    icon: <IcoUser /> },
         ].map(t => (
-          <button key={t.id} className={`painel-bottom-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
+          <button key={t.id} className={`painel-bottom-tab${tab === t.id ? ' active' : ''}`} onClick={() => handleNavSelect(t.id)}>
             {t.icon}
             <span>{t.label}</span>
           </button>
