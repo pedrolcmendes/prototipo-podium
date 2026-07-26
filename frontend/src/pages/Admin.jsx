@@ -12,6 +12,7 @@ import PodiumNumberInput from '../components/PodiumNumberInput';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
+import { rankByRelevance } from '../utils/search';
 
 // ── helpers ──────────────────────────────────────────────────
 const formatTel = (v) => {
@@ -44,12 +45,22 @@ const formatCnpj = (v) => {
 };
 const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const fmtMoney = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+const fmtCompactMoney = (value) => {
+  const number = Number(value || 0);
+  if (number >= 1000) return `R$ ${(number / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`;
+  return `R$ ${number.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+};
 const getInitials = (nome) => nome ? nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : '?';
 const STATUS_CLS = {
   confirmada: 'badge-green', pendente: 'badge-amber', cancelada: 'badge-red', concluida: 'badge-gray',
   ativo: 'badge-green', bloqueado: 'badge-red', inativo: 'badge-gray',
   aberto: 'badge-green', encerrado: 'badge-red', breve: 'badge-amber',
 };
+const STATUS_LABELS = {
+  confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada',
+  concluida: 'Concluída', ativo: 'Ativo', aberto: 'Aberto', encerrado: 'Encerrado',
+};
+const PAYMENT_LABELS = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro' };
 
 const QUADRAS_ALL = [
   { id: 'coberta-1', nome: 'Quadra 1' }, { id: 'coberta-2', nome: 'Quadra 2' },
@@ -184,10 +195,22 @@ function MiniBarChart({ data }) {
   if (!data?.length) return null;
   const max = Math.max(...data.map(d => d.value), 1);
   return (
-    <div className="mini-bar-chart">
-      {data.map((d, i) => (
-        <div key={i} className="mini-bar-wrap">
-          <div className="mini-bar" style={{ height: `${Math.max(4, Math.round((d.value / max) * 56))}px` }} title={fmtMoney(d.value)} />
+    <div className="mini-bar-chart" role="img" aria-label="Receita mensal dos últimos sete meses">
+      <div className="mini-chart-grid" aria-hidden="true">
+        <span /><span /><span />
+      </div>
+      {data.map((d, index) => (
+        <div
+          key={d.key || d.label}
+          className={`mini-bar-wrap${index === data.length - 1 ? ' is-current' : ''}${d.value <= 0 ? ' is-empty' : ''}`}
+          title={`${d.label}: ${fmtMoney(d.value)}`}
+        >
+          <div className="mini-bar-value">{fmtCompactMoney(d.value)}</div>
+          <div className="mini-bar-track">
+            <div className="mini-bar" style={{ height: `${d.value > 0 ? Math.max(8, Math.round((d.value / max) * 100)) : 3}%` }}>
+              <span />
+            </div>
+          </div>
           <div className="mini-bar-label">{d.label}</div>
         </div>
       ))}
@@ -520,8 +543,8 @@ function UserSearchInput({ nome, userId, placeholder, usuarios, onChange, genero
     ? usuarios.filter(u => u.genero === generoFilter)
     : usuarios;
 
-  const filtered = query.length >= 1
-    ? byGenero.filter(u => u.nome?.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+  const filtered = query.trim().length >= 1
+    ? rankByRelevance(byGenero, query, (u) => [u.nome, u.email]).slice(0, 6)
     : [];
 
   const handleSelect = (u) => {
@@ -693,6 +716,14 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const previousScrollBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 0);
+    root.style.scrollBehavior = previousScrollBehavior;
+  }, [tab]);
+
+  useEffect(() => {
     if (gateOpen) document.body.classList.add('gate-active');
     else document.body.classList.remove('gate-active');
   }, [gateOpen]);
@@ -790,22 +821,24 @@ export default function Admin() {
 
   // ── Revenue chart data (last 7 months) ──
   const chartData = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setMonth(d.getMonth() - (6 - i));
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (6 - i));
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const value = reservas.filter(r => r.date?.startsWith(key) && r.status !== 'cancelada').reduce((a, r) => a + Number(r.total || 0), 0);
-    return { label: d.toLocaleString('pt-BR', { month: 'short' }), value };
+    const reservasValue = reservas.filter(r => r.date?.startsWith(key) && r.status !== 'cancelada').reduce((a, r) => a + Number(r.total || 0), 0);
+    const eventosValue = inscricoes
+      .filter(i => i.status !== 'cancelada' && (i.createdAt || i.eventId?.data || '').startsWith(key))
+      .reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
+    return {
+      key,
+      label: d.toLocaleString('pt-BR', { month: 'short' }).replace('.', ''),
+      value: reservasValue + eventosValue,
+    };
   });
 
   // ── Filtered Reservas ──
-  const filteredRes = reservas.filter(r => {
-    const q = resSearch.toLowerCase();
-    const matchSearch = !q
-      || (r.userName || '').toLowerCase().includes(q)
-      || (r.quadraId || '').toLowerCase().includes(q)
-      || (r.seasonCode || '').toLowerCase().includes(q);
+  const filteredRes = rankByRelevance(reservas.filter(r => {
     const matchStatus = resStatus === 'todas' || r.status === resStatus || (resStatus === 'proximas' && r.date >= hoje && r.status !== 'cancelada') || (resStatus === 'concluidas' && r.date < hoje) || (resStatus === 'canceladas' && r.status === 'cancelada');
-    return matchSearch && matchStatus;
-  });
+    return matchStatus;
+  }), resSearch, (r) => [r.userName || r.userId?.nome, r.quadraId, r.seasonCode]);
   const groupedRes = [];
   const seasonGroups = new Map();
   filteredRes.forEach((booking) => {
@@ -848,19 +881,16 @@ export default function Admin() {
   const pagedRes = groupedRes.slice((resPage - 1) * PER_PAGE, resPage * PER_PAGE);
 
   // ── Filtered Usuários ──
-  const norm = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const filteredUsr = usuarios.filter(u => {
-    const q = norm(usrSearch.trim());
-    const matchSearch = !q || norm(u.nome).includes(q);
+  const filteredUsr = rankByRelevance(usuarios.filter(u => {
     const matchStatus = usrStatus === 'todos' || u.status === usrStatus || (usrStatus === 'ativos' && u.status === 'ativo') || (usrStatus === 'pendentes' && u.status === 'pendente') || (usrStatus === 'bloqueados' && u.status === 'bloqueado') || (usrStatus === 'inativos' && u.status === 'inativo');
     const matchGenero = usrGenero === 'todos' || (usrGenero === 'nd' ? (!u.genero || u.genero === '' || u.genero === 'nao_informar') : u.genero === usrGenero);
-    return matchSearch && matchStatus && matchGenero;
-  });
+    return matchStatus && matchGenero;
+  }), usrSearch, (u) => [u.nome, u.email]);
   const pagedUsr = filteredUsr.slice((usrPage - 1) * PER_PAGE, usrPage * PER_PAGE);
 
   // ── Transações unificadas (Financeiro): reservas + inscrições em eventos ──
   const receitaEventos = inscricoes.filter(i => i.status !== 'cancelada').reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
-  const receitaEventosMes = inscricoes.filter(i => i.status !== 'cancelada' && (i.createdAt || '').startsWith(mesAtual)).reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
+  const receitaEventosMes = inscricoes.filter(i => i.status !== 'cancelada' && (i.createdAt || i.eventId?.data || '').startsWith(mesAtual)).reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
   const transacoes = useMemo(() => {
     const res = reservas.map(r => ({
       id: r._id, tipo: 'reserva',
@@ -883,13 +913,23 @@ export default function Admin() {
     return [...res, ...insc].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
   }, [reservas, inscricoes]);
 
-  const filteredFin = transacoes.filter(t => {
-    const q = norm(finSearch.trim());
-    const matchSearch = !q || norm(t.nome).includes(q) || norm(t.detalhe).includes(q);
+  const filteredFin = rankByRelevance(transacoes.filter(t => {
     const matchTipo = finTipo === 'todas' || t.tipo === finTipo;
-    return matchSearch && matchTipo;
-  });
+    return matchTipo;
+  }), finSearch, (t) => [t.nome, t.detalhe]);
   const pagedFin = filteredFin.slice((finPage - 1) * PER_PAGE, finPage * PER_PAGE);
+  const receitaGeral = receitaTotal + receitaEventos;
+  const receitaAtual = receitaMes + receitaEventosMes;
+  const transacoesValidas = transacoes.filter(t => t.status !== 'cancelada');
+  const ticketMedio = transacoesValidas.length ? receitaGeral / transacoesValidas.length : 0;
+  const chartTotal = chartData.reduce((sum, month) => sum + month.value, 0);
+  const mesAnterior = chartData[chartData.length - 2]?.value || 0;
+  const variacaoMes = mesAnterior > 0
+    ? Math.round(((receitaAtual - mesAnterior) / mesAnterior) * 100)
+    : null;
+  const participacaoReservas = receitaGeral > 0 ? Math.round((receitaTotal / receitaGeral) * 100) : 0;
+  const participacaoEventos = receitaGeral > 0 ? 100 - participacaoReservas : 0;
+  const nomeMesAtual = new Date().toLocaleString('pt-BR', { month: 'long' });
 
   // Mapa _id → número de ordem de criação (000, 001, 002…)
   const usrIndexMap = useMemo(() => {
@@ -898,12 +938,10 @@ export default function Admin() {
   }, [usuarios]);
 
   // ── Filtered Eventos ──
-  const filteredEvt = eventos.filter(e => {
-    const q = evtSearch.toLowerCase();
-    const matchSearch = !q || (e.nome || '').toLowerCase().includes(q);
+  const filteredEvt = rankByRelevance(eventos.filter(e => {
     const matchStatus = evtStatus === 'todos' || e.status === evtStatus;
-    return matchSearch && matchStatus;
-  });
+    return matchStatus;
+  }), evtSearch, (e) => e.nome);
 
   // ── Actions ──
   const cancelarReserva = (id) => {
@@ -1090,7 +1128,10 @@ export default function Admin() {
 
   const handleLogout = () => { logout(); setGateOpen(true); };
 
-  const adminTab = (t) => { setTab(t); setSidebarOpen(false); };
+  const adminTab = (t) => {
+    setTab(t);
+    setSidebarOpen(false);
+  };
 
   const importFileRef = useRef(null);
 
@@ -2540,38 +2581,100 @@ export default function Admin() {
 
           {/* FINANCEIRO */}
           <section id="admin-financeiro" className={`admin-section${tab === 'financeiro' ? ' active' : ''}`}>
-            <div className="admin-section-header"><div><p className="admin-eyebrow">Relatório</p><h2 className="admin-section-h2">FINANCEIRO</h2></div></div>
-            <div className="admin-stats" style={{ marginBottom: '1.5rem' }}>
-              {[
-                { label: 'Receita Total', value: fmtMoney(receitaTotal + receitaEventos) },
-                { label: 'Receita Reservas', value: fmtMoney(receitaTotal) },
-                { label: 'Receita Eventos', value: fmtMoney(receitaEventos) },
-                { label: 'Mês Atual', value: fmtMoney(receitaMes + receitaEventosMes) },
-              ].map(({ label, value }) => (
-                <div key={label} className="admin-stat">
-                  <div className="admin-stat-value">{value}</div>
-                  <div className="admin-stat-label">{label}</div>
+            <div className="admin-section-header finance-section-heading">
+              <div>
+                <p className="admin-eyebrow">Visão financeira</p>
+                <h2 className="admin-section-h2">FINANCEIRO</h2>
+                <p className="finance-section-intro">Receitas de quadras e eventos em uma visão rápida e objetiva.</p>
+              </div>
+            </div>
+
+            <div className="finance-overview">
+              <article className="finance-total-card">
+                <div className="finance-card-kicker">
+                  <span className="finance-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  </span>
+                  Receita acumulada
                 </div>
-              ))}
-            </div>
-            <div className="admin-card" style={{ marginBottom: '1.5rem' }}>
-              <div className="admin-card-header"><h3>Receita — Últimos 7 Meses</h3></div>
-              <div style={{ padding: '.8rem 0' }}><MiniBarChart data={chartData} /></div>
-            </div>
-            <div className="admin-card">
-              <div className="admin-card-header">
-                <h3>Todas as Transações</h3>
-                <div className="admin-card-toolbar">
-                  <div className="admin-search">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                    <input type="text" placeholder="Buscar cliente ou evento…" value={finSearch} onChange={e => { setFinSearch(e.target.value); setFinPage(1); }} />
+                <strong className="finance-total-value">{fmtMoney(receitaGeral)}</strong>
+                <p className="finance-total-caption">Total confirmado de reservas e inscrições em eventos.</p>
+                <div className="finance-total-meta">
+                  <div><span>Transações válidas</span><strong>{transacoesValidas.length}</strong></div>
+                  <div><span>Ticket médio</span><strong>{fmtMoney(ticketMedio)}</strong></div>
+                </div>
+              </article>
+
+              <div className="finance-kpi-grid">
+                <article className="finance-kpi-card">
+                  <div className="finance-kpi-head">
+                    <span>Reservas</span>
+                    <small>{participacaoReservas}% do total</small>
                   </div>
-                  <PodiumSelect className="admin-filter-select" value={finTipo} onChange={e => { setFinTipo(e.target.value); setFinPage(1); }}>
-                    <option value="todas">Todas</option>
-                    <option value="reserva">Reservas</option>
-                    <option value="evento">Eventos</option>
-                  </PodiumSelect>
+                  <strong>{fmtMoney(receitaTotal)}</strong>
+                  <div className="finance-progress" aria-label={`${participacaoReservas}% da receita vem de reservas`}>
+                    <span style={{ width: `${participacaoReservas}%` }} />
+                  </div>
+                  <p>Locação de quadras e Day Use</p>
+                </article>
+                <article className="finance-kpi-card event">
+                  <div className="finance-kpi-head">
+                    <span>Eventos</span>
+                    <small>{participacaoEventos}% do total</small>
+                  </div>
+                  <strong>{fmtMoney(receitaEventos)}</strong>
+                  <div className="finance-progress" aria-label={`${participacaoEventos}% da receita vem de eventos`}>
+                    <span style={{ width: `${participacaoEventos}%` }} />
+                  </div>
+                  <p>Inscrições confirmadas</p>
+                </article>
+                <article className="finance-kpi-card current">
+                  <div className="finance-kpi-head">
+                    <span>{nomeMesAtual}</span>
+                    <small className={variacaoMes !== null && variacaoMes < 0 ? 'negative' : ''}>
+                      {variacaoMes === null ? 'Sem base no mês anterior' : `${variacaoMes >= 0 ? '+' : ''}${variacaoMes}% vs. mês anterior`}
+                    </small>
+                  </div>
+                  <strong>{fmtMoney(receitaAtual)}</strong>
+                  <div className="finance-month-line"><span>Reservas</span><b>{fmtMoney(receitaMes)}</b></div>
+                  <div className="finance-month-line"><span>Eventos</span><b>{fmtMoney(receitaEventosMes)}</b></div>
+                </article>
+              </div>
+            </div>
+
+            <div className="admin-card finance-chart-card">
+              <div className="admin-card-header">
+                <div>
+                  <h3>Evolução da Receita</h3>
+                  <p className="finance-card-subtitle">Reservas e eventos nos últimos sete meses</p>
                 </div>
+                <div className="finance-chart-total">
+                  <span>Total do período</span>
+                  <strong>{fmtMoney(chartTotal)}</strong>
+                </div>
+              </div>
+              <MiniBarChart data={chartData} />
+            </div>
+            <div className="admin-card finance-transactions-card">
+              <div className="admin-card-header finance-transactions-heading">
+                <div>
+                  <h3>Transações</h3>
+                  <p className="finance-card-subtitle">{filteredFin.length} movimentaç{filteredFin.length === 1 ? 'ão encontrada' : 'ões encontradas'}</p>
+                </div>
+              </div>
+              <div className="finance-toolbar">
+                <div className="admin-search finance-search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  <input type="text" placeholder="Buscar cliente, quadra ou evento…" value={finSearch} onChange={e => { setFinSearch(e.target.value); setFinPage(1); }} />
+                  {finSearch ? (
+                    <button type="button" className="finance-search-clear" onClick={() => { setFinSearch(''); setFinPage(1); }} aria-label="Limpar busca">×</button>
+                  ) : null}
+                </div>
+                <PodiumSelect className="admin-filter-select finance-type-filter" value={finTipo} onChange={e => { setFinTipo(e.target.value); setFinPage(1); }} aria-label="Filtrar por tipo de transação">
+                  <option value="todas">Todas as transações</option>
+                  <option value="reserva">Somente reservas</option>
+                  <option value="evento">Somente eventos</option>
+                </PodiumSelect>
               </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
@@ -2585,9 +2688,9 @@ export default function Admin() {
                         </td>
                         <td><span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Evento'}</span></td>
                         <td className="muted">{fmtDate(t.data)}</td>
-                        <td className="muted">{t.pagamento}</td>
-                        <td>{fmtMoney(t.valor)}</td>
-                        <td><span className={`badge ${STATUS_CLS[t.status] || 'badge-success'}`}>{t.status}</span></td>
+                        <td className="muted">{PAYMENT_LABELS[t.pagamento] || t.pagamento}</td>
+                        <td className="finance-table-value">{fmtMoney(t.valor)}</td>
+                        <td><span className={`badge ${STATUS_CLS[t.status] || 'badge-success'}`}>{STATUS_LABELS[t.status] || t.status}</span></td>
                       </tr>
                     ))}
                     {pagedFin.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Nenhuma transação encontrada</td></tr>}
@@ -2604,7 +2707,7 @@ export default function Admin() {
                         <div className="adm-res-card-name">{t.nome}</div>
                         <div className="adm-res-card-sub">{t.detalhe}</div>
                       </div>
-                      <span className={`badge ${STATUS_CLS[t.status] || 'badge-success'}`}>{t.status}</span>
+                      <span className={`badge ${STATUS_CLS[t.status] || 'badge-success'}`}>{STATUS_LABELS[t.status] || t.status}</span>
                     </div>
                     <div className="adm-res-card-info">
                       <span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Evento'}</span>
@@ -2615,7 +2718,7 @@ export default function Admin() {
                       {t.tipo === 'reserva' && (
                         <span className="adm-res-card-chip">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                          {t.pagamento}
+                          {PAYMENT_LABELS[t.pagamento] || t.pagamento}
                         </span>
                       )}
                       <span className="adm-res-card-chip gold">{fmtMoney(t.valor)}</span>

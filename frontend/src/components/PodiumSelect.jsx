@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { normalizeSearch, rankByRelevance } from '../utils/search';
 
 const SEARCH_THRESHOLD = 8;
 
@@ -78,23 +79,29 @@ export default function PodiumSelect({
   const selectedIndex = options.findIndex((option) => String(option.value) === String(selectedValue ?? ''));
   const selectedOption = options[selectedIndex];
   const showSearch = searchable ?? options.length >= SEARCH_THRESHOLD;
-  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
+  const normalizedQuery = normalizeSearch(query);
   const visibleOptions = normalizedQuery
-    ? options.filter((option) => option.label.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
+    ? rankByRelevance(options, normalizedQuery, (option) => {
+      const primaryLabel = option.label.split(/\s+[·|–—]\s+/)[0];
+      return [primaryLabel, option.label];
+    })
     : options;
 
   const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const viewportGap = 12;
-    const desiredHeight = Math.min(showSearch ? 340 : 292, window.innerHeight - viewportGap * 2);
+    const groupCount = new Set(visibleOptions.map((option) => option.group).filter(Boolean)).size;
+    const contentHeight = 10 + (visibleOptions.length * 40) + (groupCount * 24) + (showSearch ? 54 : 0);
+    const desiredHeight = Math.min(showSearch ? 340 : 292, contentHeight, window.innerHeight - viewportGap * 2);
     const roomBelow = window.innerHeight - rect.bottom - viewportGap;
     const roomAbove = rect.top - viewportGap;
-    const openAbove = roomBelow < Math.min(desiredHeight, 220) && roomAbove > roomBelow;
-    const maxHeight = Math.max(160, Math.min(desiredHeight, openAbove ? roomAbove : roomBelow));
+    const openAbove = roomBelow < Math.min(desiredHeight, 180) && roomAbove > roomBelow;
+    const availableRoom = Math.max(48, openAbove ? roomAbove : roomBelow);
+    const maxHeight = Math.min(desiredHeight, availableRoom);
     setMenuStyle({
       left: Math.max(viewportGap, Math.min(rect.left, window.innerWidth - rect.width - viewportGap)),
-      top: openAbove ? rect.top - Math.min(desiredHeight, maxHeight) - 6 : rect.bottom + 6,
+      top: openAbove ? rect.top - maxHeight - 6 : rect.bottom + 6,
       width: Math.max(rect.width, 190),
       maxHeight,
     });
@@ -185,7 +192,7 @@ export default function PodiumSelect({
       window.removeEventListener('resize', handleViewportChange);
       window.removeEventListener('scroll', handleViewportChange, true);
     };
-  }, [open, showSearch]);
+  }, [open, showSearch, visibleOptions.length]);
 
   useEffect(() => {
     if (!open || activeIndex < 0 || options[activeIndex]?.disabled) return;
