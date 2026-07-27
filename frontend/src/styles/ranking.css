@@ -5,9 +5,7 @@
 
 /* ─── Hero ─── */
 .ranking-hero {
-  background: linear-gradient(180deg, rgba(197,160,40,.06) 0%, transparent 100%);
-  border-bottom: 1px solid var(--border);
-  padding: calc(var(--nav-h) + 2.5rem) 2rem 2.5rem;
+  padding: 3rem 2rem 2rem;
 }
 .ranking-hero-inner {
   max-width: var(--max-w);
