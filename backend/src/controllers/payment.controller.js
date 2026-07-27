@@ -52,7 +52,7 @@ const criarPix = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   const nomeParts = (req.user.nome || 'Atleta Podium').split(' ');
 
   try {
@@ -111,7 +111,7 @@ const criarCartao = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
   try {
     const mpResult = await mpApi.create({
