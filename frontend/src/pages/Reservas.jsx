@@ -191,8 +191,14 @@ export default function Reservas() {
       }
       const res = await api.post('/bookings', payload);
       const booking = res.data.data || res.data;
-      setPendingBooking(booking);
-      setPagOpen(true);
+      if (booking.status === 'confirmada') {
+        // Admin: reserva já confirmada pelo backend, pula pagamento
+        setConfData(booking);
+        setConfOpen(true);
+      } else {
+        setPendingBooking(booking);
+        setPagOpen(true);
+      }
     } catch (ex) {
       toast(ex.response?.data?.message || 'Erro ao reservar', 'error');
     } finally {
@@ -596,7 +602,7 @@ export default function Reservas() {
                       ))}
                     </div>
                     <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '1px' }}>
-                      Ao confirmar, você terá <strong style={{ color: 'var(--gold)' }}>15 minutos</strong> para concluir o pagamento.
+                      Ao confirmar, você terá <strong style={{ color: 'var(--gold)' }}>10 minutos</strong> para concluir o pagamento.
                     </p>
                   </div>
 
@@ -690,7 +696,7 @@ export default function Reservas() {
           tipo="booking"
           referenciaId={pendingBooking._id}
           metodo={payMethod}
-          valor={totalPrice()}
+          valor={pendingBooking.total}
           onSuccess={handlePaymentSuccess}
           onClose={() => { setPagOpen(false); toast('Reserva cancelada — pagamento não realizado', 'error'); resetBooking(); }}
         />
