@@ -149,11 +149,11 @@ const criar = async (req, res) => {
     dayUse: isDayUse,
     payment,
     total: numericTotal,
-    status: isAdmin ? 'confirmada' : 'pendente_pagamento',
+    status: (isAdmin && payment === 'dinheiro') ? 'confirmada' : 'pendente_pagamento',
   });
 
-  // E-mail de confirmação só para reservas já confirmadas (admin)
-  if (isAdmin && settings?.notifEmailConfirm !== false) {
+  // E-mail de confirmação só para reservas pagas com dinheiro (presencial, admin)
+  if (isAdmin && payment === 'dinheiro' && settings?.notifEmailConfirm !== false) {
     User.findById(targetUserId).select('nome email')
       .then((u) => u && enviarEmailReservaConfirmada({ destinatario: u.email, nome: u.nome, reserva: booking }))
       .catch((e) => console.warn('Falha no e-mail de confirmação:', e.message));
