@@ -77,8 +77,9 @@
 }
 .ranking-filters { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:2rem; }
 .ranking-filters select { background:var(--card); color:var(--white); border:1px solid var(--border); padding:.65rem .8rem; font:700 .78rem var(--font-cond); letter-spacing:1px; text-transform:uppercase; }
-.ranking-summary { display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding:0 0 1rem; color:var(--gray); font-size:.85rem; }
+.ranking-summary { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding:0 0 1rem; color:var(--gray); font-size:.85rem; }
 .ranking-summary strong { color:var(--white); font-family:var(--font-cond); letter-spacing:1px; text-transform:uppercase; }
+.ranking-encerrado-badge { font-family:var(--font-cond); font-size:.58rem; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:var(--gray); border:1px solid var(--border); padding:.2rem .55rem; white-space:nowrap; margin-left:auto; }
 .ranking-table-scroll { overflow-x:auto; }
 .ranking-stages-table { min-width:520px; }
 
