@@ -349,8 +349,14 @@ export function SeasonDetailsModal({ season, onClose, onChanged, toast }) {
   const cancelSeason = async () => {
     setLoading(true);
     try {
-      await api.patch(`/seasons/${season._id}/cancel`);
-      toast('Temporada inteira cancelada', 'success');
+      const { data } = await api.patch(`/seasons/${season._id}/cancel`);
+      const credit = Number(data.creditosEstornados || 0);
+      toast(
+        credit > 0
+          ? `Temporada cancelada. ${money(credit)} creditados ao cliente.`
+          : 'Temporada inteira cancelada',
+        'success',
+      );
       onChanged();
       onClose();
     } catch (error) {
