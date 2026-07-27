@@ -7,6 +7,7 @@ import AuthModal from '../components/AuthModal';
 import Footer from '../components/Footer';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
+import PagamentoModal from '../components/PagamentoModal';
 import {
   BOOKING_COURTS,
   PICKLEBALL_DAY_USE_PRICE,
@@ -104,9 +105,10 @@ export default function Reservas() {
   const [dayUse, setDayUse] = useState(false);
 
   const [payMethod, setPayMethod] = useState(null);
-  const [cardData, setCardData] = useState({ numero: '', validade: '', cvv: '', nome: '' });
   const [loading, setLoading] = useState(false);
 
+  const [pagOpen, setPagOpen] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState(null);
   const [confOpen, setConfOpen] = useState(false);
   const [confData, setConfData] = useState(null);
   const { settings } = useSettings();
@@ -188,8 +190,9 @@ export default function Reservas() {
         payload.date = selectedDate;
       }
       const res = await api.post('/bookings', payload);
-      setConfData(res.data.data || res.data);
-      setConfOpen(true);
+      const booking = res.data.data || res.data;
+      setPendingBooking(booking);
+      setPagOpen(true);
     } catch (ex) {
       toast(ex.response?.data?.message || 'Erro ao reservar', 'error');
     } finally {
@@ -197,10 +200,16 @@ export default function Reservas() {
     }
   };
 
+  const handlePaymentSuccess = () => {
+    setPagOpen(false);
+    setConfData(pendingBooking);
+    setConfOpen(true);
+  };
+
   const resetBooking = () => {
     setStep(1); setModalidade(null); setQuadra(null);
     setSelectedDate(null); setSelectedSlots([]); setDayUse(false);
-    setPayMethod(null); setConfOpen(false);
+    setPayMethod(null); setConfOpen(false); setPagOpen(false); setPendingBooking(null);
   };
 
   const goToStep3 = (isDayUse = false) => {
@@ -577,9 +586,8 @@ export default function Reservas() {
                     <div className="bk-pay-methods">
                       {[
                         { id: 'pix', label: 'PIX', sub: 'Aprovação imediata', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/><path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/></svg> },
-                        { id: 'credito', label: 'Crédito', sub: 'Até 3x sem juros', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="9" y2="15"/></svg> },
-                        { id: 'debito', label: 'Débito', sub: 'Aprovação na hora', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg> },
-                        { id: 'dinheiro', label: 'Dinheiro', sub: 'Pague na chegada', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 12h.01M18 12h.01"/></svg> },
+                        { id: 'credito', label: 'Cartão de Crédito', sub: '1x sem juros', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="9" y2="15"/></svg> },
+                        { id: 'debito', label: 'Cartão de Débito', sub: 'Aprovação na hora', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg> },
                       ].map(m => (
                         <div key={m.id} className={`bk-pay-method${payMethod === m.id ? ' active' : ''}`} onClick={() => setPayMethod(m.id)}>
                           <span className="bk-pay-icon">{m.icon}</span>
@@ -587,25 +595,9 @@ export default function Reservas() {
                         </div>
                       ))}
                     </div>
-
-                    {payMethod === 'pix' && (
-                      <div className="bk-pix-block">
-                        <div className="bk-pix-qr">QR Code PIX</div>
-                        <div className="bk-pix-key">Chave PIX: <strong>podiumarena@pix.com.br</strong></div>
-                        <p className="bk-pix-note">Após o pagamento, envie o comprovante via WhatsApp para confirmar.</p>
-                      </div>
-                    )}
-
-                    {(payMethod === 'credito' || payMethod === 'debito') && (
-                      <div className="bk-card-form">
-                        <div className="bk-field"><label>Número do cartão</label><input type="tel" placeholder="0000 0000 0000 0000" maxLength={19} value={cardData.numero} onChange={e => setCardData({...cardData, numero: e.target.value})} /></div>
-                        <div className="bk-field-row">
-                          <div className="bk-field"><label>Validade</label><input type="tel" placeholder="MM/AA" maxLength={5} value={cardData.validade} onChange={e => setCardData({...cardData, validade: e.target.value})} /></div>
-                          <div className="bk-field"><label>CVV</label><input type="tel" placeholder="123" maxLength={4} value={cardData.cvv} onChange={e => setCardData({...cardData, cvv: e.target.value})} /></div>
-                        </div>
-                        <div className="bk-field"><label>Nome no cartão</label><input type="text" placeholder="Como aparece no cartão" value={cardData.nome} onChange={e => setCardData({...cardData, nome: e.target.value})} /></div>
-                      </div>
-                    )}
+                    <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '1px' }}>
+                      Ao confirmar, você terá <strong style={{ color: 'var(--gold)' }}>15 minutos</strong> para concluir o pagamento.
+                    </p>
                   </div>
 
                   <div className="bk-sidebar">
@@ -691,6 +683,17 @@ export default function Reservas() {
             </div>
           </div>
         </div>
+      )}
+
+      {pagOpen && pendingBooking && (
+        <PagamentoModal
+          tipo="booking"
+          referenciaId={pendingBooking._id}
+          metodo={payMethod}
+          valor={totalPrice()}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => { setPagOpen(false); toast('Reserva cancelada — pagamento não realizado', 'error'); resetBooking(); }}
+        />
       )}
 
       {authOpen && <AuthModal initialTab="login" onClose={() => setAuthOpen(false)} />}
