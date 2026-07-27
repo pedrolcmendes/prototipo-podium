@@ -727,6 +727,7 @@ export default function Admin() {
   const [gateOpen, setGateOpen] = useState(!user?.admin);
 
   // Data
+  const sortRes = (arr) => [...arr].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const [usuarios, setUsuarios] = useState([]);
   const [reservas, setReservas] = useState([]);
   const [temporadas, setTemporadas] = useState([]);
@@ -910,7 +911,7 @@ export default function Admin() {
         api.get('/seasons'),
       ]);
       setUsuarios(u.data);
-      setReservas(b.data);
+      setReservas(sortRes(b.data));
       setEventos(e.data);
       setCfg(prev => ({ ...prev, ...cfg.data }));
       setTemporadas(s.data);
@@ -942,7 +943,7 @@ export default function Admin() {
   useLive(['bookings', 'users', 'events', 'registrations', 'ranking', 'seasons'], (topic) => {
     if (gateOpen || !user?.admin) return;
     if (topic === 'bookings') {
-      api.get('/bookings').then(r => setReservas(r.data)).catch(() => {});
+      api.get('/bookings').then(r => setReservas(sortRes(r.data))).catch(() => {});
     } else if (topic === 'users') {
       api.get('/users').then(r => setUsuarios(r.data)).catch(() => {});
     } else if (topic === 'events') {
@@ -1309,7 +1310,7 @@ export default function Admin() {
       api.get('/bookings'),
     ]);
     setTemporadas(seasonResponse.data);
-    setReservas(bookingResponse.data);
+    setReservas(sortRes(bookingResponse.data));
   };
 
   const abrirTemporadaDaReserva = (group) => {
@@ -1550,7 +1551,7 @@ export default function Admin() {
         const { data } = await api.post('/bookings/importar', lista);
         toast(`${data.importados} agendamento(s) importado(s) com sucesso.`);
         const res = await api.get('/bookings');
-        setReservas(res.data);
+        setReservas(sortRes(res.data));
       } catch (e) {
         toast(e.response?.data?.message || 'Erro ao importar arquivo.', 'error');
       }
