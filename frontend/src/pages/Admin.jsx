@@ -19,6 +19,14 @@ import {
   getBookingPrice,
   isWeekendDate,
 } from '../utils/booking';
+import {
+  calculateFinancialSummary,
+  calendarMonthRange,
+  calendarYearRange,
+  isPaidFinancialTransaction,
+  isTransactionWithinPeriod,
+  lastTwelveMonthsRange,
+} from '../utils/finance';
 import { rankByRelevance } from '../utils/search';
 
 // ── helpers ──────────────────────────────────────────────────
@@ -59,7 +67,24 @@ const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
 const localDateIso = (date = new Date()) => (
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 );
-const fmtMoney = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+const configuredHoursForDate = (settings, dateStr) => {
+  const weekend = isWeekendDate(dateStr);
+  const open = hourOf(weekend ? settings.openWeekend : settings.openWeek, 6);
+  const close = hourOf(weekend ? settings.closeWeekend : settings.closeWeek, weekend ? 22 : 23);
+  return buildBookingHours(open, close);
+};
+const bookingStatus = (booking, now = new Date()) => {
+  if (booking?.status === 'cancelada' || booking?.status === 'concluida') return booking.status;
+  const today = localDateIso(now);
+  if (booking?.date < today) return 'concluida';
+  if (booking?.date !== today || booking?.dayUse) return 'confirmada';
+  const slots = (booking.slots || []).map(Number).filter(Number.isFinite);
+  return slots.length && Math.max(...slots) + 1 <= now.getHours() ? 'concluida' : 'confirmada';
+};
+const fmtMoney = (v) => `R$ ${Number(v || 0).toLocaleString('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})}`;
 const fmtCompactMoney = (value) => {
   const number = Number(value || 0);
   if (number >= 1000) return `R$ ${(number / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`;
@@ -92,7 +117,6 @@ const NEW_BOOKING_FORM = {
   slots: [],
   payment: 'pix',
 };
-const HOURS = [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
 const MOD_COLOR = { 'beach-tennis': '#e0ac6b', 'futevolei': '#60a5fa', 'volei': '#34d399', 'pickleball': '#f472b6' };
 
 // ── Grade de Ocupação constants ───────────────────────────────
@@ -215,45 +239,89 @@ function MiniBarChart({ data }) {
   if (!data?.length) return null;
   const max = Math.max(...data.map(d => d.value), 1);
   return (
-    <div className="mini-bar-chart" role="img" aria-label="Receita mensal dos últimos sete meses">
-      <div className="mini-chart-grid" aria-hidden="true">
-        <span /><span /><span />
-      </div>
-      {data.map((d, index) => (
-        <div
-          key={d.key || d.label}
-          className={`mini-bar-wrap${index === data.length - 1 ? ' is-current' : ''}${d.value <= 0 ? ' is-empty' : ''}`}
-          title={`${d.label}: ${fmtMoney(d.value)}`}
-        >
-          <div className="mini-bar-value">{fmtCompactMoney(d.value)}</div>
-          <div className="mini-bar-track">
-            <div className="mini-bar" style={{ height: `${d.value > 0 ? Math.max(8, Math.round((d.value / max) * 100)) : 3}%` }}>
-              <span />
-            </div>
-          </div>
-          <div className="mini-bar-label">{d.label}</div>
+    <div className="mini-bar-chart-scroll">
+      <div
+        className="mini-bar-chart"
+        role="img"
+        aria-label="Receita mensal do período"
+        style={{ '--bar-count': data.length, minWidth: data.length > 7 ? `${data.length * 64}px` : undefined }}
+      >
+        <div className="mini-chart-grid" aria-hidden="true">
+          <span /><span /><span />
         </div>
-      ))}
+        {data.map((d) => (
+          <div
+            key={d.key || d.label}
+            className={`mini-bar-wrap${d.isCurrent ? ' is-current' : ''}${d.value <= 0 ? ' is-empty' : ''}`}
+            title={`${d.label}: ${fmtMoney(d.value)}`}
+          >
+            <div className="mini-bar-value">{fmtCompactMoney(d.value)}</div>
+            <div className="mini-bar-track">
+              <div className="mini-bar" style={{ height: `${d.value > 0 ? Math.max(8, Math.round((d.value / max) * 100)) : 3}%` }}>
+                <span />
+              </div>
+            </div>
+            <div className="mini-bar-label">{d.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 // ── GradeOcupacao ─────────────────────────────────────────────
-function GradeOcupacao({ reservas, toast }) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  // Grade cobre toda a janela de funcionamento configurada (semana ∪ fim de semana)
+function monthlyFinancialData(transactions, start, end, currentMonthKey) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '') || !/^\d{4}-\d{2}-\d{2}$/.test(end || '') || start > end) {
+    return [];
+  }
+
+  const cursor = new Date(`${start.slice(0, 7)}-01T12:00:00`);
+  const lastMonth = new Date(`${end.slice(0, 7)}-01T12:00:00`);
+  const spansYears = cursor.getFullYear() !== lastMonth.getFullYear();
+  const result = [];
+
+  while (cursor <= lastMonth && result.length < 120) {
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+    const monthRange = calendarMonthRange(`${key}-01`);
+    const rangeStart = monthRange.start < start ? start : monthRange.start;
+    const rangeEnd = monthRange.end > end ? end : monthRange.end;
+    const summary = calculateFinancialSummary(transactions, rangeStart, rangeEnd);
+    const monthLabel = cursor.toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
+
+    result.push({
+      key,
+      label: spansYears ? `${monthLabel}/${String(cursor.getFullYear()).slice(-2)}` : monthLabel,
+      value: summary.total,
+      isCurrent: key === currentMonthKey,
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return result;
+}
+
+function GradeOcupacao({ reservas, toast, now }) {
+  const todayStr = localDateIso(now);
+  const nowHour = now.getHours();
   const { settings } = useSettings();
-  const gradeHours = useMemo(() => {
-    const open = Math.min(hourOf(settings.openWeek, 7), hourOf(settings.openWeekend, 7));
-    const close = Math.max(hourOf(settings.closeWeek, 23), hourOf(settings.closeWeekend, 22));
-    return Array.from({ length: Math.max(close - open, 1) }, (_, i) => open + i);
-  }, [settings]);
   const [view, setView] = useState('dia');
   const [navDate, setNavDate] = useState(todayStr);
+  const previousTodayRef = useRef(todayStr);
+  const gradeHours = useMemo(
+    () => configuredHoursForDate(settings, navDate),
+    [settings, navDate],
+  );
   const [blockedSlots, setBlockedSlots] = useState([]);
   const [tooltip, setTooltip] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const tipTimer = useRef(null); // auto-esconde o tooltip aberto por toque
+
+  useEffect(() => {
+    if (navDate === previousTodayRef.current && todayStr !== previousTodayRef.current) {
+      setNavDate(todayStr);
+    }
+    previousTodayRef.current = todayStr;
+  }, [navDate, todayStr]);
 
   useEffect(() => {
     api.get('/blocked-slots').then(r => setBlockedSlots(r.data)).catch(() => {});
@@ -276,7 +344,6 @@ function GradeOcupacao({ reservas, toast }) {
       if (dateStr < todayStr) status = 'concluida';
       else if (dateStr > todayStr) status = 'confirmada';
       else {
-        const nowHour = new Date().getHours();
         status = hour < nowHour ? 'concluida' : hour === nowHour ? 'andamento' : 'confirmada';
       }
       return { status, booking, dayUsers: booking.dayUse ? matches.filter(m => m.dayUse).length : 0 };
@@ -389,11 +456,12 @@ function GradeOcupacao({ reservas, toast }) {
   );
 
   const heatCell = (court, d) => {
-    const booked = gradeHours.filter(h => {
+    const dayHours = configuredHoursForDate(settings, d);
+    const booked = dayHours.filter(h => {
       const { status } = getCellStatus(court.id, d, h);
       return status !== 'livre' && status !== 'bloqueado';
     }).length;
-    const pct = Math.round((booked / gradeHours.length) * 100);
+    const pct = dayHours.length ? Math.round((booked / dayHours.length) * 100) : 0;
     const op = (pct / 100 * 0.55 + 0.04).toFixed(2);
     return (
       <div
@@ -443,12 +511,14 @@ function GradeOcupacao({ reservas, toast }) {
     for (let i = 0; i < firstDow; i++) cells.push(<div key={`e${i}`} className="grade-month-cell empty" />);
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayHours = configuredHoursForDate(settings, dateStr);
       const booked = COURTS_GRADE.reduce((sum, court) =>
-        sum + gradeHours.filter(h => {
+        sum + dayHours.filter(h => {
           const { status } = getCellStatus(court.id, dateStr, h);
           return status !== 'livre' && status !== 'bloqueado';
         }).length, 0);
-      const pct = Math.round((booked / (COURTS_GRADE.length * gradeHours.length)) * 100);
+      const capacity = COURTS_GRADE.length * dayHours.length;
+      const pct = capacity ? Math.round((booked / capacity) * 100) : 0;
       cells.push(
         <div key={dateStr} className={`grade-month-cell${dateStr === todayStr ? ' is-today' : ''}`} onClick={() => { setView('dia'); setNavDate(dateStr); }}>
           <span className="gm-num">{day}</span>
@@ -685,8 +755,12 @@ export default function Admin() {
   const [finSearch, setFinSearch] = useState('');
   const [finTipo, setFinTipo] = useState('todas');
   const [finPage, setFinPage] = useState(1);
+  const [finPeriodMode, setFinPeriodMode] = useState('year');
+  const [finPeriod, setFinPeriod] = useState(() => calendarYearRange(localDateIso()));
+  const [finPeriodOpen, setFinPeriodOpen] = useState(false);
 
-  const today = localDateIso();
+  const [now, setNow] = useState(() => new Date());
+  const today = localDateIso(now);
 
   // Modals
   const [viewUser, setViewUser] = useState(null);
@@ -806,6 +880,24 @@ export default function Admin() {
     setRankings(results);
   };
 
+  const fetchAllRegistrations = useCallback(async (eventList = []) => {
+    try {
+      const response = await api.get('/registrations');
+      return response.data;
+    } catch {
+      // Compatibilidade durante a publicação: o backend antigo só lista por evento.
+      const all = await Promise.all(
+        eventList.map(event => api.get(`/registrations/evento/${event._id}`).then(response => response.data).catch(() => [])),
+      );
+      return all.flat();
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const loadData = useCallback(async () => {
     if (!user?.admin) return;
     setLoading(true);
@@ -822,12 +914,11 @@ export default function Admin() {
       setEventos(e.data);
       setCfg(prev => ({ ...prev, ...cfg.data }));
       setTemporadas(s.data);
-      const allInsc = await Promise.all(e.data.map(ev => api.get(`/registrations/evento/${ev._id}`).then(r => r.data).catch(() => [])));
-      setInscricoes(allInsc.flat());
+      setInscricoes(await fetchAllRegistrations(e.data));
       await loadRankings();
     } catch { toast('Erro ao carregar dados', 'error'); }
     finally { setLoading(false); }
-  }, [user]);
+  }, [user, fetchAllRegistrations]);
 
   const saveConfig = async () => {
     setCfgSaving(true);
@@ -848,10 +939,6 @@ export default function Admin() {
   useEffect(() => { if (!gateOpen) loadData(); }, [gateOpen]);
 
   // ── Tempo real: refaz só o fetch do que mudou, sem recarregar a página ──
-  const reloadInscricoes = (evts) => Promise.all(
-    evts.map(ev => api.get(`/registrations/evento/${ev._id}`).then(r => r.data).catch(() => []))
-  ).then(all => setInscricoes(all.flat()));
-
   useLive(['bookings', 'users', 'events', 'registrations', 'ranking', 'seasons'], (topic) => {
     if (gateOpen || !user?.admin) return;
     if (topic === 'bookings') {
@@ -859,9 +946,19 @@ export default function Admin() {
     } else if (topic === 'users') {
       api.get('/users').then(r => setUsuarios(r.data)).catch(() => {});
     } else if (topic === 'events') {
-      api.get('/events').then(r => { setEventos(r.data); reloadInscricoes(r.data); }).catch(() => {});
+      api.get('/events')
+        .then(async (eventsResponse) => {
+          setEventos(eventsResponse.data);
+          setInscricoes(await fetchAllRegistrations(eventsResponse.data));
+        })
+        .catch(() => {});
     } else if (topic === 'registrations') {
-      api.get('/events').then(r => { setEventos(r.data); reloadInscricoes(r.data); }).catch(() => {}); // vagasRestantes muda junto
+      api.get('/events')
+        .then(async (eventsResponse) => {
+          setEventos(eventsResponse.data);
+          setInscricoes(await fetchAllRegistrations(eventsResponse.data));
+        })
+        .catch(() => {}); // vagasRestantes muda junto
     } else if (topic === 'seasons') {
       api.get('/seasons').then(r => setTemporadas(r.data)).catch(() => {});
     } else if (topic === 'ranking') {
@@ -873,32 +970,28 @@ export default function Admin() {
   const hoje = today;
   const mesAtual = hoje.slice(0, 7);
   const reservasHoje = reservas.filter(r => r.date === hoje && r.status !== 'cancelada');
-  const reservasMes = reservas.filter(r => r.date?.startsWith(mesAtual) && r.status !== 'cancelada');
-  const receitaMes = reservasMes.reduce((a, r) => a + Number(r.total || 0), 0);
-  const receitaTotal = reservas.filter(r => r.status !== 'cancelada').reduce((a, r) => a + Number(r.total || 0), 0);
   const usuariosAtivos = usuarios.filter(u => u.status === 'ativo').length;
-  const totalSlots = QUADRAS_ALL.length * HOURS.length;
-  const ocupados = reservasHoje.reduce((a, r) => a + (r.slots?.length || 0), 0);
-  const ocupacao = Math.round((ocupados / totalSlots) * 100);
-
-  // ── Revenue chart data (last 7 months) ──
-  const chartData = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (6 - i));
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const reservasValue = reservas.filter(r => r.date?.startsWith(key) && r.status !== 'cancelada').reduce((a, r) => a + Number(r.total || 0), 0);
-    const eventosValue = inscricoes
-      .filter(i => i.status !== 'cancelada' && (i.createdAt || i.eventId?.data || '').startsWith(key))
-      .reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
-    return {
-      key,
-      label: d.toLocaleString('pt-BR', { month: 'short' }).replace('.', ''),
-      value: reservasValue + eventosValue,
-    };
+  const operatingHoursToday = configuredHoursForDate(cfg, hoje);
+  const operatingHourSet = new Set(operatingHoursToday);
+  const occupiedCourtHours = new Set();
+  reservasHoje.forEach((booking) => {
+    const courtId = booking.quadraId || (booking.dayUse ? 'PKB-DU' : '');
+    if (!COURTS_GRADE.some((court) => court.id === courtId)) return;
+    if (booking.dayUse || courtId === 'PKB-DU') {
+      operatingHoursToday.forEach((hour) => occupiedCourtHours.add(`${courtId}:${hour}`));
+      return;
+    }
+    (booking.slots || []).map(Number).forEach((hour) => {
+      if (operatingHourSet.has(hour)) occupiedCourtHours.add(`${courtId}:${hour}`);
+    });
   });
+  const totalSlots = COURTS_GRADE.length * operatingHoursToday.length;
+  const ocupacao = totalSlots ? Math.round((occupiedCourtHours.size / totalSlots) * 100) : 0;
 
   // ── Filtered Reservas ──
-  const filteredRes = rankByRelevance(reservas.filter(r => {
-    const matchStatus = resStatus === 'todas' || r.status === resStatus || (resStatus === 'proximas' && r.date >= hoje && r.status !== 'cancelada') || (resStatus === 'concluidas' && r.date < hoje) || (resStatus === 'canceladas' && r.status === 'cancelada');
+  const reservasComStatus = reservas.map((reserva) => ({ ...reserva, status: bookingStatus(reserva, now) }));
+  const filteredRes = rankByRelevance(reservasComStatus.filter(r => {
+    const matchStatus = resStatus === 'todas' || r.status === resStatus;
     return matchStatus;
   }), resSearch, (r) => [r.userName || r.userId?.nome, r.quadraId, r.seasonCode]);
   const groupedRes = [];
@@ -951,8 +1044,6 @@ export default function Admin() {
   const pagedUsr = filteredUsr.slice((usrPage - 1) * PER_PAGE, usrPage * PER_PAGE);
 
   // ── Transações unificadas (Financeiro): reservas + inscrições em eventos ──
-  const receitaEventos = inscricoes.filter(i => i.status !== 'cancelada').reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
-  const receitaEventosMes = inscricoes.filter(i => i.status !== 'cancelada' && (i.createdAt || i.eventId?.data || '').startsWith(mesAtual)).reduce((a, i) => a + Number(i.preco ?? i.eventId?.preco ?? 0), 0);
   const transacoes = useMemo(() => {
     const res = reservas.map(r => ({
       id: r._id, tipo: 'reserva',
@@ -977,21 +1068,57 @@ export default function Admin() {
 
   const filteredFin = rankByRelevance(transacoes.filter(t => {
     const matchTipo = finTipo === 'todas' || t.tipo === finTipo;
-    return matchTipo;
+    return matchTipo
+      && isPaidFinancialTransaction(t)
+      && isTransactionWithinPeriod(t, finPeriod.start, finPeriod.end);
   }), finSearch, (t) => [t.nome, t.detalhe]);
   const pagedFin = filteredFin.slice((finPage - 1) * PER_PAGE, finPage * PER_PAGE);
-  const receitaGeral = receitaTotal + receitaEventos;
-  const receitaAtual = receitaMes + receitaEventosMes;
-  const transacoesValidas = transacoes.filter(t => t.status !== 'cancelada');
-  const ticketMedio = transacoesValidas.length ? receitaGeral / transacoesValidas.length : 0;
-  const chartTotal = chartData.reduce((sum, month) => sum + month.value, 0);
-  const mesAnterior = chartData[chartData.length - 2]?.value || 0;
+  const financialSummary = useMemo(
+    () => calculateFinancialSummary(transacoes, finPeriod.start, finPeriod.end),
+    [transacoes, finPeriod.start, finPeriod.end],
+  );
+  const currentMonthPeriod = useMemo(() => calendarMonthRange(today), [today]);
+  const currentMonthFinancialSummary = useMemo(
+    () => calculateFinancialSummary(transacoes, currentMonthPeriod.start, currentMonthPeriod.end),
+    [transacoes, currentMonthPeriod.start, currentMonthPeriod.end],
+  );
+  const receitaGeral = financialSummary.total;
+  const receitaAtual = currentMonthFinancialSummary.total;
+  const receitaReservasPeriodo = financialSummary.reservations;
+  const receitaEventosPeriodo = financialSummary.events;
+  const receitaReservasMes = currentMonthFinancialSummary.reservations;
+  const receitaEventosMes = currentMonthFinancialSummary.events;
+  const transacoesValidas = financialSummary.paidTransactions;
+  const ticketMedio = financialSummary.averageTicket;
+  const financeChartData = useMemo(
+    () => monthlyFinancialData(transacoes, finPeriod.start, finPeriod.end, mesAtual),
+    [transacoes, finPeriod.start, finPeriod.end, mesAtual],
+  );
+  const dashboardChartData = useMemo(() => {
+    const end = calendarMonthRange(today).end;
+    const startDate = new Date(`${today.slice(0, 7)}-01T12:00:00`);
+    startDate.setMonth(startDate.getMonth() - 6);
+    return monthlyFinancialData(transacoes, localDateIso(startDate).slice(0, 7) + '-01', end, mesAtual);
+  }, [transacoes, today, mesAtual]);
+  const previousMonthDate = useMemo(() => {
+    const date = new Date(`${today.slice(0, 7)}-01T12:00:00`);
+    date.setMonth(date.getMonth() - 1);
+    return localDateIso(date);
+  }, [today]);
+  const previousMonthRange = useMemo(() => calendarMonthRange(previousMonthDate), [previousMonthDate]);
+  const previousMonthSummary = useMemo(
+    () => calculateFinancialSummary(transacoes, previousMonthRange.start, previousMonthRange.end),
+    [transacoes, previousMonthRange.start, previousMonthRange.end],
+  );
+  const chartTotal = financeChartData.reduce((sum, month) => sum + month.value, 0);
+  const mesAnterior = previousMonthSummary.total;
   const variacaoMes = mesAnterior > 0
     ? Math.round(((receitaAtual - mesAnterior) / mesAnterior) * 100)
     : null;
-  const participacaoReservas = receitaGeral > 0 ? Math.round((receitaTotal / receitaGeral) * 100) : 0;
-  const participacaoEventos = receitaGeral > 0 ? 100 - participacaoReservas : 0;
+  const participacaoReservas = financialSummary.reservationShare;
+  const participacaoEventos = financialSummary.eventShare;
   const nomeMesAtual = new Date().toLocaleString('pt-BR', { month: 'long' });
+  const financePeriodLabel = `${fmtDate(finPeriod.start)} a ${fmtDate(finPeriod.end)}`;
 
   // Mapa _id → número de ordem de criação (000, 001, 002…)
   const usrIndexMap = useMemo(() => {
@@ -1512,7 +1639,7 @@ export default function Admin() {
                     {uReservas.slice(0, 5).map(r => (
                       <div key={r._id} style={{ display: 'flex', justifyContent: 'space-between', padding: '.5rem .7rem', background: 'var(--dark)', fontSize: '.82rem' }}>
                         <span>{fmtDate(r.date)} · {quadraNome(r.quadraId)}</span>
-                        <span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span>
+                        <span className={`badge ${STATUS_CLS[r.status]}`}>{STATUS_LABELS[r.status] || r.status}</span>
                       </div>
                     ))}
                   </div>
@@ -1770,7 +1897,7 @@ export default function Admin() {
                   <div className="admin-table-name">{detalhesRes.userName}</div>
                   <div className="admin-table-sub">{detalhesRes.modalidade}</div>
                 </div>
-                <span className={`badge ${STATUS_CLS[detalhesRes.status]}`}>{detalhesRes.status}</span>
+                <span className={`badge ${STATUS_CLS[detalhesRes.status]}`}>{STATUS_LABELS[detalhesRes.status] || detalhesRes.status}</span>
               </div>
               <div className="admin-grid-2" style={{ marginBottom: '1.1rem' }}>
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Data</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{fmtDate(detalhesRes.date)}</div></div>
@@ -1802,7 +1929,6 @@ export default function Admin() {
               <label>Status</label>
               <PodiumSelect value={editResForm.status} onChange={e => setEditResForm({ ...editResForm, status: e.target.value })}>
                 <option value="confirmada">Confirmada</option>
-                <option value="pendente">Pendente</option>
                 <option value="concluida">Concluída</option>
                 <option value="cancelada">Cancelada</option>
               </PodiumSelect>
@@ -2082,7 +2208,7 @@ export default function Admin() {
         footer={<><button className="btn-admin-secondary" onClick={() => setCreditoModal(null)}>Cancelar</button><button className="btn-admin-primary" onClick={adicionarCredito}>Adicionar crédito</button></>}>
         <div className="admin-notice">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-          <p>Cancelamentos dentro de 24h viram crédito automático na carteira do cliente.</p>
+          <p>Reservas canceladas mantêm a receita e o valor vira crédito na carteira do cliente.</p>
         </div>
         <div className="admin-field">
           <label>Cliente</label>
@@ -2099,7 +2225,7 @@ export default function Admin() {
           <div className="admin-field" style={{ margin: 0 }}>
             <label>Motivo</label>
             <PodiumSelect value={creditoForm.motivo} onChange={e => setCreditoForm({ ...creditoForm, motivo: e.target.value })}>
-              <option value="cancelamento">Cancelamento &lt; 24h</option>
+              <option value="cancelamento">Crédito por cancelamento</option>
               <option value="bonus">Bônus promocional</option>
               <option value="ajuste">Ajuste manual</option>
               <option value="estorno">Estorno</option>
@@ -2211,7 +2337,7 @@ export default function Admin() {
 
             <div className="admin-stats">
               {[
-                { label: 'Receita do Mês', value: fmtMoney(receitaMes), icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, cls: '' },
+                { label: 'Receita do Mês', value: fmtMoney(receitaAtual), icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, cls: '' },
                 { label: 'Reservas Hoje', value: reservasHoje.length, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>, cls: 'icon-blue' },
                 { label: 'Taxa de Ocupação', value: `${ocupacao}%`, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>, cls: '' },
                 { label: 'Usuários Ativos', value: usuariosAtivos, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, cls: 'icon-green' },
@@ -2226,13 +2352,13 @@ export default function Admin() {
 
             {/* Grade de Ocupação */}
             <div className="admin-card grade-card" style={{ marginBottom: '1.5rem' }}>
-              <GradeOcupacao reservas={reservas} toast={toast} />
+              <GradeOcupacao reservas={reservas} toast={toast} now={now} />
             </div>
 
             <div className="dash-2col">
               <div className="admin-card">
                 <div className="admin-card-header"><h3>Receita — Últimos 7 Meses</h3></div>
-                <div style={{ padding: '.8rem 0' }}><MiniBarChart data={chartData} /></div>
+                <div style={{ padding: '.8rem 0' }}><MiniBarChart data={dashboardChartData} /></div>
               </div>
               <div className="admin-card">
                 <div className="admin-card-header"><h3>Ações Rápidas</h3></div>
@@ -2278,7 +2404,7 @@ export default function Admin() {
                       <div className="dash-list-title">{r.userName}</div>
                       <div className="dash-list-sub">{quadraNome(r.quadraId)} · {fmtDate(r.date)}</div>
                     </div>
-                    <span className={`badge ${STATUS_CLS[r.status]}`}>{r.status}</span>
+                    <span className={`badge ${STATUS_CLS[r.status]}`}>{STATUS_LABELS[r.status] || r.status}</span>
                   </div>
                 ))}
               </div>
@@ -2324,9 +2450,8 @@ export default function Admin() {
                   <PodiumSelect className="admin-filter-select" value={resStatus} onChange={e => { setResStatus(e.target.value); setResPage(1); }}>
                     <option value="todas">Todas</option>
                     <option value="confirmada">Confirmadas</option>
-                    <option value="proximas">Próximas</option>
-                    <option value="concluidas">Concluídas</option>
-                    <option value="canceladas">Canceladas</option>
+                    <option value="concluida">Concluídas</option>
+                    <option value="cancelada">Canceladas</option>
                   </PodiumSelect>
                 </div>
               </div>
@@ -2355,7 +2480,7 @@ export default function Admin() {
                         <td>{quadraNome(r.quadraId)}</td>
                         <td className="muted">{r.dayUse ? 'Day Use' : r.slots?.map(h => `${h}h`).join(', ')}</td>
                         <td>{fmtMoney(r.total)}</td>
-                        <td><span className={`badge ${STATUS_CLS[r.status]}`}>{r.isSeasonGroup ? (r.status === 'cancelada' ? 'temporada cancelada' : 'temporada ativa') : r.status}</span></td>
+                        <td><span className={`badge ${STATUS_CLS[r.status]}`}>{r.isSeasonGroup ? (r.status === 'cancelada' ? 'Temporada cancelada' : 'Temporada ativa') : (STATUS_LABELS[r.status] || r.status)}</span></td>
                         <td>
                           <div className="admin-row-actions">
                             <button className="admin-action-btn" title={r.isSeasonGroup ? 'Ver temporada' : 'Ver detalhes'} onClick={() => r.isSeasonGroup ? abrirTemporadaDaReserva(r) : setDetalhesRes(r)}>
@@ -2398,7 +2523,7 @@ export default function Admin() {
                             : `#${r._id?.slice(-6).toUpperCase()} · ${fmtDate(r.date)}`}
                         </div>
                       </div>
-                      <span className={`badge ${STATUS_CLS[r.status]}`}>{r.isSeasonGroup ? (r.status === 'cancelada' ? 'cancelada' : 'ativa') : r.status}</span>
+                      <span className={`badge ${STATUS_CLS[r.status]}`}>{r.isSeasonGroup ? (r.status === 'cancelada' ? 'Cancelada' : 'Ativa') : (STATUS_LABELS[r.status] || r.status)}</span>
                     </div>
                     <div className="adm-res-card-info">
                       <span className="adm-res-card-chip">
@@ -2704,8 +2829,8 @@ export default function Admin() {
                     {inscricoes.slice(0, 15).map(i => (
                       <tr key={i._id}>
                         <td><div className="admin-table-name">{i.userId?.nome || i.userName || '—'}</div></td>
-                        <td><div className="admin-table-name" style={{ fontSize: '.85rem' }}>{i.eventId?.nome || '—'}</div><div className="admin-table-sub">{fmtDate(i.eventId?.data)}</div></td>
-                        <td>{fmtMoney(i.eventId?.preco)}</td>
+                        <td><div className="admin-table-name" style={{ fontSize: '.85rem' }}>{i.eventId?.nome || i.eventNome || 'Evento removido'}</div><div className="admin-table-sub">{fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}</div></td>
+                        <td>{fmtMoney(i.preco ?? i.eventId?.preco)}</td>
                         <td><span className={`badge ${STATUS_CLS[i.status] || 'badge-success'}`}>{i.status || 'confirmada'}</span></td>
                       </tr>
                     ))}
@@ -2723,7 +2848,7 @@ export default function Admin() {
                         <div className="admin-avatar-mini">{getInitials(i.userId?.nome || i.userName || '?')}</div>
                         <div className="adm-res-card-who">
                           <div className="adm-res-card-name">{i.userId?.nome || i.userName || '—'}</div>
-                          <div className="adm-res-card-sub">{i.eventId?.nome || '—'}</div>
+                          <div className="adm-res-card-sub">{i.eventId?.nome || i.eventNome || 'Evento removido'}</div>
                         </div>
                       </div>
                       <span className={`badge ${STATUS_CLS[i.status] || 'badge-green'}`}>{i.status || 'confirmada'}</span>
@@ -2731,9 +2856,9 @@ export default function Admin() {
                     <div className="adm-res-card-info">
                       <span className="adm-res-card-chip">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-                        {fmtDate(i.eventId?.data)}
+                        {fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}
                       </span>
-                      <span className="adm-res-card-chip gold">{fmtMoney(i.eventId?.preco)}</span>
+                      <span className="adm-res-card-chip gold">{fmtMoney(i.preco ?? i.eventId?.preco)}</span>
                     </div>
                   </div>
                 ))}
@@ -2754,16 +2879,77 @@ export default function Admin() {
 
             <div className="finance-overview">
               <article className="finance-total-card">
-                <div className="finance-card-kicker">
-                  <span className="finance-card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  </span>
-                  Receita acumulada
+                <div className="finance-total-card-head">
+                  <div className="finance-card-kicker">
+                    <span className="finance-card-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </span>
+                    Receita acumulada
+                  </div>
+                  <button
+                    type="button"
+                    className={`finance-period-toggle${finPeriodOpen ? ' is-open' : ''}${finPeriodMode === 'custom' ? ' has-custom-period' : ''}`}
+                    onClick={() => setFinPeriodOpen(open => !open)}
+                    aria-label="Filtrar período da visão financeira"
+                    aria-expanded={finPeriodOpen}
+                    title="Filtrar toda a visão financeira"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16"/><path d="M7 12h10"/><path d="M10 19h4"/></svg>
+                  </button>
                 </div>
+                {finPeriodOpen ? (
+                  <div className="finance-period-panel">
+                    <div className="finance-period-filter-head">
+                      <span>Período financeiro</span>
+                      <small>{financePeriodLabel}</small>
+                    </div>
+                    <PodiumSelect
+                      className="finance-period-select"
+                      value={finPeriodMode}
+                      onChange={(event) => {
+                        const mode = event.target.value;
+                        setFinPeriodMode(mode);
+                        if (mode === 'year') setFinPeriod(calendarYearRange(localDateIso()));
+                        if (mode === '12m') setFinPeriod(lastTwelveMonthsRange(localDateIso()));
+                        if (mode === 'current-month') setFinPeriod(calendarMonthRange(localDateIso()));
+                      }}
+                      aria-label="Período financeiro"
+                    >
+                      <option value="year">Ano atual</option>
+                      <option value="12m">Últimos 12 meses</option>
+                      <option value="current-month">Mês atual</option>
+                      <option value="custom">Período personalizado</option>
+                    </PodiumSelect>
+                    {finPeriodMode === 'custom' ? (
+                      <div className="finance-period-dates">
+                        <label>
+                          <span>Data inicial</span>
+                          <PodiumDatePicker
+                            value={finPeriod.start}
+                            max={finPeriod.end || undefined}
+                            onChange={(event) => setFinPeriod(current => ({ ...current, start: event.target.value }))}
+                            clearable={false}
+                            aria-label="Data inicial do período financeiro"
+                          />
+                        </label>
+                        <label>
+                          <span>Data final</span>
+                          <PodiumDatePicker
+                            value={finPeriod.end}
+                            min={finPeriod.start || undefined}
+                            onChange={(event) => setFinPeriod(current => ({ ...current, end: event.target.value }))}
+                            clearable={false}
+                            aria-label="Data final do período financeiro"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <strong className="finance-total-value">{fmtMoney(receitaGeral)}</strong>
-                <p className="finance-total-caption">Total confirmado de reservas e inscrições em eventos.</p>
+                <p className="finance-total-caption">Receita reconhecida de {financePeriodLabel}.</p>
                 <div className="finance-total-meta">
-                  <div><span>Transações válidas</span><strong>{transacoesValidas.length}</strong></div>
+                  <div><span>Transações pagas</span><strong>{transacoesValidas.length}</strong></div>
                   <div><span>Ticket médio</span><strong>{fmtMoney(ticketMedio)}</strong></div>
                 </div>
               </article>
@@ -2772,34 +2958,34 @@ export default function Admin() {
                 <article className="finance-kpi-card">
                   <div className="finance-kpi-head">
                     <span>Reservas</span>
-                    <small>{participacaoReservas}% do total</small>
+                    <small>{participacaoReservas}% do período</small>
                   </div>
-                  <strong>{fmtMoney(receitaTotal)}</strong>
-                  <div className="finance-progress" aria-label={`${participacaoReservas}% da receita vem de reservas`}>
+                  <strong>{fmtMoney(receitaReservasPeriodo)}</strong>
+                  <div className="finance-progress" aria-label={`${participacaoReservas}% da receita do período vem de reservas`}>
                     <span style={{ width: `${participacaoReservas}%` }} />
                   </div>
-                  <p>Locação de quadras e Day Use</p>
+                  <p>Locação, Day Use e parcelas de temporadas</p>
                 </article>
                 <article className="finance-kpi-card event">
                   <div className="finance-kpi-head">
                     <span>Eventos</span>
-                    <small>{participacaoEventos}% do total</small>
+                    <small>{participacaoEventos}% do período</small>
                   </div>
-                  <strong>{fmtMoney(receitaEventos)}</strong>
-                  <div className="finance-progress" aria-label={`${participacaoEventos}% da receita vem de eventos`}>
+                  <strong>{fmtMoney(receitaEventosPeriodo)}</strong>
+                  <div className="finance-progress" aria-label={`${participacaoEventos}% da receita do período vem de eventos`}>
                     <span style={{ width: `${participacaoEventos}%` }} />
                   </div>
                   <p>Inscrições confirmadas</p>
                 </article>
                 <article className="finance-kpi-card current">
                   <div className="finance-kpi-head">
-                    <span>{nomeMesAtual}</span>
+                    <span>Receita geral <em>({nomeMesAtual})</em></span>
                     <small className={variacaoMes !== null && variacaoMes < 0 ? 'negative' : ''}>
                       {variacaoMes === null ? 'Sem base no mês anterior' : `${variacaoMes >= 0 ? '+' : ''}${variacaoMes}% vs. mês anterior`}
                     </small>
                   </div>
                   <strong>{fmtMoney(receitaAtual)}</strong>
-                  <div className="finance-month-line"><span>Reservas</span><b>{fmtMoney(receitaMes)}</b></div>
+                  <div className="finance-month-line"><span>Reservas</span><b>{fmtMoney(receitaReservasMes)}</b></div>
                   <div className="finance-month-line"><span>Eventos</span><b>{fmtMoney(receitaEventosMes)}</b></div>
                 </article>
               </div>
@@ -2809,14 +2995,14 @@ export default function Admin() {
               <div className="admin-card-header">
                 <div>
                   <h3>Evolução da Receita</h3>
-                  <p className="finance-card-subtitle">Reservas e eventos nos últimos sete meses</p>
+                  <p className="finance-card-subtitle">Reservas e eventos no período selecionado</p>
                 </div>
                 <div className="finance-chart-total">
                   <span>Total do período</span>
                   <strong>{fmtMoney(chartTotal)}</strong>
                 </div>
               </div>
-              <MiniBarChart data={chartData} />
+              <MiniBarChart data={financeChartData} />
             </div>
             <div className="admin-card finance-transactions-card">
               <div className="admin-card-header finance-transactions-heading">

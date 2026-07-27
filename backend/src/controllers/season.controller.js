@@ -255,16 +255,32 @@ const cancel = async (req, res) => {
     if (!season) return res.status(404).json({ message: 'Temporada não encontrada' });
     if (season.status === 'cancelled') return res.json({ message: 'Temporada já cancelada', season });
 
+    const activeBookings = await Booking.find({
+      seasonId: season._id,
+      status: { $ne: 'cancelada' },
+    }).select('total');
+    const creditTotal = Number(activeBookings
+      .reduce((total, booking) => total + Number(booking.total || 0), 0)
+      .toFixed(2));
+
     await Booking.updateMany(
       { seasonId: season._id, status: { $ne: 'cancelada' } },
       { $set: { status: 'cancelada' } },
     );
+    if (creditTotal > 0) {
+      await User.findByIdAndUpdate(season.userId, { $inc: { creditos: creditTotal } });
+      broadcast('users');
+    }
     season.status = 'cancelled';
     season.cancelledAt = new Date();
     await season.save();
     broadcast('bookings');
     broadcast('seasons');
-    res.json({ message: 'Temporada e reservas vinculadas canceladas', season });
+    res.json({
+      message: 'Temporada e reservas vinculadas canceladas',
+      season,
+      creditosEstornados: creditTotal,
+    });
   } catch (error) {
     handleError(res, error);
   }

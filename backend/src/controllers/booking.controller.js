@@ -21,6 +21,41 @@ const localDateIso = (date = new Date()) => (
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 );
 
+const concluirReservasRealizadas = async () => {
+  const now = new Date();
+  const today = localDateIso(now);
+  const currentHour = now.getHours();
+
+  const pastResult = await Booking.updateMany(
+    { status: 'confirmada', date: { $lt: today } },
+    { $set: { status: 'concluida' } },
+  );
+
+  const todayBookings = await Booking.find({
+    status: 'confirmada',
+    date: today,
+    dayUse: false,
+  }).select('_id slots');
+
+  const completedTodayIds = todayBookings
+    .filter((booking) => {
+      const slots = (booking.slots || []).map(Number).filter(Number.isFinite);
+      return slots.length > 0 && Math.max(...slots) + 1 <= currentHour;
+    })
+    .map((booking) => booking._id);
+
+  let todayModified = 0;
+  if (completedTodayIds.length) {
+    const todayResult = await Booking.updateMany(
+      { _id: { $in: completedTodayIds }, status: 'confirmada' },
+      { $set: { status: 'concluida' } },
+    );
+    todayModified = todayResult.modifiedCount || 0;
+  }
+
+  return (pastResult.modifiedCount || 0) + todayModified;
+};
+
 const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
   const query = { quadraId, date, status: { $ne: 'cancelada' }, slots: { $in: slots } };
   if (excludeId) query._id = { $ne: excludeId };
@@ -32,15 +67,18 @@ const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
 };
 
 const listarMinhas = async (req, res) => {
+  const concluidas = await concluirReservasRealizadas();
   const filtro = { userId: req.user._id };
   if (req.query.status) filtro.status = req.query.status;
   const bookings = await Booking.find(filtro)
     .populate('userId', 'nome email')
     .sort({ createdAt: -1 }); // última reserva feita aparece primeiro
+  if (concluidas) broadcast('bookings');
   res.json(bookings);
 };
 
 const listar = async (req, res) => {
+  const concluidas = await concluirReservasRealizadas();
   const filtro = req.user.admin ? {} : { userId: req.user._id };
 
   if (req.query.status) filtro.status = req.query.status;
@@ -50,6 +88,7 @@ const listar = async (req, res) => {
   const bookings = await Booking.find(filtro)
     .populate('userId', 'nome email')
     .sort({ createdAt: -1 }); // última reserva feita aparece primeiro
+  if (concluidas) broadcast('bookings');
   res.json(bookings);
 };
 
@@ -143,6 +182,9 @@ const atualizar = async (req, res) => {
 const cancelar = async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: 'Reserva não encontrada' });
+  if (booking.status === 'cancelada') {
+    return res.json({ message: 'Reserva já estava cancelada', booking, creditosEstornados: 0 });
+  }
 
   const ehDono = booking.userId.toString() === req.user._id.toString();
   if (!req.user.admin && !ehDono) {
@@ -168,7 +210,7 @@ const cancelar = async (req, res) => {
   await booking.save();
 
   // Estorna como créditos no site (não devolve ao banco)
-  if (ehDono && booking.total > 0) {
+  if (booking.total > 0) {
     await User.findByIdAndUpdate(booking.userId, { $inc: { creditos: booking.total } });
     broadcast('users'); // saldo de créditos mudou
   }

@@ -974,6 +974,63 @@ body.gate-active .admin-layout { display: none; }
 .finance-section-intro {
   margin-top: .45rem; color: var(--gray); font-size: .82rem; line-height: 1.5;
 }
+.finance-total-card-head {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: space-between; gap: .8rem;
+}
+.finance-period-toggle {
+  position: relative;
+  width: 36px; height: 36px; flex: none;
+  display: grid; place-items: center;
+  border: 1px solid rgba(224,172,107,.26); border-radius: 9px;
+  background: rgba(0,0,0,.18); color: var(--gold-light);
+  cursor: pointer; transition: border-color var(--trans-fast), background var(--trans-fast), color var(--trans-fast);
+}
+.finance-period-toggle:hover,
+.finance-period-toggle.is-open {
+  border-color: var(--gold); background: var(--gold-faint); color: var(--gold);
+}
+.finance-period-toggle.has-custom-period::after {
+  content: ''; position: absolute; top: 5px; right: 5px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--gold-light);
+  box-shadow: 0 0 0 2px rgba(15,15,14,.9);
+}
+.finance-period-toggle svg { width: 17px; height: 17px; stroke: currentColor; }
+.finance-period-panel {
+  position: relative; z-index: 2;
+  margin-top: .85rem; padding: .8rem;
+  border: 1px solid rgba(224,172,107,.2); border-radius: 10px;
+  background: rgba(8,8,8,.48);
+}
+.finance-period-filter-head {
+  display: flex; align-items: center; justify-content: space-between; gap: .8rem;
+  margin-bottom: .65rem;
+}
+.finance-period-filter-head span {
+  color: var(--gray-light); font-family: var(--font-cond); font-size: .68rem;
+  font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.finance-period-filter-head small {
+  color: var(--gold-light); font-size: .62rem; font-weight: 650; white-space: nowrap;
+}
+.podium-select.finance-period-select { width: 100%; }
+.podium-select.finance-period-select .podium-select-trigger {
+  min-height: 38px; padding-block: .55rem; font-size: .74rem;
+}
+.finance-period-dates {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem;
+  margin-top: .65rem; padding-top: .65rem; border-top: 1px solid rgba(255,255,255,.06);
+}
+.finance-period-dates label {
+  display: flex; flex-direction: column; gap: .35rem; min-width: 0;
+}
+.finance-period-dates label > span {
+  color: var(--gray); font-size: .57rem; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase;
+}
+.finance-period-dates .podium-date-trigger {
+  min-height: 38px; padding-block: .55rem; font-size: .74rem;
+}
 .finance-overview {
   display: grid; grid-template-columns: minmax(290px, 1.05fr) minmax(0, 2fr);
   gap: 1rem; margin-bottom: 1rem;
@@ -1031,6 +1088,9 @@ body.gate-active .admin-layout { display: none; }
 .finance-kpi-head > span {
   color: var(--gray-light); font-family: var(--font-cond); font-size: .7rem;
   font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.finance-kpi-head > span em {
+  color: var(--gray); font-size: .58rem; font-style: normal; letter-spacing: .7px;
 }
 .finance-kpi-head small {
   color: var(--gold); font-size: .6rem; font-weight: 700; line-height: 1.35; text-align: right;
@@ -1094,9 +1154,13 @@ body.gate-active .admin-layout { display: none; }
 .admin-chart-placeholder span { font-family: var(--font-body); font-size: .72rem; letter-spacing: 2px; text-transform: uppercase; }
 
 /* Mini bar chart */
+.mini-bar-chart-scroll {
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: thin; scrollbar-color: rgba(224,172,107,.35) transparent;
+}
 .mini-bar-chart {
   position: relative; isolation: isolate;
-  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: clamp(.35rem, 1.2vw, 1rem);
+  display: grid; grid-template-columns: repeat(var(--bar-count, 7), minmax(0, 1fr)); gap: clamp(.35rem, 1.2vw, 1rem);
   height: 205px; padding: 1.15rem 1.5rem 1.25rem;
 }
 .mini-chart-grid {
@@ -1198,6 +1262,8 @@ body.gate-active .admin-layout { display: none; }
   .finance-kpi-card.current { grid-column: auto; }
 }
 @media (max-width: 430px) {
+  .finance-period-filter-head { align-items: flex-start; flex-direction: column; gap: .25rem; }
+  .finance-period-dates { grid-template-columns: 1fr; }
   .finance-total-card { padding: 1.15rem; }
   .finance-total-meta { grid-template-columns: 1fr; }
   .finance-chart-card .admin-card-header {

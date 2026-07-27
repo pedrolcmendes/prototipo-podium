@@ -9,6 +9,14 @@ const minhasInscricoes = async (req, res) => {
   res.json(registrations);
 };
 
+const listar = async (req, res) => {
+  const registrations = await Registration.find({})
+    .populate('userId', 'nome email tel')
+    .populate('eventId', 'nome data hora local status preco')
+    .sort({ createdAt: -1 });
+  res.json(registrations);
+};
+
 const porEvento = async (req, res) => {
   const registrations = await Registration.find({ eventId: req.params.eventId })
     .populate('userId', 'nome email tel')
@@ -75,4 +83,4 @@ const cancelar = async (req, res) => {
   res.json({ message: 'Inscrição cancelada', registration });
 };
 
-module.exports = { minhasInscricoes, porEvento, inscrever, cancelar };
+module.exports = { minhasInscricoes, listar, porEvento, inscrever, cancelar };
