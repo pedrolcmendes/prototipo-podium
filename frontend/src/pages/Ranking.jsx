@@ -3,6 +3,7 @@ import api from '../services/api';
 import Footer from '../components/Footer';
 import PodiumSelect from '../components/PodiumSelect';
 import useLive from '../hooks/useLive';
+import { RANKING_1S2026 } from '../data/ranking1s2026';
 
 const SPORTS = [{ id: 'beachtennis', label: 'Beach Tennis' }, { id: 'futevolei', label: 'Futevôlei' }];
 const CATEGORIAS = [{ id: 'masculino', label: 'Masculino' }, { id: 'feminino', label: 'Feminino' }, { id: 'misto', label: 'Misto' }];
@@ -21,15 +22,23 @@ export default function Ranking() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // 1S 2026: dados históricos estáticos, sem banco de dados
+    if (ano === 2026 && semestre === 1) {
+      const staticData = RANKING_1S2026[sport]?.[categoria]?.[nivel];
+      setRanking(staticData ? { ...staticData, encerrado: true } : null);
+      setLoading(false);
+      return;
+    }
     setLoading(true); setRanking(null);
     api.get(`/ranking?esporte=${sport}&genero=${categoria}&nivel=${nivel}&ano=${ano}&semestre=${semestre}`)
       .then(({ data }) => setRanking(Array.isArray(data) ? data[0] : data))
       .catch(() => setRanking(null)).finally(() => setLoading(false));
   }, [sport, categoria, nivel, ano, semestre]);
 
-  // tempo real: admin salvou o ranking → tabela atualiza sozinha
+  // tempo real: admin salvou ranking → atualiza (apenas para rankings não-históricos)
   useLive(['ranking'], () => {
-    api.get(`/ranking?esporte=${sport}&genero=${genero}`)
+    if (ano === 2026 && semestre === 1) return;
+    api.get(`/ranking?esporte=${sport}&genero=${categoria}&nivel=${nivel}&ano=${ano}&semestre=${semestre}`)
       .then(r => {
         const list = r.data.data || r.data;
         setRanking(Array.isArray(list) ? list[0] : list);
@@ -53,7 +62,7 @@ export default function Ranking() {
         <PodiumSelect value={semestre} onChange={e => setSemestre(Number(e.target.value))} aria-label="Semestre"><option value={1}>1º semestre</option><option value={2}>2º semestre</option></PodiumSelect>
       </div>
       {loading ? <div className="ranking-loading">Carregando ranking…</div> : !entries.length ? <div className="ranking-empty"><p>Nenhum ranking disponível para estes filtros.</p><span>O ranking será publicado após as etapas.</span></div> : <>
-        <div className="ranking-summary"><strong>{CATEGORIAS.find(c => c.id === categoria)?.label} · Nível {nivel}</strong><span>{semestre}º semestre de {ano} · {entries.length} atleta{entries.length !== 1 ? 's' : ''}</span></div>
+        <div className="ranking-summary"><strong>{CATEGORIAS.find(c => c.id === categoria)?.label} · Nível {nivel}</strong><span>{semestre}º semestre de {ano} · {entries.length} atleta{entries.length !== 1 ? 's' : ''}</span>{ranking?.encerrado && <span className="ranking-encerrado-badge">ENCERRADO</span>}</div>
         <div className="ranking-table-scroll"><div className="ranking-table-section ranking-stages-table">
           <div className="ranking-header-bar" style={{ gridTemplateColumns: `56px minmax(190px, 1fr) repeat(${etapas.length}, 90px) 90px` }}><div className="r-pos">Pos</div><div>Atleta</div>{etapas.map((etapa, i) => <div className="r-stat" key={i}>{etapa}</div>)}<div className="r-stat">Total</div></div>
           {entries.map((entry, index) => <div className={`ranking-row ${index < 3 ? `top-${index + 1}` : ''}`} key={entry._id || entry.userId || index} style={{ gridTemplateColumns: `56px minmax(190px, 1fr) repeat(${etapas.length}, 90px) 90px` }}>
