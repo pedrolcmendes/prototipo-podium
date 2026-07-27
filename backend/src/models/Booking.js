@@ -27,9 +27,10 @@ const bookingSchema = new mongoose.Schema({
   seasonCode: { type: String, default: null, index: true },
   status: {
     type: String,
-    enum: ['confirmada', 'cancelada', 'concluida'],
+    enum: ['confirmada', 'cancelada', 'concluida', 'pendente_pagamento'],
     default: 'confirmada',
   },
+  paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
   reminderSent: { type: Boolean, default: false }, // lembrete de 2h antes já enviado
 }, { timestamps: true });
 
