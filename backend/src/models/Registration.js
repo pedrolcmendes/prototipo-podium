@@ -1,14 +1,18 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const registrationSchema = new mongoose.Schema({
+const registrationSchema = new Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   userName: { type: String, required: true },
   eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true },
   eventNome: { type: String, required: true },
   preco: { type: Number, required: true },
+  parceiro: { type: String, default: null },
+  precoDupla: { type: Number, default: null },
+  paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
   status: {
     type: String,
-    enum: ['confirmada', 'cancelada'],
+    enum: ['confirmada', 'cancelada', 'pendente_pagamento'],
     default: 'confirmada',
   },
 }, { timestamps: true });
