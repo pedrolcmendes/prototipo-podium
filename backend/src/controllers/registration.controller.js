@@ -25,6 +25,9 @@ const porEvento = async (req, res) => {
 };
 
 const inscrever = async (req, res) => {
+  const { parceiro } = req.body;
+  if (!parceiro?.trim()) return res.status(400).json({ message: 'Informe o nome do(a) parceiro(a)' });
+
   const event = await Event.findById(req.params.eventId);
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
 
@@ -34,7 +37,7 @@ const inscrever = async (req, res) => {
 
   const inscritos = await Registration.countDocuments({
     eventId: event._id,
-    status: 'confirmada',
+    status: { $in: ['confirmada', 'pendente_pagamento'] },
   });
 
   if (inscritos >= event.vagas) {
@@ -47,10 +50,12 @@ const inscrever = async (req, res) => {
   });
 
   if (jaInscrito) {
-    if (jaInscrito.status === 'confirmada') {
-      return res.status(409).json({ message: 'Você já está inscrito neste evento' });
+    if (jaInscrito.status === 'confirmada' || jaInscrito.status === 'pendente_pagamento') {
+      return res.status(409).json({ message: jaInscrito.status === 'pendente_pagamento' ? 'Você já tem uma inscrição pendente de pagamento' : 'Você já está inscrito neste evento' });
     }
-    jaInscrito.status = 'confirmada';
+    jaInscrito.status = 'pendente_pagamento';
+    jaInscrito.parceiro = parceiro.trim();
+    jaInscrito.precoDupla = event.preco * 2;
     await jaInscrito.save();
     broadcast('registrations');
     return res.json(jaInscrito);
@@ -62,6 +67,9 @@ const inscrever = async (req, res) => {
     eventId: event._id,
     eventNome: event.nome,
     preco: event.preco,
+    parceiro: parceiro.trim(),
+    precoDupla: event.preco * 2,
+    status: 'pendente_pagamento',
   });
 
   broadcast('registrations');
