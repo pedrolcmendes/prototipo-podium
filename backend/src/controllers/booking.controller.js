@@ -103,6 +103,7 @@ const criar = async (req, res) => {
 
   if (!BOOKING_MODALITIES.has(modalidade)) return res.status(400).json({ message: 'Modalidade inválida' });
   if (!BOOKING_PAYMENTS.has(payment)) return res.status(400).json({ message: 'Forma de pagamento inválida' });
+  if (!req.user.admin && payment === 'dinheiro') return res.status(400).json({ message: 'Selecione PIX, crédito ou débito para pagar online' });
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ message: 'Informe uma data válida' });
   if (date < localDateIso()) return res.status(400).json({ message: 'Não é possível criar reservas em datas passadas' });
   if (!quadraId || !BOOKING_COURT_TYPES.has(resolvedQuadra)) return res.status(400).json({ message: 'Informe uma quadra válida' });
@@ -136,6 +137,7 @@ const criar = async (req, res) => {
     : req.user;
   if (!targetUser) return res.status(404).json({ message: 'Cliente não encontrado' });
 
+  const isAdmin = req.user.admin;
   const booking = await Booking.create({
     userId: targetUserId,
     userName: targetUser.nome,
@@ -147,10 +149,11 @@ const criar = async (req, res) => {
     dayUse: isDayUse,
     payment,
     total: numericTotal,
+    status: isAdmin ? 'confirmada' : 'pendente_pagamento',
   });
 
-  // Comprovante por e-mail (sem bloquear a resposta)
-  if (settings?.notifEmailConfirm !== false) {
+  // E-mail de confirmação só para reservas já confirmadas (admin)
+  if (isAdmin && settings?.notifEmailConfirm !== false) {
     User.findById(targetUserId).select('nome email')
       .then((u) => u && enviarEmailReservaConfirmada({ destinatario: u.email, nome: u.nome, reserva: booking }))
       .catch((e) => console.warn('Falha no e-mail de confirmação:', e.message));
