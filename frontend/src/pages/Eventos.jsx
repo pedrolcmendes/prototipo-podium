@@ -6,6 +6,7 @@ import AuthModal from '../components/AuthModal';
 import Footer from '../components/Footer';
 import useLive from '../hooks/useLive';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import PagamentoModal from '../components/PagamentoModal';
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -52,7 +53,13 @@ export default function Eventos() {
   const [authOpen, setAuthOpen] = useState(false);
   const [inscLoading, setInscLoading] = useState(false);
   const [userRegs, setUserRegs] = useState([]);
-  const [posterZoom, setPosterZoom] = useState(false); // arte em tela cheia
+  const [posterZoom, setPosterZoom] = useState(false);
+  const [inscStep, setInscStep] = useState('btn'); // 'btn' | 'parceiro'
+  const [parceiro, setParceiro] = useState('');
+  const [payMetodo, setPayMetodo] = useState('pix');
+  const [pagOpen, setPagOpen] = useState(false);
+  const [pendingReg, setPendingReg] = useState(null);
+  const [pendingEvt, setPendingEvt] = useState(null);
 
   useBodyScrollLock(!!selectedEvt);
 
@@ -71,20 +78,41 @@ export default function Eventos() {
     }
   });
 
-  const handleInscrever = async () => {
+  const handleInscrever = () => {
     if (!user) { setAuthOpen(true); return; }
+    setParceiro('');
+    setPayMetodo('pix');
+    setInscStep('parceiro');
+  };
+
+  const handleParceiroContinuar = async () => {
+    if (!parceiro.trim()) { toast('Informe o nome do(a) parceiro(a)', 'error'); return; }
     if (!selectedEvt) return;
     setInscLoading(true);
     try {
-      await api.post(`/registrations/evento/${selectedEvt._id}`);
-      toast('Inscrição realizada!', 'success');
-      setUserRegs(prev => [...prev, selectedEvt._id]);
-      setEventos(prev => prev.map(e => e._id === selectedEvt._id ? { ...e, inscritos: (e.inscritos || 0) + 1 } : e));
+      const res = await api.post(`/registrations/evento/${selectedEvt._id}`, { parceiro: parceiro.trim() });
+      const reg = res.data.data || res.data;
+      setPendingReg(reg);
+      setPendingEvt(selectedEvt);
+      setSelectedEvt(null);
+      setInscStep('btn');
+      setPagOpen(true);
     } catch (ex) {
       toast(ex.response?.data?.message || 'Erro ao inscrever', 'error');
     } finally {
       setInscLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    setPagOpen(false);
+    toast('Inscrição confirmada! Bora jogar!', 'success');
+    if (pendingEvt) {
+      setUserRegs(prev => [...prev, pendingEvt._id]);
+      setEventos(prev => prev.map(e => e._id === pendingEvt._id ? { ...e, inscritos: (e.inscritos || 0) + 1 } : e));
+    }
+    setPendingReg(null);
+    setPendingEvt(null);
   };
 
   const isInscrito = selectedEvt && userRegs.includes(selectedEvt._id);
@@ -239,9 +267,9 @@ export default function Eventos() {
         const inscritos = inscritosDe(selectedEvt);
         const restantes = selectedEvt.vagasRestantes ?? (selectedEvt.vagas > 0 ? selectedEvt.vagas - inscritos : null);
         return (
-          <div className="evt-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedEvt(null); }}>
+          <div className="evt-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setSelectedEvt(null); setInscStep('btn'); } }}>
             <div className="evt-modal">
-              <button className="modal-close" onClick={() => setSelectedEvt(null)} style={{ top: '1rem', right: '1rem' }}>&#x2715;</button>
+              <button className="modal-close" onClick={() => { setSelectedEvt(null); setInscStep('btn'); }} style={{ top: '1rem', right: '1rem' }}>&#x2715;</button>
 
               <div className="evt-modal-poster">
                 <div className="evt-poster-fallback">{catIcon(selectedEvt.categoria)}<span>{catLabel(selectedEvt.categoria)}</span></div>
@@ -277,14 +305,51 @@ export default function Eventos() {
 
                 {selectedEvt.desc && <p className="evt-desc">{selectedEvt.desc}</p>}
 
-                <div className="evt-modal-actions">
-                  <span className={statusClass(selectedEvt.status)}>{statusLabel(selectedEvt.status)}</span>
-                  {isInscrito ? (
-                    <button className="btn-outline" disabled style={{ opacity: .6 }}>Já inscrito ✓</button>
+                <div className="evt-modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                  {inscStep === 'parceiro' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
+                      <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Inscrição em Dupla</p>
+                      <input
+                        type="text"
+                        placeholder="Nome do(a) parceiro(a)"
+                        value={parceiro}
+                        onChange={e => setParceiro(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleParceiroContinuar()}
+                        autoFocus
+                        style={{ background: 'var(--dark)', border: '1px solid var(--border)', color: 'var(--white)', padding: '.7rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.9rem', outline: 'none', transition: 'border-color var(--trans-fast)' }}
+                      />
+                      <div style={{ display: 'flex', gap: '.7rem' }}>
+                        {[
+                          { id: 'pix', label: 'PIX' },
+                          { id: 'credito', label: 'Crédito' },
+                          { id: 'debito', label: 'Débito' },
+                        ].map(m => (
+                          <button key={m.id} onClick={() => setPayMetodo(m.id)} style={{ flex: 1, padding: '.5rem', fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', border: payMetodo === m.id ? '1px solid var(--gold)' : '1px solid var(--border)', background: payMetodo === m.id ? 'var(--gold-faint)' : 'var(--dark)', color: payMetodo === m.id ? 'var(--gold)' : 'var(--gray)', transition: 'all var(--trans-fast)' }}>
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '.5px', margin: 0 }}>
+                        R$ {selectedEvt.preco}/atleta × 2 = <strong style={{ color: 'var(--gold)' }}>R$ {selectedEvt.preco * 2}</strong>
+                      </p>
+                      <div style={{ display: 'flex', gap: '.7rem' }}>
+                        <button className="btn-ghost" onClick={() => setInscStep('btn')} style={{ flex: 1 }}>Voltar</button>
+                        <button className="btn-gold" disabled={inscLoading} onClick={handleParceiroContinuar} style={{ flex: 2 }}>
+                          {inscLoading ? 'Aguarde…' : `Ir para pagamento`}
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <button className="btn-gold" disabled={selectedEvt.status !== 'aberto' || inscLoading} onClick={handleInscrever}>
-                      {inscLoading ? 'Inscrevendo…' : 'Inscrever-se'}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                      <span className={statusClass(selectedEvt.status)}>{statusLabel(selectedEvt.status)}</span>
+                      {isInscrito ? (
+                        <button className="btn-outline" disabled style={{ opacity: .6 }}>Já inscrito ✓</button>
+                      ) : (
+                        <button className="btn-gold" disabled={selectedEvt.status !== 'aberto' || inscLoading} onClick={handleInscrever}>
+                          {inscLoading ? 'Inscrevendo…' : 'Inscrever-se'}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -298,6 +363,17 @@ export default function Eventos() {
         <div className="evt-zoom" onClick={() => setPosterZoom(false)}>
           <img src={selectedEvt.imagem} alt={selectedEvt.nome} />
         </div>
+      )}
+
+      {pagOpen && pendingReg && (
+        <PagamentoModal
+          tipo="registration"
+          referenciaId={pendingReg._id}
+          metodo={payMetodo}
+          valor={pendingReg.precoDupla}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => { setPagOpen(false); toast('Inscrição cancelada — pagamento não realizado', 'error'); setPendingReg(null); setPendingEvt(null); }}
+        />
       )}
 
       {authOpen && <AuthModal initialTab="login" onClose={() => setAuthOpen(false)} />}
