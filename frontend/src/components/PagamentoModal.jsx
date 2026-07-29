@@ -77,12 +77,14 @@ function PhaseErro({ msg }) {
   );
 }
 
-export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSuccess, onClose }) {
+export default function PagamentoModal({ tipo, referenciaId, metodo, valor, userCpf, onSuccess, onClose }) {
   const [phase, setPhase] = useState('loading');
   const [pixData, setPixData] = useState(null);
   const [copied, setCopied] = useState(false);
   const [cardBrand, setCardBrand] = useState(null);
   const [paymentMethodId, setPaymentMethodId] = useState(null);
+  const [issuerId, setIssuerId] = useState(null);
+  const [cpf, setCpf] = useState(userCpf || '');
   const [cardName, setCardName] = useState('');
   const [focused, setFocused] = useState(null);
   const [fieldsReady, setFieldsReady] = useState(false);
@@ -94,7 +96,11 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
 
   useEffect(() => {
     if (metodo === 'pix') {
-      initPix();
+      if (!userCpf) {
+        setPhase('pix_cpf');
+      } else {
+        initPix(userCpf);
+      }
     } else {
       setupCardForm();
     }
@@ -104,14 +110,15 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
     };
   }, []);
 
-  const initPix = async () => {
+  const initPix = async (cpfValue) => {
+    setPhase('loading');
     try {
-      const { data } = await api.post('/pagamentos/pix', { tipo, referenciaId });
+      const { data } = await api.post('/pagamentos/pix', { tipo, referenciaId, cpf: cpfValue || cpf });
       setPixData(data);
       setPhase('pix_aguardando');
       pollRef.current = setInterval(() => checkStatus(data.paymentId), 5000);
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Erro ao gerar Pix. Tente novamente.');
+      setErrorMsg(err.response?.data?.message || 'Erro ao gerar PIX. Reserva cancelada.');
       setPhase('erro');
     }
   };
@@ -162,11 +169,13 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
           if (results?.length > 0) {
             setCardBrand(results[0].id);
             setPaymentMethodId(results[0].id);
+            setIssuerId(results[0].issuer?.id ?? null);
           }
         } catch {}
       } else if (!bin) {
         setCardBrand(null);
         setPaymentMethodId(null);
+        setIssuerId(null);
       }
     });
 
@@ -180,6 +189,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
   const handleCardSubmit = async (e) => {
     e.preventDefault();
     if (!cardName.trim()) { setErrorMsg('Informe o nome como está no cartão'); return; }
+    if (!cpf.replace(/\D/g, '')) { setErrorMsg('Informe seu CPF'); return; }
     setCardLoading(true);
     setErrorMsg('');
     try {
@@ -190,16 +200,18 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
         tipo, referenciaId, metodo,
         token: token.id,
         paymentMethodId,
+        issuerId,
+        cpf,
       });
       if (data.status === 'aprovado') {
         setPhase('aprovado');
         setTimeout(() => onSuccess?.(), 2500);
       } else {
-        setErrorMsg('Pagamento recusado. Verifique os dados e tente novamente.');
+        setErrorMsg('Pagamento recusado. Reserva cancelada.');
         setPhase('rejeitado');
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.message || 'Erro ao processar pagamento.');
+      setErrorMsg(err.response?.data?.message || 'Erro ao processar pagamento. Reserva cancelada.');
       setPhase('rejeitado');
     } finally {
       setCardLoading(false);
@@ -303,6 +315,36 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
             {/* ═══════════════ PIX FLOW ═══════════════ */}
             {metodo === 'pix' && (
               <>
+                {phase === 'pix_cpf' && (
+                  <div className="pag-center" style={{ gap: '1.2rem' }}>
+                    <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.82rem', color: 'var(--gray)', letterSpacing: '1px' }}>
+                      Informe seu CPF para gerar o PIX:
+                    </p>
+                    <div style={{ width: '100%', maxWidth: 280 }}>
+                      <div className={`pag-field-wrap${focused === 'pix_cpf' ? ' focused' : ''}`} style={{ marginBottom: '.8rem' }}>
+                        <input
+                          className="pag-name-input"
+                          type="text"
+                          placeholder="000.000.000-00"
+                          value={cpf}
+                          onChange={e => setCpf(e.target.value)}
+                          onFocus={() => setFocused('pix_cpf')}
+                          onBlur={() => setFocused(null)}
+                          maxLength={14}
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <button
+                        className="pag-submit-btn"
+                        onClick={() => { if (cpf.replace(/\D/g, '').length >= 11) initPix(cpf); }}
+                        disabled={cpf.replace(/\D/g, '').length < 11}
+                      >
+                        Gerar QR Code PIX
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {phase === 'loading' && (
                   <div className="pag-center">
                     <div className="pag-spinner" />
@@ -362,11 +404,6 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
                     </div>
                     <h3 style={{ fontFamily: 'var(--font-cond)', letterSpacing: '1px' }}>{phase === 'rejeitado' ? 'Pagamento Recusado' : 'Erro no Pagamento'}</h3>
                     <p style={{ color: 'var(--gray)', fontSize: '.88rem', maxWidth: 300, lineHeight: 1.5, textAlign: 'center' }}>{errorMsg}</p>
-                    {phase === 'rejeitado' && (
-                      <button className="btn-ghost" onClick={() => { setPhase('cartao_form'); setErrorMsg(''); }}>
-                        Tentar novamente
-                      </button>
-                    )}
                   </div>
                 )}
 
@@ -424,6 +461,25 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
                     </div>
                   </div>
 
+                  {!userCpf && (
+                    <div className="pag-field-group">
+                      <label className="pag-field-label">CPF do Titular</label>
+                      <div className={`pag-field-wrap${focused === 'cpf' ? ' focused' : ''}`}>
+                        <input
+                          className="pag-name-input"
+                          type="text"
+                          placeholder="000.000.000-00"
+                          value={cpf}
+                          onChange={e => setCpf(e.target.value)}
+                          onFocus={() => setFocused('cpf')}
+                          onBlur={() => setFocused(null)}
+                          maxLength={14}
+                          inputMode="numeric"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {errorMsg && phase === 'cartao_form' && <p className="pag-field-error">{errorMsg}</p>}
 
                   <button type="submit" className="pag-submit-btn" disabled={cardLoading}>
@@ -442,7 +498,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onSu
             </span>
             {phase !== 'aprovado' && phase !== 'loading' && (
               <button className="pag-cancel-btn" onClick={onClose}>
-                {phase === 'pix_aguardando' ? 'Cancelar' : 'Fechar'}
+                {phase === 'pix_aguardando' || phase === 'pix_cpf' ? 'Cancelar' : 'Fechar'}
               </button>
             )}
           </div>
