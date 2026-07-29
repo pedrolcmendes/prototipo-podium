@@ -695,6 +695,7 @@ export default function Reservas() {
         <PagamentoModal
           tipo="booking"
           referenciaId={pendingBooking._id}
+          userCpf={user?.cpf}
           metodo={payMethod}
           valor={pendingBooking.total}
           onSuccess={handlePaymentSuccess}

@@ -371,6 +371,7 @@ export default function Eventos() {
           referenciaId={pendingReg._id}
           metodo={payMetodo}
           valor={pendingReg.precoDupla}
+          userCpf={user?.cpf}
           onSuccess={handlePaymentSuccess}
           onClose={() => { setPagOpen(false); toast('Inscrição cancelada — pagamento não realizado', 'error'); setPendingReg(null); setPendingEvt(null); }}
         />
