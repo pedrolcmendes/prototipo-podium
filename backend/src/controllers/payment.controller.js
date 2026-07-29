@@ -43,8 +43,22 @@ const confirmarReferencia = async (tipo, referenciaId, userId) => {
   }
 };
 
+const cancelarReferencia = async (tipo, referenciaId) => {
+  try {
+    if (tipo === 'booking') {
+      await Booking.findByIdAndUpdate(referenciaId, { status: 'cancelada' });
+      broadcast('bookings');
+    } else {
+      await Registration.findByIdAndUpdate(referenciaId, { status: 'cancelada' });
+      broadcast('registrations');
+    }
+  } catch (e) {
+    console.warn('Erro ao cancelar após falha de pagamento:', e.message);
+  }
+};
+
 const criarPix = async (req, res) => {
-  const { tipo, referenciaId } = req.body;
+  const { tipo, referenciaId, cpf: bodyCpf } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
     return res.status(400).json({ message: 'Tipo inválido' });
   }
@@ -52,6 +66,7 @@ const criarPix = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
+  const cpfNum = (req.user.cpf || bodyCpf || '').replace(/\D/g, '');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   const nomeParts = (req.user.nome || 'Atleta Podium').split(' ');
 
@@ -66,7 +81,7 @@ const criarPix = async (req, res) => {
           email: req.user.email,
           first_name: nomeParts[0],
           last_name: nomeParts.slice(1).join(' ') || nomeParts[0],
-          ...(req.user.cpf ? { identification: { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') } } : {}),
+          ...(cpfNum ? { identification: { type: 'CPF', number: cpfNum } } : {}),
         },
       },
     });
@@ -94,13 +109,15 @@ const criarPix = async (req, res) => {
       valor,
     });
   } catch (err) {
-    console.error('MP Pix error:', err?.cause ?? err);
-    return res.status(500).json({ message: 'Erro ao gerar Pix. Tente novamente.' });
+    const cause = err?.cause ?? err;
+    console.error('MP Pix error:', JSON.stringify(cause, null, 2));
+    await cancelarReferencia(tipo, referenciaId);
+    return res.status(500).json({ message: 'Erro ao gerar PIX. Reserva cancelada.' });
   }
 };
 
 const criarCartao = async (req, res) => {
-  const { tipo, referenciaId, token, paymentMethodId, issuerId, metodo } = req.body;
+  const { tipo, referenciaId, token, paymentMethodId, issuerId, metodo, cpf: bodyCpf } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
     return res.status(400).json({ message: 'Tipo inválido' });
   }
@@ -111,6 +128,7 @@ const criarCartao = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
+  const cpfNum = (req.user.cpf || bodyCpf || '').replace(/\D/g, '');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
   try {
@@ -124,7 +142,7 @@ const criarCartao = async (req, res) => {
         ...(issuerId ? { issuer_id: Number(issuerId) } : {}),
         payer: {
           email: req.user.email,
-          ...(req.user.cpf ? { identification: { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') } } : {}),
+          ...(cpfNum ? { identification: { type: 'CPF', number: cpfNum } } : {}),
         },
       },
     });
@@ -146,7 +164,11 @@ const criarCartao = async (req, res) => {
     if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
     else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
 
-    if (aprovado) await confirmarReferencia(tipo, referenciaId, req.user._id);
+    if (aprovado) {
+      await confirmarReferencia(tipo, referenciaId, req.user._id);
+    } else {
+      await cancelarReferencia(tipo, referenciaId);
+    }
 
     return res.json({
       paymentId: payment._id,
@@ -154,8 +176,10 @@ const criarCartao = async (req, res) => {
       statusDetail: mpResult.status_detail,
     });
   } catch (err) {
-    console.error('MP Card error:', err?.cause ?? err);
-    return res.status(500).json({ message: 'Erro ao processar pagamento. Tente novamente.' });
+    const cause = err?.cause ?? err;
+    console.error('MP Card error:', JSON.stringify(cause, null, 2));
+    await cancelarReferencia(tipo, referenciaId);
+    return res.status(500).json({ message: 'Erro ao processar pagamento. Reserva cancelada.' });
   }
 };
 
