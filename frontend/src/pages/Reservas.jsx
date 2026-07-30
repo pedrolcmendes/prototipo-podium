@@ -165,12 +165,12 @@ export default function Reservas() {
 
   const handleConfirm = async () => {
     if (!user) { setAuthOpen(true); return; }
-    if (!payMethod) { toast('Selecione uma forma de pagamento', 'error'); return; }
+    const payment = (user?.admin && payMethod === 'dinheiro') ? 'dinheiro' : 'checkout_pro';
     setLoading(true);
     try {
       const payload = {
         modalidade: modalidade.enum,
-        payment: payMethod,
+        payment,
         dayUse,
         total: totalPrice(),
       };
@@ -582,28 +582,38 @@ export default function Reservas() {
           {step === 4 && (
             <>
               <div className="bk-card-header">
-                <h2>PAGAMENTO</h2>
-                <p>Revise sua reserva e escolha como pagar</p>
+                <h2>CONFIRMAR RESERVA</h2>
+                <p>Revise os dados e confirme para ir ao pagamento</p>
               </div>
               <div className="bk-card-body">
                 <div className="bk-pay-layout">
                   <div>
-                    <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--gray)', marginBottom: '.9rem' }}>Forma de Pagamento</p>
-                    <div className="bk-pay-methods">
-                      {[
-                        { id: 'pix', label: 'PIX', sub: 'Aprovação imediata', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/><path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/></svg> },
-                        { id: 'credito', label: 'Cartão de Crédito', sub: '1x sem juros', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="9" y2="15"/></svg> },
-                        { id: 'debito', label: 'Cartão de Débito', sub: 'Aprovação na hora', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg> },
-                      ].map(m => (
-                        <div key={m.id} className={`bk-pay-method${payMethod === m.id ? ' active' : ''}`} onClick={() => setPayMethod(m.id)}>
-                          <span className="bk-pay-icon">{m.icon}</span>
-                          <div><div className="bk-pay-label">{m.label}</div><div className="bk-pay-sub">{m.sub}</div></div>
+                    {user?.admin && (
+                      <>
+                        <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--gray)', marginBottom: '.9rem' }}>Forma de Pagamento</p>
+                        <div className="bk-pay-methods">
+                          {[
+                            { id: 'checkout_pro', label: 'Mercado Pago', sub: 'PIX, cartão e mais', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/><path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/></svg> },
+                            { id: 'dinheiro', label: 'Dinheiro', sub: 'Pagamento presencial', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg> },
+                          ].map(m => (
+                            <div key={m.id} className={`bk-pay-method${payMethod === m.id ? ' active' : ''}`} onClick={() => setPayMethod(m.id)}>
+                              <span className="bk-pay-icon">{m.icon}</span>
+                              <div><div className="bk-pay-label">{m.label}</div><div className="bk-pay-sub">{m.sub}</div></div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                    <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '1px' }}>
-                      Ao confirmar, você terá <strong style={{ color: 'var(--gold)' }}>10 minutos</strong> para concluir o pagamento.
-                    </p>
+                      </>
+                    )}
+
+                    {!user?.admin && (
+                      <div style={{ background: 'rgba(224,172,107,.04)', border: '1px solid rgba(224,172,107,.2)', padding: '1.2rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <div>
+                          <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.85rem', fontWeight: 700, letterSpacing: '.5px' }}>Pagamento via Mercado Pago</p>
+                          <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', marginTop: '.2rem' }}>PIX, cartão de crédito ou débito — você escolhe na próxima tela</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="bk-sidebar">
@@ -640,7 +650,7 @@ export default function Reservas() {
                     Voltar
                   </button>
                   <button className="btn-gold" disabled={loading} onClick={handleConfirm}>
-                    {loading ? 'Confirmando…' : 'Confirmar Reserva'}
+                    {loading ? 'Confirmando…' : (user?.admin && payMethod === 'dinheiro') ? 'Confirmar Reserva' : 'Confirmar e Ir para Pagamento'}
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   </button>
                 </div>
@@ -695,11 +705,8 @@ export default function Reservas() {
         <PagamentoModal
           tipo="booking"
           referenciaId={pendingBooking._id}
-          userCpf={user?.cpf}
-          metodo={payMethod}
           valor={pendingBooking.total}
-          onSuccess={handlePaymentSuccess}
-          onClose={() => { setPagOpen(false); toast('Reserva cancelada — pagamento não realizado', 'error'); resetBooking(); }}
+          onClose={() => { setPagOpen(false); resetBooking(); }}
         />
       )}
 
