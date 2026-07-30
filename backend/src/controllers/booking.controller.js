@@ -15,7 +15,7 @@ const COURT_TYPE_BY_ID = {
   'PKB-DU': 'pickleball',
 };
 const BOOKING_MODALITIES = new Set(['beach-tennis', 'futevolei', 'volei', 'pickleball']);
-const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'dinheiro', 'checkout_pro']);
+const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'dinheiro']);
 const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball']);
 const localDateIso = (date = new Date()) => (
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
