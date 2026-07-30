@@ -5,10 +5,11 @@ const User = require('../models/User');
 const Settings = require('../models/Settings');
 const { broadcast } = require('../utils/live');
 const { enviarEmailReservaConfirmada } = require('../utils/email');
-const { MercadoPagoConfig, Payment: MpAPI } = require('mercadopago');
+const { MercadoPagoConfig, Payment: MpAPI, Preference } = require('mercadopago');
 
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 const mpApi = new MpAPI(mpClient);
+const mpPreference = new Preference(mpClient);
 
 const getReferenciaAndValor = async (tipo, referenciaId, userId) => {
   if (tipo === 'booking') {
@@ -57,8 +58,8 @@ const cancelarReferencia = async (tipo, referenciaId) => {
   }
 };
 
-const criarPix = async (req, res) => {
-  const { tipo, referenciaId, cpf: bodyCpf } = req.body;
+const criarPreferencia = async (req, res) => {
+  const { tipo, referenciaId } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
     return res.status(400).json({ message: 'Tipo inválido' });
   }
@@ -66,23 +67,33 @@ const criarPix = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
-  const cpfNum = (req.user.cpf || bodyCpf || '').replace(/\D/g, '');
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  const nomeParts = (req.user.nome || 'Atleta Podium').split(' ');
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
   try {
-    const mpResult = await mpApi.create({
+    const pref = await mpPreference.create({
       body: {
-        transaction_amount: Number(valor),
-        description: descricao,
-        payment_method_id: 'pix',
-        date_of_expiration: expiresAt.toISOString(),
+        items: [{
+          title: descricao,
+          quantity: 1,
+          unit_price: Number(valor),
+          currency_id: 'BRL',
+        }],
         payer: {
+          name: req.user.nome,
           email: req.user.email,
-          first_name: nomeParts[0],
-          last_name: nomeParts.slice(1).join(' ') || nomeParts[0],
-          ...(cpfNum ? { identification: { type: 'CPF', number: cpfNum } } : {}),
         },
+        back_urls: {
+          success: `${frontendUrl}/pagamento/retorno`,
+          failure: `${frontendUrl}/pagamento/retorno`,
+          pending: `${frontendUrl}/pagamento/retorno`,
+        },
+        auto_return: 'approved',
+        external_reference: `${tipo}:${referenciaId}`,
+        notification_url: `${backendUrl}/api/pagamentos/webhook`,
+        expires: true,
+        expiration_date_to: expiresAt.toISOString(),
       },
     });
 
@@ -91,10 +102,10 @@ const criarPix = async (req, res) => {
       tipo,
       referenciaId,
       valor,
-      metodo: 'pix',
-      mpPaymentId: String(mpResult.id),
-      pixQrCode: mpResult.point_of_interaction?.transaction_data?.qr_code,
-      pixQrCodeBase64: mpResult.point_of_interaction?.transaction_data?.qr_code_base64,
+      metodo: 'checkout_pro',
+      mpPreferenceId: pref.id,
+      checkoutUrl: pref.init_point,
+      sandboxUrl: pref.sandbox_init_point,
       expiresAt,
     });
 
@@ -103,83 +114,13 @@ const criarPix = async (req, res) => {
 
     return res.status(201).json({
       paymentId: payment._id,
-      pixQrCode: payment.pixQrCode,
-      pixQrCodeBase64: payment.pixQrCodeBase64,
-      expiresAt: payment.expiresAt,
-      valor,
+      checkoutUrl: pref.init_point,
+      sandboxUrl: pref.sandbox_init_point,
     });
   } catch (err) {
-    const cause = err?.cause ?? err;
-    console.error('MP Pix error:', JSON.stringify(cause, null, 2));
+    console.error('MP Preference error:', JSON.stringify(err?.cause ?? err, null, 2));
     await cancelarReferencia(tipo, referenciaId);
-    return res.status(500).json({ message: 'Erro ao gerar PIX. Reserva cancelada.' });
-  }
-};
-
-const criarCartao = async (req, res) => {
-  const { tipo, referenciaId, token, paymentMethodId, issuerId, metodo, cpf: bodyCpf } = req.body;
-  if (!['booking', 'registration'].includes(tipo)) {
-    return res.status(400).json({ message: 'Tipo inválido' });
-  }
-  if (!token || !paymentMethodId) {
-    return res.status(400).json({ message: 'Dados do cartão inválidos' });
-  }
-
-  const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
-  if (error) return res.status(error.status).json({ message: error.message });
-
-  const cpfNum = (req.user.cpf || bodyCpf || '').replace(/\D/g, '');
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-  try {
-    const mpResult = await mpApi.create({
-      body: {
-        transaction_amount: Number(valor),
-        token,
-        description: descricao,
-        installments: 1,
-        payment_method_id: paymentMethodId,
-        ...(issuerId ? { issuer_id: Number(issuerId) } : {}),
-        payer: {
-          email: req.user.email,
-          ...(cpfNum ? { identification: { type: 'CPF', number: cpfNum } } : {}),
-        },
-      },
-    });
-
-    const aprovado = mpResult.status === 'approved';
-    const paymentStatus = aprovado ? 'aprovado' : mpResult.status === 'rejected' ? 'cancelado' : 'pendente';
-
-    const payment = await PaymentModel.create({
-      userId: req.user._id,
-      tipo,
-      referenciaId,
-      valor,
-      metodo: metodo === 'debito' ? 'debito' : 'credito',
-      mpPaymentId: String(mpResult.id),
-      status: paymentStatus,
-      expiresAt,
-    });
-
-    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-
-    if (aprovado) {
-      await confirmarReferencia(tipo, referenciaId, req.user._id);
-    } else {
-      await cancelarReferencia(tipo, referenciaId);
-    }
-
-    return res.json({
-      paymentId: payment._id,
-      status: paymentStatus,
-      statusDetail: mpResult.status_detail,
-    });
-  } catch (err) {
-    const cause = err?.cause ?? err;
-    console.error('MP Card error:', JSON.stringify(cause, null, 2));
-    await cancelarReferencia(tipo, referenciaId);
-    return res.status(500).json({ message: 'Erro ao processar pagamento. Reserva cancelada.' });
+    return res.status(500).json({ message: 'Erro ao iniciar pagamento. Reserva cancelada.' });
   }
 };
 
@@ -193,13 +134,7 @@ const getStatus = async (req, res) => {
   if (payment.status === 'pendente' && new Date() > payment.expiresAt) {
     payment.status = 'expirado';
     await payment.save();
-    if (payment.tipo === 'booking') {
-      await Booking.findByIdAndUpdate(payment.referenciaId, { status: 'cancelada' });
-      broadcast('bookings');
-    } else {
-      await Registration.findByIdAndUpdate(payment.referenciaId, { status: 'cancelada' });
-      broadcast('registrations');
-    }
+    await cancelarReferencia(payment.tipo, payment.referenciaId);
   }
 
   return res.json({ status: payment.status, expiresAt: payment.expiresAt, valor: payment.valor });
@@ -214,9 +149,17 @@ const webhook = async (req, res) => {
     const mpResult = await mpApi.get({ id: String(data.id) });
     if (mpResult.status !== 'approved') return;
 
-    const payment = await PaymentModel.findOne({ mpPaymentId: String(data.id) });
+    // Busca pelo mpPaymentId ou, para Checkout Pro, pelo external_reference
+    let payment = await PaymentModel.findOne({ mpPaymentId: String(data.id) });
+
+    if (!payment && mpResult.external_reference) {
+      const [tipo, referenciaId] = mpResult.external_reference.split(':');
+      payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
+    }
+
     if (!payment || payment.status !== 'pendente') return;
 
+    payment.mpPaymentId = String(data.id);
     payment.status = 'aprovado';
     await payment.save();
     await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
@@ -225,4 +168,4 @@ const webhook = async (req, res) => {
   }
 };
 
-module.exports = { criarPix, criarCartao, getStatus, webhook };
+module.exports = { criarPreferencia, getStatus, webhook };
