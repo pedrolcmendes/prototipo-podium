@@ -58,8 +58,14 @@ const cancelarReferencia = async (tipo, referenciaId) => {
   }
 };
 
+const PAYMENT_METHOD_FILTERS = {
+  pix:     { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'prepaid_card' }] },
+  credito: { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'debit_card' }, { id: 'ticket' }] },
+  debito:  { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'credit_card' }, { id: 'ticket' }] },
+};
+
 const criarPreferencia = async (req, res) => {
-  const { tipo, referenciaId } = req.body;
+  const { tipo, referenciaId, metodo } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
     return res.status(400).json({ message: 'Tipo inválido' });
   }
@@ -70,6 +76,7 @@ const criarPreferencia = async (req, res) => {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+  const paymentMethods = PAYMENT_METHOD_FILTERS[metodo] || {};
 
   try {
     const pref = await mpPreference.create({
@@ -94,6 +101,7 @@ const criarPreferencia = async (req, res) => {
         notification_url: `${backendUrl}/api/pagamentos/webhook`,
         expires: true,
         expiration_date_to: expiresAt.toISOString(),
+        ...(Object.keys(paymentMethods).length ? { payment_methods: paymentMethods } : {}),
       },
     });
 
