@@ -60,8 +60,8 @@ const cancelarReferencia = async (tipo, referenciaId) => {
 
 const PAYMENT_METHOD_FILTERS = {
   pix:     { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'prepaid_card' }, { id: 'atm' }] },
-  credito: { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'account_money' }, { id: 'atm' }] },
-  debito:  { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'credit_card' }, { id: 'ticket' }, { id: 'account_money' }, { id: 'atm' }] },
+  credito: { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'atm' }] },
+  debito:  { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'credit_card' }, { id: 'ticket' }, { id: 'atm' }] },
 };
 
 const criarPreferencia = async (req, res) => {
