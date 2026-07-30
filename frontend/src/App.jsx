@@ -13,6 +13,7 @@ import Painel from './pages/Painel';
 import Admin from './pages/Admin';
 import Privacidade from './pages/Privacidade';
 import RedefinirSenha from './pages/RedefinirSenha';
+import PagamentoRetorno from './pages/PagamentoRetorno';
 
 /* Páginas que têm seu próprio topbar e não devem exibir o Nav global */
 const NO_NAV_PATHS = ['/painel', '/admin'];
@@ -54,6 +55,7 @@ function Layout() {
         <Route path="/admin" element={<Admin />} />
         <Route path="/privacidade" element={<Privacidade />} />
         <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
+        <Route path="/pagamento/retorno" element={<PagamentoRetorno />} />
       </Routes>
     </>
   );
