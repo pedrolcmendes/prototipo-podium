@@ -64,6 +64,61 @@ const PAYMENT_METHOD_FILTERS = {
   debito:  { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'credit_card' }, { id: 'ticket' }, { id: 'atm' }] },
 };
 
+const criarPagamentoPix = async (req, res) => {
+  const { tipo, referenciaId } = req.body;
+  if (!['booking', 'registration'].includes(tipo)) {
+    return res.status(400).json({ message: 'Tipo inválido' });
+  }
+
+  const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
+  if (error) return res.status(error.status).json({ message: error.message });
+
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+  try {
+    const mpResult = await mpApi.create({
+      body: {
+        transaction_amount: Number(valor),
+        payment_method_id: 'pix',
+        description: descricao,
+        external_reference: `${tipo}:${referenciaId}`,
+        payer: {
+          email: req.user.email,
+          first_name: req.user.nome.split(' ')[0],
+          last_name: req.user.nome.split(' ').slice(1).join(' ') || 'Usuário',
+        },
+        date_of_expiration: expiresAt.toISOString(),
+      },
+    });
+
+    const payment = await PaymentModel.create({
+      userId: req.user._id,
+      tipo,
+      referenciaId,
+      valor,
+      metodo: 'pix',
+      mpPaymentId: String(mpResult.id),
+      expiresAt,
+    });
+
+    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+
+    const txData = mpResult.point_of_interaction?.transaction_data;
+    return res.status(201).json({
+      paymentId: payment._id,
+      mpPaymentId: String(mpResult.id),
+      qrCode: txData?.qr_code,
+      qrCodeBase64: txData?.qr_code_base64,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (err) {
+    console.error('MP PIX error:', JSON.stringify(err?.cause ?? err, null, 2));
+    await cancelarReferencia(tipo, referenciaId);
+    return res.status(500).json({ message: 'Erro ao gerar PIX. Reserva cancelada.' });
+  }
+};
+
 const criarPreferencia = async (req, res) => {
   const { tipo, referenciaId, metodo } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
@@ -206,4 +261,4 @@ const syncPagamento = async (req, res) => {
   }
 };
 
-module.exports = { criarPreferencia, getStatus, syncPagamento, webhook };
+module.exports = { criarPagamentoPix, criarPreferencia, getStatus, syncPagamento, webhook };
