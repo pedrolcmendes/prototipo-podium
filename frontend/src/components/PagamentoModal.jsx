@@ -3,11 +3,13 @@ import api from '../services/api';
 
 const fmtReal = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
-export default function PagamentoModal({ tipo, referenciaId, valor, onClose }) {
+const METODO_LABEL = { pix: 'PIX', credito: 'Cartão de Crédito', debito: 'Cartão de Débito' };
+
+export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onClose }) {
   const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
-    api.post('/pagamentos/preferencia', { tipo, referenciaId })
+    api.post('/pagamentos/preferencia', { tipo, referenciaId, metodo })
       .then(({ data }) => {
         const url = import.meta.env.DEV ? data.sandboxUrl : data.checkoutUrl;
         window.location.href = url;
@@ -43,7 +45,7 @@ export default function PagamentoModal({ tipo, referenciaId, valor, onClose }) {
         <div className="pag-modal">
           <div className="pag-header">
             <div>
-              <p className="pag-eyebrow">Mercado Pago</p>
+              <p className="pag-eyebrow">{METODO_LABEL[metodo] || 'Mercado Pago'}</p>
               <h2 className="pag-title">PAGAMENTO</h2>
             </div>
             <div className="pag-valor">{fmtReal(valor)}</div>
