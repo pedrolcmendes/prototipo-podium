@@ -96,6 +96,7 @@ const criarPreferencia = async (req, res) => {
           failure: `${frontendUrl}/pagamento/retorno`,
           pending: `${frontendUrl}/pagamento/retorno`,
         },
+        ...(frontendUrl.startsWith('https') ? { auto_return: 'approved' } : {}),
         external_reference: `${tipo}:${referenciaId}`,
         notification_url: `${backendUrl}/api/pagamentos/webhook`,
         expires: true,
