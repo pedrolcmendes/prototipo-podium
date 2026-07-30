@@ -59,9 +59,9 @@ const cancelarReferencia = async (tipo, referenciaId) => {
 };
 
 const PAYMENT_METHOD_FILTERS = {
-  pix:     { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'prepaid_card' }] },
-  credito: { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'debit_card' }, { id: 'ticket' }] },
-  debito:  { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'credit_card' }, { id: 'ticket' }] },
+  pix:     { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'prepaid_card' }, { id: 'atm' }] },
+  credito: { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'account_money' }, { id: 'atm' }] },
+  debito:  { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'credit_card' }, { id: 'ticket' }, { id: 'account_money' }, { id: 'atm' }] },
 };
 
 const criarPreferencia = async (req, res) => {
@@ -175,4 +175,34 @@ const webhook = async (req, res) => {
   }
 };
 
-module.exports = { criarPreferencia, getStatus, webhook };
+const syncPagamento = async (req, res) => {
+  const { mpPaymentId } = req.query;
+  if (!mpPaymentId) return res.status(400).json({ message: 'mpPaymentId obrigatório' });
+
+  try {
+    const mpResult = await mpApi.get({ id: String(mpPaymentId) });
+
+    let payment = await PaymentModel.findOne({ mpPaymentId: String(mpPaymentId) });
+
+    if (!payment && mpResult.external_reference) {
+      const [tipo, referenciaId] = mpResult.external_reference.split(':');
+      payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
+    }
+
+    if (!payment) return res.json({ status: 'not_found' });
+
+    if (mpResult.status === 'approved' && payment.status === 'pendente') {
+      payment.mpPaymentId = String(mpPaymentId);
+      payment.status = 'aprovado';
+      await payment.save();
+      await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
+    }
+
+    return res.json({ status: payment.status });
+  } catch (err) {
+    console.error('Sync error:', err?.message);
+    return res.status(500).json({ message: 'Erro ao sincronizar pagamento' });
+  }
+};
+
+module.exports = { criarPreferencia, getStatus, syncPagamento, webhook };
