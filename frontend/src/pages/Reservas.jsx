@@ -424,11 +424,13 @@ export default function Reservas() {
               </div>
               <div className="bk-card-body">
                 <div className="bk-option-grid">
-                  {QUADRAS.map(q => (
-                    <div key={q.id} className={`bk-option-card${quadra?.id === q.id ? ' active' : ''}`} onClick={() => setQuadra(q)}>
+                  {[...QUADRAS, ...(user?.admin ? [{ id: 'teste-1', tipo: 'teste', nome: 'TESTE', desc: 'R$0,01 · Apenas testes' }] : [])].map(q => (
+                    <div key={q.id} className={`bk-option-card${quadra?.id === q.id ? ' active' : ''}${q.tipo === 'teste' ? ' bk-option-card--teste' : ''}`} onClick={() => setQuadra(q)}>
                       <div className="bk-option-icon">
                         {q.tipo === 'coberta'
                           ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                          : q.tipo === 'teste'
+                          ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
                           : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
                         }
                       </div>
