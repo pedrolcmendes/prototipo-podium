@@ -425,7 +425,7 @@ export default function Reservas() {
               </div>
               <div className="bk-card-body">
                 <div className="bk-option-grid">
-                  {QUADRAS.filter(q => q.tipo !== 'teste' || user?.role === 'admin').map(q => (
+                  {QUADRAS.filter(q => q.tipo !== 'teste' || user?.admin).map(q => (
                     <div key={q.id} className={`bk-option-card${quadra?.id === q.id ? ' active' : ''}`} onClick={() => setQuadra(q)}>
                       <div className="bk-option-icon">
                         {q.tipo === 'coberta'
