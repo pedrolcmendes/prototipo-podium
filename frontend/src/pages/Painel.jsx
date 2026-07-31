@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/Toast';
 import LogoutModal from '../components/LogoutModal';
 import PodiumDatePicker from '../components/PodiumDatePicker';
+import PagamentoModal from '../components/PagamentoModal';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import useLive from '../hooks/useLive';
 import api from '../services/api';
@@ -126,6 +127,7 @@ export default function Painel() {
   const [cancelId, setCancelId] = useState(null);
   const [cancelInfo, setCancelInfo] = useState('');
   const [cancelWindow, setCancelWindow] = useState(24);
+  const [pagResumeBooking, setPagResumeBooking] = useState(null);
 
   const [perfil, setPerfil] = useState({ nome: '', email: '', telefone: '', dataNascimento: '' });
   const [senhaData, setSenhaData] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
@@ -530,7 +532,7 @@ export default function Painel() {
                     const dataLabel = dt ? `${DIAS_SEMANA[dt.getDay()]}, ${dt.getDate()} ${MESES[dt.getMonth()]}` : '—';
                     const mc = modColor(r.modalidade);
                     const ms = modSoft(r.modalidade);
-                    const statusLabel = { confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada', concluida: 'Concluída' }[displaySt] || displaySt;
+                    const statusLabel = { confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada', concluida: 'Concluída', pendente_pagamento: 'Pag. Pendente' }[displaySt] || displaySt;
                     return (
                       <div key={r._id} className="res-card">
                         {/* Ícone de modalidade */}
@@ -559,6 +561,15 @@ export default function Painel() {
                         {/* Status + cancelar */}
                         <div className="res-card-actions">
                           <span className={`res-status-pill ${displaySt}`}>{statusLabel}</span>
+                          {r.status === 'pendente_pagamento' && (
+                            <button
+                              className="res-pay-btn"
+                              onClick={() => setPagResumeBooking(r)}
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                              Concluir Pagamento
+                            </button>
+                          )}
                           {podeCancel && (
                             <button
                               className="res-cancel-btn"
@@ -880,6 +891,17 @@ export default function Painel() {
           </button>
         ))}
       </div>
+
+      {/* MODAL CONCLUIR PAGAMENTO */}
+      {pagResumeBooking && (
+        <PagamentoModal
+          tipo="booking"
+          referenciaId={pagResumeBooking._id}
+          metodo={pagResumeBooking.payment}
+          valor={pagResumeBooking.total}
+          onClose={() => { setPagResumeBooking(null); loadData(); }}
+        />
+      )}
 
       {/* MODAL CANCELAR */}
       {cancelId && (
