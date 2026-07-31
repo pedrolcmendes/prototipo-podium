@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import AuthModal from './AuthModal';
 import LogoutModal from './LogoutModal';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import api from '../services/api';
 
 export default function Nav() {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ export default function Nav() {
   const [authTab, setAuthTab] = useState('login');
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [ddOpen, setDdOpen] = useState(false);
+  const [hasPendingPayment, setHasPendingPayment] = useState(false);
   const pillRef = useRef(null);
   const painelTab = new URLSearchParams(location.search).get('tab');
 
@@ -56,6 +58,14 @@ export default function Nav() {
       navigate(`/#${id}`);
     }
   };
+
+  useEffect(() => {
+    if (!user) { setHasPendingPayment(false); return; }
+    api.get('/bookings/me').then(r => {
+      const list = r.data.data || r.data || [];
+      setHasPendingPayment(list.some(b => b.status === 'pendente_pagamento'));
+    }).catch(() => {});
+  }, [user]);
 
   const initials = user?.nome ? user.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : '';
 
@@ -192,6 +202,12 @@ export default function Nav() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                   Reservar Quadra
                 </Link>
+                {hasPendingPayment && (
+                  <Link to="/painel?tab=reservas" style={{ color: 'var(--gold)' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                    Concluir Pagamento
+                  </Link>
+                )}
                 {user.admin && (
                   <Link to="/admin">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
