@@ -3,6 +3,7 @@ const Booking = require('../models/Booking');
 const BlockedSlot = require('../models/BlockedSlot');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
+const PaymentModel = require('../models/Payment');
 const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
 const { broadcast } = require('../utils/live');
 
@@ -18,6 +19,22 @@ const COURT_TYPE_BY_ID = {
 const BOOKING_MODALITIES = new Set(['beach-tennis', 'futevolei', 'volei', 'pickleball']);
 const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'dinheiro']);
 const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball', 'teste']);
+
+const DAY_USE_PRICE = 25;
+
+function calcularPrecoSlot(hora, tipoQuadra, isFimDeSemana) {
+  if (tipoQuadra === 'teste') return 0.01;
+  const coberta = tipoQuadra === 'coberta';
+  if (isFimDeSemana) {
+    if (hora < 11) return coberta ? 80 : 60;
+    if (hora < 14) return coberta ? 60 : 50;
+    return coberta ? 100 : 80;
+  }
+  if (hora < 16) return coberta ? 60 : 50;
+  if (hora < 18) return coberta ? 80 : 60;
+  if (hora < 21) return coberta ? 100 : 80;
+  return coberta ? 80 : 60;
+}
 const localDateIso = (date = new Date()) => (
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 );
@@ -94,13 +111,12 @@ const listar = async (req, res) => {
 };
 
 const criar = async (req, res) => {
-  const { modalidade, quadra, quadraId, date, slots, dayUse, payment, total, userId: bodyUserId } = req.body;
+  const { modalidade, quadra, quadraId, date, slots, dayUse, payment, userId: bodyUserId } = req.body;
   const isDayUse = Boolean(dayUse);
   const normalizedSlots = Array.isArray(slots)
     ? [...new Set(slots.map(Number).filter((slot) => Number.isInteger(slot) && slot >= 0 && slot <= 23))]
     : [];
   const resolvedQuadra = quadra || COURT_TYPE_BY_ID[quadraId];
-  const numericTotal = Number(total);
 
   if (!BOOKING_MODALITIES.has(modalidade)) return res.status(400).json({ message: 'Modalidade inválida' });
   if (!BOOKING_PAYMENTS.has(payment)) return res.status(400).json({ message: 'Forma de pagamento inválida' });
@@ -109,7 +125,11 @@ const criar = async (req, res) => {
   if (date < localDateIso()) return res.status(400).json({ message: 'Não é possível criar reservas em datas passadas' });
   if (!quadraId || !BOOKING_COURT_TYPES.has(resolvedQuadra)) return res.status(400).json({ message: 'Informe uma quadra válida' });
   if (!isDayUse && normalizedSlots.length === 0) return res.status(400).json({ message: 'Selecione pelo menos um horário' });
-  if (!Number.isFinite(numericTotal) || numericTotal < 0) return res.status(400).json({ message: 'Valor da reserva inválido' });
+
+  const isFimDeSemana = [0, 6].includes(new Date(`${date}T12:00:00`).getDay());
+  const serverTotal = isDayUse
+    ? DAY_USE_PRICE
+    : normalizedSlots.reduce((acc, h) => acc + calcularPrecoSlot(h, resolvedQuadra, isFimDeSemana), 0);
   // No fluxo público, inclusive um administrador reserva para a própria conta
   // sem enviar userId. O campo só é obrigatório/validado quando o painel interno
   // escolhe explicitamente outro cliente.
@@ -149,7 +169,7 @@ const criar = async (req, res) => {
     slots: normalizedSlots,
     dayUse: isDayUse,
     payment,
-    total: numericTotal,
+    total: serverTotal,
     status: (isAdmin && payment === 'dinheiro') ? 'confirmada' : 'pendente_pagamento',
   });
 
@@ -210,13 +230,19 @@ const cancelar = async (req, res) => {
     }
   }
 
+  const statusAnterior = booking.status;
   booking.status = 'cancelada';
   await booking.save();
 
-  // Estorna como créditos no site (não devolve ao banco)
-  if (booking.total > 0) {
+  // Bloqueia payment pendente para o webhook não reativar a reserva cancelada
+  if (statusAnterior === 'pendente_pagamento' && booking.paymentId) {
+    await PaymentModel.findByIdAndUpdate(booking.paymentId, { status: 'cancelado' }).catch(() => {});
+  }
+
+  // Só estorna créditos se o pagamento foi efetivado (reserva estava confirmada)
+  if (booking.total > 0 && statusAnterior === 'confirmada') {
     await User.findByIdAndUpdate(booking.userId, { $inc: { creditos: booking.total } });
-    broadcast('users'); // saldo de créditos mudou
+    broadcast('users');
   }
   broadcast('bookings');
 

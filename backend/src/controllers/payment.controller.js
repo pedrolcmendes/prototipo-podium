@@ -73,6 +73,11 @@ const criarPagamentoPix = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
+  const pagamentoPendente = await PaymentModel.findOne({ referenciaId, status: 'pendente' });
+  if (pagamentoPendente) {
+    return res.status(409).json({ message: 'Já existe um pagamento pendente para esta reserva. Aguarde ou cancele o anterior.' });
+  }
+
   if (!req.user.cpf) {
     return res.status(400).json({ message: 'Cadastre seu CPF no perfil antes de pagar via PIX.' });
   }

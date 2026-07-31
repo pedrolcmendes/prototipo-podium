@@ -14,7 +14,7 @@ export default function PagamentoRetorno() {
     if (urlStatus === 'approved' && mpPaymentId) {
       api.get(`/pagamentos/sync?mpPaymentId=${mpPaymentId}`)
         .then(({ data }) => setStatus(data.status === 'aprovado' ? 'approved' : 'pending'))
-        .catch(() => setStatus('approved')); // se sync falhar, confia no MP
+        .catch(() => setStatus('pending')); // se sync falhar, mostra como pendente
     }
   }, []);
 
