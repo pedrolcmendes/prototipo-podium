@@ -5,7 +5,7 @@ const paymentSchema = new mongoose.Schema({
   tipo: { type: String, enum: ['booking', 'registration'], required: true },
   referenciaId: { type: mongoose.Schema.Types.ObjectId, required: true },
   valor: { type: Number, required: true },
-  metodo: { type: String, enum: ['pix', 'credito', 'debito', 'checkout_pro'], required: true },
+  metodo: { type: String, enum: ['pix', 'credito', 'debito', 'checkout_pro', 'cartao'], required: true },
   status: { type: String, enum: ['pendente', 'aprovado', 'cancelado', 'expirado'], default: 'pendente' },
   mpPaymentId: { type: String, default: null },
   mpPreferenceId: { type: String, default: null },

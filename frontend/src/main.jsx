@@ -1,6 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { initMercadoPago } from '@mercadopago/sdk-react';
+
+initMercadoPago((import.meta.env.VITE_MP_PUBLIC_KEY || '').trim(), { locale: 'pt-BR' });
 
 /* ── CSS originais do projeto (copiados sem alteração) ── */
 import './styles/vars.css';

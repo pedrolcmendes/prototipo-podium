@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const { criarPagamentoPix, criarPreferencia, getStatus, syncPagamento, webhook } = require('../controllers/payment.controller');
+const { criarPagamentoPix, criarPreferencia, criarPagamentoCartao, getStatus, syncPagamento, webhook } = require('../controllers/payment.controller');
 
 router.post('/webhook', webhook);
 router.post('/pix', protect, criarPagamentoPix);
 router.post('/preferencia', protect, criarPreferencia);
+router.post('/cartao', protect, criarPagamentoCartao);
 router.get('/sync', syncPagamento);
 router.get('/:id/status', protect, getStatus);
 

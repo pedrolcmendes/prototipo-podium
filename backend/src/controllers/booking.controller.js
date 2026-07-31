@@ -17,7 +17,7 @@ const COURT_TYPE_BY_ID = {
   'teste-1': 'teste',
 };
 const BOOKING_MODALITIES = new Set(['beach-tennis', 'futevolei', 'volei', 'pickleball']);
-const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'creditos']);
+const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'creditos', 'cartao']);
 const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball', 'teste']);
 
 const DAY_USE_PRICE = 25;

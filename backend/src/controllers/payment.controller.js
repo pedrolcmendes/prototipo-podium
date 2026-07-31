@@ -289,6 +289,89 @@ const webhook = async (req, res) => {
   }
 };
 
+const DECLINE_MESSAGES = {
+  cc_rejected_bad_filled_card_number: 'Verifique o número do cartão.',
+  cc_rejected_bad_filled_date: 'Verifique a data de validade.',
+  cc_rejected_bad_filled_security_code: 'Verifique o código de segurança (CVV).',
+  cc_rejected_blacklist: 'Cartão com restrição. Entre em contato com seu banco.',
+  cc_rejected_call_for_authorize: 'Ligue para o banco para autorizar este pagamento.',
+  cc_rejected_card_disabled: 'Cartão bloqueado ou desabilitado.',
+  cc_rejected_duplicated_payment: 'Pagamento duplicado detectado.',
+  cc_rejected_high_risk: 'Transação recusada por segurança.',
+  cc_rejected_insufficient_amount: 'Saldo ou limite insuficiente.',
+  cc_rejected_invalid_installments: 'Número de parcelas inválido.',
+  cc_rejected_max_attempts: 'Limite de tentativas atingido. Tente novamente amanhã.',
+};
+
+const criarPagamentoCartao = async (req, res) => {
+  const { tipo, referenciaId, token, paymentMethodId, installments, issuerId } = req.body;
+  if (!['booking', 'registration'].includes(tipo)) return res.status(400).json({ message: 'Tipo inválido' });
+  if (!token || !paymentMethodId) return res.status(400).json({ message: 'Dados do cartão inválidos' });
+
+  const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
+  if (error) return res.status(error.status).json({ message: error.message });
+
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  const nomes = req.user.nome.split(' ');
+
+  try {
+    const mpResult = await mpApi.create({
+      body: {
+        transaction_amount: Number(valor),
+        token,
+        description: descricao,
+        installments: Number(installments) || 1,
+        payment_method_id: paymentMethodId,
+        ...(issuerId ? { issuer_id: Number(issuerId) } : {}),
+        external_reference: `${tipo}:${referenciaId}`,
+        notification_url: `${backendUrl}/api/pagamentos/webhook`,
+        payer: {
+          email: req.user.email,
+          first_name: nomes[0],
+          last_name: nomes.slice(1).join(' ') || 'Usuário',
+          ...(req.user.cpf ? { identification: { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') } } : {}),
+        },
+      },
+    });
+
+    const mpStatus = mpResult.status;
+    const approved = mpStatus === 'approved';
+    const rejected = mpStatus === 'rejected';
+
+    const payment = await PaymentModel.create({
+      userId: req.user._id,
+      tipo,
+      referenciaId,
+      valor,
+      metodo: 'cartao',
+      mpPaymentId: String(mpResult.id),
+      status: approved ? 'aprovado' : rejected ? 'cancelado' : 'pendente',
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+
+    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+
+    if (approved) {
+      await confirmarReferencia(tipo, referenciaId, req.user._id);
+    }
+
+    const declineMsg = rejected
+      ? (DECLINE_MESSAGES[mpResult.status_detail] || 'Pagamento recusado. Verifique os dados ou tente outro cartão.')
+      : null;
+
+    return res.status(201).json({
+      status: mpStatus,
+      statusDetail: mpResult.status_detail,
+      mpPaymentId: String(mpResult.id),
+      declineMessage: declineMsg,
+    });
+  } catch (err) {
+    console.error('MP Card error:', JSON.stringify(err?.cause ?? err, null, 2));
+    return res.status(500).json({ message: 'Erro ao processar o cartão. Tente novamente.' });
+  }
+};
+
 const syncPagamento = async (req, res) => {
   const { mpPaymentId } = req.query;
   if (!mpPaymentId) return res.status(400).json({ message: 'mpPaymentId obrigatório' });
@@ -319,4 +402,4 @@ const syncPagamento = async (req, res) => {
   }
 };
 
-module.exports = { criarPagamentoPix, criarPreferencia, getStatus, syncPagamento, webhook };
+module.exports = { criarPagamentoPix, criarPreferencia, criarPagamentoCartao, getStatus, syncPagamento, webhook };

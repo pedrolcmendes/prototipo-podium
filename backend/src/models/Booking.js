@@ -19,7 +19,7 @@ const bookingSchema = new mongoose.Schema({
   dayUse: { type: Boolean, default: false },
   payment: {
     type: String,
-    enum: ['pix', 'credito', 'debito', 'dinheiro', 'creditos'],
+    enum: ['pix', 'credito', 'debito', 'dinheiro', 'creditos', 'cartao'],
     required: true,
   },
   creditosAplicados: { type: Number, default: 0 },

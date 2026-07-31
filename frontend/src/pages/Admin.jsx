@@ -100,7 +100,7 @@ const STATUS_LABELS = {
   confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada',
   concluida: 'Concluída', ativo: 'Ativo', aberto: 'Aberto', encerrado: 'Encerrado',
 };
-const PAYMENT_LABELS = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro', creditos: 'Créditos Arena' };
+const PAYMENT_LABELS = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro', creditos: 'Créditos Arena', cartao: 'Cartão' };
 
 const QUADRAS_ALL = BOOKING_COURTS;
 const QUADRA_NOMES = {
@@ -1945,6 +1945,7 @@ export default function Admin() {
                 <option value="pix">PIX</option>
                 <option value="credito">Crédito</option>
                 <option value="debito">Débito</option>
+                <option value="cartao">Cartão</option>
                 <option value="creditos">Créditos Arena</option>
               </PodiumSelect>
             </div>
@@ -2010,6 +2011,7 @@ export default function Admin() {
               <option value="pix">PIX</option>
               <option value="credito">Crédito</option>
               <option value="debito">Débito</option>
+              <option value="cartao">Cartão</option>
               <option value="creditos">Créditos Arena</option>
             </PodiumSelect>
             {novaResForm.payment === 'creditos' && (() => {
