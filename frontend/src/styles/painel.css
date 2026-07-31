@@ -782,10 +782,33 @@ body.painel-page {
   border-radius: 999px;
   white-space: nowrap;
 }
-.res-status-pill.confirmada { background: rgba(34,197,94,.14); color: var(--green); }
-.res-status-pill.pendente   { background: rgba(245,158,11,.14); color: var(--amber); }
-.res-status-pill.cancelada  { background: rgba(239,68,68,.13); color: var(--red); }
-.res-status-pill.concluida  { background: rgba(128,128,128,.13); color: var(--gray); }
+.res-status-pill.confirmada        { background: rgba(34,197,94,.14); color: var(--green); }
+.res-status-pill.pendente          { background: rgba(245,158,11,.14); color: var(--amber); }
+.res-status-pill.cancelada         { background: rgba(239,68,68,.13); color: var(--red); }
+.res-status-pill.concluida         { background: rgba(128,128,128,.13); color: var(--gray); }
+.res-status-pill.pendente_pagamento{ background: rgba(245,158,11,.14); color: var(--amber); }
+
+/* Botão concluir pagamento */
+.res-pay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .3rem .75rem;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--gold);
+  background: transparent;
+  color: var(--gold);
+  font-family: var(--font-cond);
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--trans-fast);
+}
+.res-pay-btn:hover { background: rgba(224,172,107,.12); }
 
 /* Botão cancelar */
 .res-cancel-btn {
