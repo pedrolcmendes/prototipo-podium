@@ -125,6 +125,13 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onCl
                   <div className="pag-spinner pag-spinner-sm" />
                   Aguardando pagamento — confirmação automática
                 </div>
+                <button className="pag-cancel-btn" onClick={async () => {
+                  clearInterval(pollRef.current);
+                  try { await api.patch(`/bookings/${referenciaId}/cancelar`); } catch { /* ignora */ }
+                  onClose();
+                }}>
+                  Cancelar pagamento
+                </button>
               </>
             )}
 
