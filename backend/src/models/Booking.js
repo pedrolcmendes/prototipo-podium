@@ -10,7 +10,7 @@ const bookingSchema = new mongoose.Schema({
   },
   quadra: {
     type: String,
-    enum: ['coberta', 'descoberta', 'areia', 'pickleball'],
+    enum: ['coberta', 'descoberta', 'areia', 'pickleball', 'teste'],
     required: function () { return !this.dayUse; },
   },
   quadraId: { type: String, required: function () { return !this.dayUse; } },
