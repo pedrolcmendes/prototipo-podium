@@ -73,20 +73,28 @@ const criarPagamentoPix = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
+  if (!req.user.cpf) {
+    return res.status(400).json({ message: 'Cadastre seu CPF no perfil antes de pagar via PIX.' });
+  }
+
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
   try {
+    const nomes = req.user.nome.split(' ');
+    const payerBody = {
+      email: `pix.${req.user._id}@podiumarena.com.br`,
+      first_name: nomes[0],
+      last_name: nomes.slice(1).join(' ') || 'Usuário',
+      identification: { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') },
+    };
+
     const mpResult = await mpApi.create({
       body: {
         transaction_amount: Number(valor),
         payment_method_id: 'pix',
         description: descricao,
         external_reference: `${tipo}:${referenciaId}`,
-        payer: {
-          email: req.user.email,
-          first_name: req.user.nome.split(' ')[0],
-          last_name: req.user.nome.split(' ').slice(1).join(' ') || 'Usuário',
-        },
+        payer: payerBody,
         date_of_expiration: expiresAt.toISOString(),
       },
     });
