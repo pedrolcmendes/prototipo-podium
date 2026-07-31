@@ -97,6 +97,7 @@ export default function Reservas() {
   const [quadra, setQuadra] = useState(null);
 
   const today = new Date();
+  const todayStr = padDate(today);
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
@@ -152,7 +153,7 @@ export default function Reservas() {
   });
 
   const toggleSlot = (h) => {
-    if (busySlots.includes(h)) return;
+    if (busySlots.includes(h) || (selectedDate === todayStr && h < today.getHours())) return;
     setSelectedSlots(prev =>
       prev.includes(h) ? prev.filter(s => s !== h) : [...prev, h]
     );
@@ -520,7 +521,7 @@ export default function Reservas() {
                             </div>
                             <div className="times-grid">
                               {hours.map(h => {
-                                const taken = busySlots.includes(h);
+                                const taken = busySlots.includes(h) || (selectedDate === todayStr && h < today.getHours());
                                 const sel = selectedSlots.includes(h);
                                 const price = getPrice(h, quadra?.tipo, isWeekend);
                                 return (
