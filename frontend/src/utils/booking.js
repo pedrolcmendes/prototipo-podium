@@ -9,7 +9,6 @@ export const BOOKING_COURTS = [
 export const PICKLEBALL_DAY_USE_PRICE = 25;
 
 export function getBookingPrice(hour, courtType, isWeekend) {
-  if (courtType === 'teste') return 0.01;
   const covered = courtType === 'coberta';
   if (isWeekend) {
     if (hour < 11) return covered ? 80 : 60;
