@@ -13,11 +13,10 @@ const COURT_TYPE_BY_ID = {
   'areia-2': 'descoberta',
   'areia-3': 'descoberta',
   'PKB-DU': 'pickleball',
-  'teste-1': 'teste',
 };
 const BOOKING_MODALITIES = new Set(['beach-tennis', 'futevolei', 'volei', 'pickleball']);
 const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'dinheiro']);
-const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball', 'teste']);
+const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball']);
 const localDateIso = (date = new Date()) => (
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 );
