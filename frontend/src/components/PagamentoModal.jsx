@@ -10,8 +10,12 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, onCl
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const pollRef = useRef(null);
+  const calledRef = useRef(false);
 
   useEffect(() => {
+    if (calledRef.current) return;
+    calledRef.current = true;
+
     if (metodo === 'pix') {
       api.post('/pagamentos/pix', { tipo, referenciaId })
         .then(({ data }) => {
