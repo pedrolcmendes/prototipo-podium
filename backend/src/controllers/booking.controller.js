@@ -17,7 +17,7 @@ const COURT_TYPE_BY_ID = {
   'teste-1': 'teste',
 };
 const BOOKING_MODALITIES = new Set(['beach-tennis', 'futevolei', 'volei', 'pickleball']);
-const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'dinheiro']);
+const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'creditos']);
 const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball', 'teste']);
 
 const DAY_USE_PRICE = 25;
@@ -120,7 +120,6 @@ const criar = async (req, res) => {
 
   if (!BOOKING_MODALITIES.has(modalidade)) return res.status(400).json({ message: 'Modalidade inválida' });
   if (!BOOKING_PAYMENTS.has(payment)) return res.status(400).json({ message: 'Forma de pagamento inválida' });
-  if (!req.user.admin && payment === 'dinheiro') return res.status(400).json({ message: 'Selecione PIX, crédito ou débito para pagar online' });
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ message: 'Informe uma data válida' });
   if (date < localDateIso()) return res.status(400).json({ message: 'Não é possível criar reservas em datas passadas' });
   if (!quadraId || !BOOKING_COURT_TYPES.has(resolvedQuadra)) return res.status(400).json({ message: 'Informe uma quadra válida' });
@@ -154,11 +153,28 @@ const criar = async (req, res) => {
 
   const targetUserId = (req.user.admin && bodyUserId) ? bodyUserId : req.user._id;
   const targetUser = req.user.admin
-    ? await User.findById(targetUserId).select('nome email')
+    ? await User.findById(targetUserId).select('nome email creditos')
     : req.user;
   if (!targetUser) return res.status(404).json({ message: 'Cliente não encontrado' });
 
-  const isAdmin = req.user.admin;
+  const existePendente = await Booking.findOne({ userId: targetUserId, status: 'pendente_pagamento' });
+  if (existePendente) {
+    return res.status(409).json({ message: 'Você já tem uma reserva com pagamento pendente. Conclua ou cancele antes de criar uma nova.' });
+  }
+
+  // Aplicar créditos da arena se selecionado
+  let creditosAplicados = 0;
+  if (payment === 'creditos') {
+    const credDisponiveis = targetUser.creditos || 0;
+    creditosAplicados = Math.min(credDisponiveis, serverTotal);
+    if (creditosAplicados > 0) {
+      await User.findByIdAndUpdate(targetUserId, { $inc: { creditos: -creditosAplicados } });
+      broadcast('users');
+    }
+  }
+  const restante = serverTotal - creditosAplicados;
+  const pagoComCreditos = payment === 'creditos' && restante === 0;
+
   const booking = await Booking.create({
     userId: targetUserId,
     userName: targetUser.nome,
@@ -170,11 +186,13 @@ const criar = async (req, res) => {
     dayUse: isDayUse,
     payment,
     total: serverTotal,
-    status: (isAdmin && payment === 'dinheiro') ? 'confirmada' : 'pendente_pagamento',
+    creditosAplicados,
+    foiPago: pagoComCreditos,
+    status: pagoComCreditos ? 'confirmada' : 'pendente_pagamento',
   });
 
-  // E-mail de confirmação só para reservas pagas com dinheiro (presencial, admin)
-  if (isAdmin && payment === 'dinheiro' && settings?.notifEmailConfirm !== false) {
+  // Enviar e-mail para reservas confirmadas na hora (créditos totais)
+  if (pagoComCreditos && settings?.notifEmailConfirm !== false) {
     User.findById(targetUserId).select('nome email')
       .then((u) => u && enviarEmailReservaConfirmada({ destinatario: u.email, nome: u.nome, reserva: booking }))
       .catch((e) => console.warn('Falha no e-mail de confirmação:', e.message));
@@ -215,8 +233,9 @@ const cancelar = async (req, res) => {
     return res.status(403).json({ message: 'Sem permissão' });
   }
 
+  // Reserva nunca paga pode ser cancelada a qualquer momento sem restrição de tempo
   // Cancelamento permitido até cancelWindow horas antes do horário da reserva
-  if (!req.user.admin) {
+  if (!req.user.admin && booking.status !== 'pendente_pagamento') {
     const settings = await Settings.findById('global') || { cancelWindow: 24 };
     const firstSlot = booking.slots?.length > 0 ? Math.min(...booking.slots) : 8;
     const bookingDateTime = new Date(`${booking.date}T${String(firstSlot).padStart(2, '0')}:00:00`);
@@ -239,9 +258,15 @@ const cancelar = async (req, res) => {
     await PaymentModel.findByIdAndUpdate(booking.paymentId, { status: 'cancelado' }).catch(() => {});
   }
 
-  // Só estorna créditos se o pagamento foi efetivado (reserva estava confirmada)
-  if (booking.total > 0 && statusAnterior === 'confirmada') {
-    await User.findByIdAndUpdate(booking.userId, { $inc: { creditos: booking.total } });
+  // Créditos a devolver:
+  // - reserva confirmada (paga): devolve o total completo como créditos
+  // - reserva pendente com créditos aplicados: devolve só os créditos que foram debitados
+  const creditosARefundar = statusAnterior === 'confirmada'
+    ? booking.total
+    : (booking.creditosAplicados || 0);
+
+  if (creditosARefundar > 0) {
+    await User.findByIdAndUpdate(booking.userId, { $inc: { creditos: creditosARefundar } });
     broadcast('users');
   }
   broadcast('bookings');
@@ -256,7 +281,7 @@ const cancelar = async (req, res) => {
     })
     .catch((e) => console.warn('Falha no alerta de cancelamento:', e.message));
 
-  res.json({ message: 'Reserva cancelada', booking, creditosEstornados: booking.total });
+  res.json({ message: 'Reserva cancelada', booking, creditosEstornados: creditosARefundar });
 };
 
 const horariosOcupados = async (req, res) => {

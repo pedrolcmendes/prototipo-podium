@@ -116,7 +116,10 @@ export default function Painel() {
   const tab = PAINEL_TABS.has(requestedTab) ? requestedTab : 'inicio';
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [reservaFilter, setReservaFilter] = useState('proximas');
+  const requestedFilter = searchParams.get('filter');
+  const [reservaFilter, setReservaFilter] = useState(
+    ['proximas', 'anteriores', 'pendentes'].includes(requestedFilter) ? requestedFilter : 'proximas'
+  );
 
   // trava o scroll do fundo enquanto a sidebar mobile estiver aberta
   useBodyScrollLock(sidebarOpen);
@@ -126,6 +129,7 @@ export default function Painel() {
   const [meuRanking, setMeuRanking] = useState([]);
   const [cancelId, setCancelId] = useState(null);
   const [cancelInfo, setCancelInfo] = useState('');
+  const [cancelStatus, setCancelStatus] = useState(null);
   const [cancelWindow, setCancelWindow] = useState(24);
   const [pagResumeBooking, setPagResumeBooking] = useState(null);
 
@@ -207,23 +211,37 @@ export default function Painel() {
     : '?';
 
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const proximas = reservas.filter(r => r.status !== 'cancelada' && r.date && new Date(r.date + 'T12:00:00') >= hoje);
+  const pendentes = reservas.filter(r => r.status === 'pendente_pagamento');
+  const proximas = reservas.filter(r => r.status !== 'cancelada' && r.status !== 'pendente_pagamento' && r.date && new Date(r.date + 'T12:00:00') >= hoje);
   const anteriores = reservas.filter(r => r.date && new Date(r.date + 'T12:00:00') < hoje);
   const reservasFiltradas = reservaFilter === 'proximas' ? proximas
     : reservaFilter === 'anteriores' ? anteriores
+    : reservaFilter === 'pendentes' ? pendentes
     : reservas;
   const proximaReserva = [...proximas].sort((a, b) => new Date(a.date) - new Date(b.date))[0];
 
-  const extrato = [...reservas]
-    .filter(r => r.total > 0)
+  const extrato = [];
+  [...reservas]
+    .filter(r => r.total > 0 && r.foiPago)
     .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))
-    .map(r => ({
-      id: r._id,
-      tipo: r.status === 'cancelada' ? 'credito' : 'debito',
-      desc: r.status === 'cancelada' ? `Estorno — ${r.modalidade || '—'}` : `Reserva — ${r.modalidade || '—'}`,
-      data: r.createdAt ? new Date(r.createdAt).toLocaleDateString('pt-BR') : fmtDate(r.date),
-      valor: r.total,
-    }));
+    .forEach(r => {
+      extrato.push({
+        id: `${r._id}-deb`,
+        tipo: 'debito',
+        desc: `Reserva — ${r.modalidade || '—'}`,
+        data: r.createdAt ? new Date(r.createdAt).toLocaleDateString('pt-BR') : fmtDate(r.date),
+        valor: r.total,
+      });
+      if (r.status === 'cancelada') {
+        extrato.push({
+          id: `${r._id}-cred`,
+          tipo: 'credito',
+          desc: `Estorno — ${r.modalidade || '—'}`,
+          data: r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('pt-BR') : fmtDate(r.date),
+          valor: r.total,
+        });
+      }
+    });
 
   const handleCancelar = async () => {
     if (!cancelId) return;
@@ -240,6 +258,7 @@ export default function Painel() {
       toast(ex.response?.data?.message || 'Erro ao cancelar', 'error');
     } finally {
       setCancelId(null);
+      setCancelStatus(null);
     }
   };
 
@@ -497,6 +516,7 @@ export default function Painel() {
               <div className="res-seg">
                 {[
                   { key: 'proximas',   label: 'Próximas',   count: proximas.length },
+                  ...(pendentes.length > 0 ? [{ key: 'pendentes', label: 'Pendentes', count: pendentes.length }] : []),
                   { key: 'anteriores', label: 'Anteriores', count: anteriores.length },
                   { key: 'todas',      label: 'Todas',      count: reservas.length },
                 ].map(f => (
@@ -516,8 +536,8 @@ export default function Painel() {
                 <div className="res-empty">
                   <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
                   <div className="res-empty-title">Nenhuma reserva</div>
-                  <div className="res-empty-sub">Você não tem reservas {reservaFilter === 'proximas' ? 'próximas' : reservaFilter === 'anteriores' ? 'anteriores' : ''}.</div>
-                  {reservaFilter !== 'anteriores' && <Link to="/reservas" className="btn-gold-sm" style={{ marginTop: '1rem' }}>Reservar Quadra</Link>}
+                  <div className="res-empty-sub">Você não tem reservas {reservaFilter === 'proximas' ? 'próximas' : reservaFilter === 'anteriores' ? 'anteriores' : reservaFilter === 'pendentes' ? 'com pagamento pendente' : ''}.</div>
+                  {reservaFilter !== 'anteriores' && reservaFilter !== 'pendentes' && <Link to="/reservas" className="btn-gold-sm" style={{ marginTop: '1rem' }}>Reservar Quadra</Link>}
                 </div>
               ) : (
                 <div className="res-list">
@@ -575,15 +595,18 @@ export default function Painel() {
                               className="res-cancel-btn"
                               title="Cancelar reserva"
                               onClick={() => {
-                                const firstSlot = r.slots?.length > 0 ? Math.min(...r.slots) : 8;
-                                const bookingDateTime = new Date(`${r.date}T${String(firstSlot).padStart(2,'0')}:00:00`);
-                                const horasAte = (bookingDateTime.getTime() - Date.now()) / 3600000;
-                                if (horasAte < cancelWindow) {
-                                  toast(`Cancelamento não permitido. É necessário cancelar com pelo menos ${cancelWindow}h de antecedência.`, 'error');
-                                  return;
+                                if (r.status !== 'pendente_pagamento') {
+                                  const firstSlot = r.slots?.length > 0 ? Math.min(...r.slots) : 8;
+                                  const bookingDateTime = new Date(`${r.date}T${String(firstSlot).padStart(2,'0')}:00:00`);
+                                  const horasAte = (bookingDateTime.getTime() - Date.now()) / 3600000;
+                                  if (horasAte < cancelWindow) {
+                                    toast(`Cancelamento não permitido. É necessário cancelar com pelo menos ${cancelWindow}h de antecedência.`, 'error');
+                                    return;
+                                  }
                                 }
                                 setCancelId(r._id);
                                 setCancelInfo(`${r.modalidade} — ${fmtDate(r.date)}`);
+                                setCancelStatus(r.status);
                               }}
                             >
                               <IcoBan />
@@ -898,7 +921,8 @@ export default function Painel() {
           tipo="booking"
           referenciaId={pagResumeBooking._id}
           metodo={pagResumeBooking.payment}
-          valor={pagResumeBooking.total}
+          valor={pagResumeBooking.total - (pagResumeBooking.creditosAplicados || 0)}
+          creditosAplicados={pagResumeBooking.creditosAplicados || 0}
           onClose={() => { setPagResumeBooking(null); loadData(); }}
         />
       )}
@@ -911,10 +935,10 @@ export default function Painel() {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             </div>
             <h3 className="cancel-modal-title">Cancelar Reserva?</h3>
-            <p className="cancel-modal-sub">O valor pago será creditado na sua carteira Podium — não é devolvido ao banco.</p>
+            <p className="cancel-modal-sub">{cancelStatus === 'pendente_pagamento' ? 'O pagamento ainda não foi realizado — a reserva será cancelada sem nenhuma cobrança.' : 'O valor pago será creditado na sua carteira Podium — não é devolvido ao banco.'}</p>
             <div className="cancel-modal-info-box"><span>{cancelInfo}</span></div>
             <div className="cancel-modal-actions">
-              <button className="cancel-modal-btn-keep" onClick={() => setCancelId(null)}>Manter Reserva</button>
+              <button className="cancel-modal-btn-keep" onClick={() => { setCancelId(null); setCancelStatus(null); }}>Manter Reserva</button>
               <button className="cancel-modal-btn-confirm" onClick={handleCancelar}>Sim, Cancelar</button>
             </div>
           </div>

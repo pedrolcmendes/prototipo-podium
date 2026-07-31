@@ -112,7 +112,16 @@ export default function Reservas() {
   const [pendingBooking, setPendingBooking] = useState(null);
   const [confOpen, setConfOpen] = useState(false);
   const [confData, setConfData] = useState(null);
+  const [hasPending, setHasPending] = useState(false);
   const { settings } = useSettings();
+
+  useEffect(() => {
+    if (!user) { setHasPending(false); return; }
+    api.get('/bookings/me').then(r => {
+      const list = r.data.data || r.data || [];
+      setHasPending(list.some(b => b.status === 'pendente_pagamento'));
+    }).catch(() => {});
+  }, [user]);
   const maxAdvanceDays = Number(settings.maxAdvanceDays) || 30;
 
   // ao trocar de etapa, rola a tela de volta para o topo das opções
@@ -141,15 +150,21 @@ export default function Reservas() {
 
   // tempo real: se alguém reservar/bloquear este horário agora, a grade reflete na hora
   useLive(['bookings', 'blocked-slots'], () => {
-    if (!quadra || !selectedDate) return;
-    api.get(`/bookings/horarios-ocupados?quadraId=${quadra.id}&date=${selectedDate}`)
-      .then(r => {
-        const busy = Array.isArray(r.data) ? r.data : [];
-        setBusySlots(busy);
-        // desmarca horário que acabou de ser tomado por outra pessoa
-        setSelectedSlots(prev => prev.filter(h => !busy.includes(h)));
-      })
-      .catch(() => {});
+    if (quadra && selectedDate) {
+      api.get(`/bookings/horarios-ocupados?quadraId=${quadra.id}&date=${selectedDate}`)
+        .then(r => {
+          const busy = Array.isArray(r.data) ? r.data : [];
+          setBusySlots(busy);
+          setSelectedSlots(prev => prev.filter(h => !busy.includes(h)));
+        })
+        .catch(() => {});
+    }
+    if (user) {
+      api.get('/bookings/me').then(r => {
+        const list = r.data.data || r.data || [];
+        setHasPending(list.some(b => b.status === 'pendente_pagamento'));
+      }).catch(() => {});
+    }
   });
 
   const toggleSlot = (h) => {
@@ -197,6 +212,8 @@ export default function Reservas() {
         setConfData(booking);
         setConfOpen(true);
       } else {
+        setHasPending(true);
+        window.dispatchEvent(new CustomEvent('podium:booking-pending'));
         setPendingBooking(booking);
         setPagOpen(true);
       }
@@ -351,6 +368,11 @@ export default function Reservas() {
         @media(max-width:1000px){.bk-step3-layout,.bk-pay-layout{grid-template-columns:1fr}.bk-sidebar{position:static}}
         @media(max-width:768px){.page-hero{padding:2rem 1rem 1.5rem}.reservas-container{padding:0 1rem 3rem}.bk-card-header,.bk-card-body{padding:1.2rem 1rem}.bk-option-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem}.bk-option-card{padding:1.2rem .9rem}.bk-field-row{grid-template-columns:1fr}}
         @media(max-width:480px){.bk-step-label{font-size:.55rem;letter-spacing:1px}.bk-pay-methods{grid-template-columns:1fr}.conf-modal{padding:1.5rem}.conf-actions{grid-template-columns:1fr}.bk-nav{flex-direction:column-reverse;gap:.7rem;align-items:stretch}.bk-nav .btn-gold,.bk-nav .btn-ghost{width:100%;justify-content:center;padding:.9rem 1rem;white-space:nowrap}}
+        .bk-pending-banner{display:flex;align-items:center;gap:1rem;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.35);border-left:3px solid var(--amber);padding:1rem 1.2rem;margin-bottom:1.5rem;flex-wrap:wrap}
+        .bk-pending-banner svg{flex-shrink:0;color:var(--amber)}
+        .bk-pending-banner strong{display:block;font-family:var(--font-cond);font-size:.9rem;font-weight:700;letter-spacing:.5px;color:var(--white);margin-bottom:.15rem}
+        .bk-pending-banner p{font-size:.82rem;color:var(--gray);line-height:1.4;margin:0}
+        .bk-pending-banner a{margin-left:auto;white-space:nowrap;flex-shrink:0}
       `}</style>
 
       <div className="page-hero">
@@ -360,6 +382,17 @@ export default function Reservas() {
       </div>
 
       <div className="reservas-container">
+        {hasPending && (
+          <div className="bk-pending-banner">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div>
+              <strong>Pagamento pendente</strong>
+              <p>Você já tem uma reserva aguardando pagamento. Conclua ou cancele antes de criar uma nova.</p>
+            </div>
+            <Link to="/painel?tab=reservas&filter=pendentes" className="btn-gold-sm">Ir para pagamento</Link>
+          </div>
+        )}
+
         {/* STEPPER */}
         <div className="bk-stepper-wrap" ref={stepperRef}>
           <div className="bk-stepper">
@@ -399,7 +432,11 @@ export default function Reservas() {
                   ))}
                 </div>
                 <div className="bk-nav" style={{ justifyContent: 'flex-end' }}>
-                  <button className="btn-gold" disabled={!modalidade} onClick={() => {
+                  <button className="btn-gold" disabled={!modalidade} style={hasPending ? { opacity: 0.45, cursor: 'not-allowed' } : {}} onClick={() => {
+                    if (hasPending) {
+                      toast('Você tem um pagamento pendente. Finalize ou cancele antes de iniciar uma nova reserva.', 'error');
+                      return;
+                    }
                     if (modalidade.dayuse) {
                       // Pickleball: pula etapa de quadra, vai direto para day use
                       setQuadra(null);
@@ -590,24 +627,52 @@ export default function Reservas() {
                 <div className="bk-pay-layout">
                   <div>
                     <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '3px', textTransform: 'uppercase', color: 'var(--gray)', marginBottom: '.9rem' }}>Forma de Pagamento</p>
-                    <div className="bk-pay-methods">
-                      {[
-                        { id: 'pix', label: 'PIX', sub: 'Aprovação imediata', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/><path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/></svg> },
-                        { id: 'credito', label: 'Cartão de Crédito', sub: '1x sem juros', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="9" y2="15"/></svg> },
-                        { id: 'debito', label: 'Cartão de Débito', sub: 'Aprovação na hora', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg> },
-                        ...(user?.admin ? [{ id: 'dinheiro', label: 'Dinheiro', sub: 'Pagamento presencial', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg> }] : []),
-                      ].map(m => (
-                        <div key={m.id} className={`bk-pay-method${payMethod === m.id ? ' active' : ''}`} onClick={() => setPayMethod(m.id)}>
-                          <span className="bk-pay-icon">{m.icon}</span>
-                          <div><div className="bk-pay-label">{m.label}</div><div className="bk-pay-sub">{m.sub}</div></div>
-                        </div>
-                      ))}
-                    </div>
-                    {payMethod && payMethod !== 'dinheiro' && (
-                      <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '1px', marginTop: '.8rem' }}>
-                        Você será redirecionado ao <strong style={{ color: 'var(--gold)' }}>Mercado Pago</strong> para concluir o pagamento com segurança.
-                      </p>
-                    )}
+                    {(() => {
+                      const creditos = user?.creditos || 0;
+                      const creditosAplicados = payMethod === 'creditos' ? Math.min(creditos, totalPrice()) : 0;
+                      const restante = totalPrice() - creditosAplicados;
+                      const creditoSub = creditos >= totalPrice()
+                        ? `Saldo suficiente · R$ ${creditos.toFixed(2).replace('.',',')}`
+                        : `Saldo: R$ ${creditos.toFixed(2).replace('.',',')}`;
+                      return (
+                        <>
+                          <div className="bk-pay-methods">
+                            {[
+                              { id: 'pix', label: 'PIX', sub: 'Aprovação imediata', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/><path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/></svg> },
+                              { id: 'credito', label: 'Cartão de Crédito', sub: '1x sem juros', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="9" y2="15"/></svg> },
+                              { id: 'debito', label: 'Cartão de Débito', sub: 'Aprovação na hora', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg> },
+                              { id: 'creditos', label: 'Créditos Arena', sub: creditoSub, icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
+                            ].map(m => (
+                              <div key={m.id} className={`bk-pay-method${payMethod === m.id ? ' active' : ''}`} onClick={() => setPayMethod(m.id)}>
+                                <span className="bk-pay-icon">{m.icon}</span>
+                                <div><div className="bk-pay-label">{m.label}</div><div className="bk-pay-sub">{m.sub}</div></div>
+                              </div>
+                            ))}
+                          </div>
+                          {payMethod === 'creditos' ? (
+                            <div style={{ background: 'rgba(224,172,107,.06)', border: '1px solid rgba(224,172,107,.2)', padding: '.9rem 1rem', marginTop: '.8rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-cond)', fontSize: '.78rem', letterSpacing: '1px', color: 'var(--gray)', marginBottom: '.4rem' }}>
+                                <span>Créditos aplicados</span>
+                                <span style={{ color: 'var(--gold)' }}>— R$ {creditosAplicados.toFixed(2).replace('.',',')}</span>
+                              </div>
+                              {restante > 0 && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-cond)', fontSize: '.78rem', letterSpacing: '1px', color: 'var(--gray)' }}>
+                                  <span>Restante via PIX</span>
+                                  <span>R$ {restante.toFixed(2).replace('.',',')}</span>
+                                </div>
+                              )}
+                              {restante === 0 && (
+                                <div style={{ fontFamily: 'var(--font-cond)', fontSize: '.75rem', color: 'var(--green)', letterSpacing: '1px' }}>Reserva coberta integralmente — sem cobrança adicional.</div>
+                              )}
+                            </div>
+                          ) : payMethod && (
+                            <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '1px', marginTop: '.8rem' }}>
+                              Você será redirecionado ao <strong style={{ color: 'var(--gold)' }}>Mercado Pago</strong> para concluir o pagamento com segurança.
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <div className="bk-sidebar">
@@ -630,10 +695,26 @@ export default function Reservas() {
                           <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
                         </>
                       )}
-                      <div className="bk-sum-total">
-                        <span className="bk-sum-total-label">Total</span>
-                        <span className="bk-sum-total-val">R$ {totalPrice()}</span>
-                      </div>
+                      {payMethod === 'creditos' && (() => {
+                        const creditos = user?.creditos || 0;
+                        const aplicados = Math.min(creditos, totalPrice());
+                        const restante = totalPrice() - aplicados;
+                        return (
+                          <>
+                            {aplicados > 0 && <div className="bk-summary-row"><span className="bk-summary-label" style={{ color: 'var(--gold)' }}>Créditos Arena</span><span className="bk-summary-val" style={{ color: 'var(--gold)' }}>— R$ {aplicados.toFixed(2).replace('.',',')}</span></div>}
+                            <div className="bk-sum-total">
+                              <span className="bk-sum-total-label">{restante === 0 ? 'Total (créditos)' : 'A pagar (PIX)'}</span>
+                              <span className="bk-sum-total-val">R$ {restante === 0 ? '0,00' : restante.toFixed(2).replace('.',',')}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                      {payMethod !== 'creditos' && (
+                        <div className="bk-sum-total">
+                          <span className="bk-sum-total-label">Total</span>
+                          <span className="bk-sum-total-val">R$ {totalPrice()}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -644,7 +725,7 @@ export default function Reservas() {
                     Voltar
                   </button>
                   <button className="btn-gold" disabled={loading} onClick={handleConfirm}>
-                    {loading ? 'Confirmando…' : payMethod === 'dinheiro' ? 'Confirmar Reserva' : 'Confirmar e Ir para Pagamento'}
+                    {loading ? 'Confirmando…' : payMethod === 'creditos' && (user?.creditos || 0) >= totalPrice() ? 'Confirmar Reserva' : payMethod === 'creditos' ? 'Confirmar e Pagar Restante' : 'Confirmar e Ir para Pagamento'}
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   </button>
                 </div>
@@ -700,7 +781,8 @@ export default function Reservas() {
           tipo="booking"
           referenciaId={pendingBooking._id}
           metodo={pendingBooking.payment}
-          valor={pendingBooking.total}
+          valor={pendingBooking.total - (pendingBooking.creditosAplicados || 0)}
+          creditosAplicados={pendingBooking.creditosAplicados || 0}
           onClose={() => { setPagOpen(false); resetBooking(); }}
         />
       )}

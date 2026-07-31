@@ -19,9 +19,10 @@ const bookingSchema = new mongoose.Schema({
   dayUse: { type: Boolean, default: false },
   payment: {
     type: String,
-    enum: ['pix', 'credito', 'debito', 'dinheiro'],
+    enum: ['pix', 'credito', 'debito', 'dinheiro', 'creditos'],
     required: true,
   },
+  creditosAplicados: { type: Number, default: 0 },
   total: { type: Number, required: true },
   seasonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Season', default: null, index: true },
   seasonCode: { type: String, default: null, index: true },
@@ -31,6 +32,7 @@ const bookingSchema = new mongoose.Schema({
     default: 'confirmada',
   },
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
+  foiPago: { type: Boolean, default: false },
   reminderSent: { type: Boolean, default: false }, // lembrete de 2h antes já enviado
 }, { timestamps: true });
 

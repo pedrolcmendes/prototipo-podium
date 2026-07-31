@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const PaymentModel = require('../models/Payment');
 const Booking = require('../models/Booking');
 const Registration = require('../models/Registration');
@@ -6,6 +7,25 @@ const Settings = require('../models/Settings');
 const { broadcast } = require('../utils/live');
 const { enviarEmailReservaConfirmada } = require('../utils/email');
 const { MercadoPagoConfig, Payment: MpAPI, Preference } = require('mercadopago');
+
+function validarAssinaturaMP(req) {
+  const secret = process.env.MP_WEBHOOK_SECRET;
+  if (!secret) return true; // sem secret configurado, pula validação
+
+  const xSignature = req.headers['x-signature'];
+  const xRequestId = req.headers['x-request-id'];
+  if (!xSignature) return false;
+
+  const parts = Object.fromEntries(xSignature.split(',').map(p => p.split('=')));
+  const ts = parts.ts;
+  const v1 = parts.v1;
+  if (!ts || !v1) return false;
+
+  const dataId = req.body?.data?.id ?? '';
+  const manifest = `id:${dataId};request-id:${xRequestId ?? ''};ts:${ts}`;
+  const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
+}
 
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 const mpApi = new MpAPI(mpClient);
@@ -17,7 +37,9 @@ const getReferenciaAndValor = async (tipo, referenciaId, userId) => {
     if (!b) return { error: { status: 404, message: 'Reserva não encontrada' } };
     if (b.userId.toString() !== userId.toString()) return { error: { status: 403, message: 'Sem permissão' } };
     if (b.status !== 'pendente_pagamento') return { error: { status: 400, message: 'Reserva não está pendente de pagamento' } };
-    return { referencia: b, valor: b.total, descricao: 'Reserva Podium Arena' };
+    const valorLiquido = b.total - (b.creditosAplicados || 0);
+    if (valorLiquido <= 0) return { error: { status: 400, message: 'Reserva já coberta por créditos Arena' } };
+    return { referencia: b, valor: valorLiquido, descricao: 'Reserva Podium Arena' };
   }
   const r = await Registration.findById(referenciaId);
   if (!r) return { error: { status: 404, message: 'Inscrição não encontrada' } };
@@ -28,7 +50,7 @@ const getReferenciaAndValor = async (tipo, referenciaId, userId) => {
 
 const confirmarReferencia = async (tipo, referenciaId, userId) => {
   if (tipo === 'booking') {
-    const booking = await Booking.findByIdAndUpdate(referenciaId, { status: 'confirmada' }, { new: true });
+    const booking = await Booking.findByIdAndUpdate(referenciaId, { status: 'confirmada', foiPago: true }, { new: true });
     broadcast('bookings');
     if (booking) {
       const settings = await Settings.findById('global');
@@ -74,8 +96,28 @@ const criarPagamentoPix = async (req, res) => {
   if (error) return res.status(error.status).json({ message: error.message });
 
   const pagamentoPendente = await PaymentModel.findOne({ referenciaId, status: 'pendente' });
-  if (pagamentoPendente) {
-    return res.status(409).json({ message: 'Já existe um pagamento pendente para esta reserva. Aguarde ou cancele o anterior.' });
+  if (pagamentoPendente?.mpPaymentId) {
+    try {
+      const mpResult = await mpApi.get({ id: pagamentoPendente.mpPaymentId });
+      if (mpResult.status === 'pending') {
+        // PIX ainda válido — devolve QR code existente para o usuário continuar
+        const txData = mpResult.point_of_interaction?.transaction_data;
+        return res.json({
+          paymentId: pagamentoPendente._id,
+          mpPaymentId: pagamentoPendente.mpPaymentId,
+          qrCode: txData?.qr_code,
+          qrCodeBase64: txData?.qr_code_base64,
+          expiresAt: pagamentoPendente.expiresAt.toISOString(),
+        });
+      }
+      // PIX já expirou no MP — marca como expirado e cria novo
+      pagamentoPendente.status = 'expirado';
+      await pagamentoPendente.save();
+    } catch (e) {
+      console.warn('Erro ao verificar PIX existente no MP:', e.message);
+      pagamentoPendente.status = 'expirado';
+      await pagamentoPendente.save();
+    }
   }
 
   if (!req.user.cpf) {
@@ -217,6 +259,9 @@ const getStatus = async (req, res) => {
 };
 
 const webhook = async (req, res) => {
+  if (!validarAssinaturaMP(req)) {
+    return res.sendStatus(401);
+  }
   res.sendStatus(200);
   try {
     const { type, data } = req.body;

@@ -100,7 +100,7 @@ const STATUS_LABELS = {
   confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada',
   concluida: 'Concluída', ativo: 'Ativo', aberto: 'Aberto', encerrado: 'Encerrado',
 };
-const PAYMENT_LABELS = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro' };
+const PAYMENT_LABELS = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro', creditos: 'Créditos Arena' };
 
 const QUADRAS_ALL = BOOKING_COURTS;
 const QUADRA_NOMES = {
@@ -789,7 +789,7 @@ export default function Admin() {
   const [rankEtapaAtual, setRankEtapaAtual] = useState(0);
   const newRankEntry = () => ({ userId: null, nome: '', clube: '', pontosPorEtapa: RANKING_ETAPAS.map(() => 0) });
   const [creditoModal, setCreditoModal] = useState(null);
-  const [creditoForm, setCreditoForm] = useState({ valor: '', motivo: 'cancelamento', obs: '' });
+  const [creditoForm, setCreditoForm] = useState({ tipo: 'adicionar', valor: '', motivo: 'cancelamento', obs: '' });
   const [confirmModal, setConfirmModal] = useState(null);
   const [novaResModal, setNovaResModal] = useState(false);
   const [novaResBusySlots, setNovaResBusySlots] = useState([]);
@@ -1325,13 +1325,18 @@ export default function Admin() {
 
   const adicionarCredito = async () => {
     try {
-      const novoCredito = (usuarios.find(u => u._id === creditoModal)?.creditos || 0) + Number(creditoForm.valor);
+      const saldoAtual = usuarios.find(u => u._id === creditoModal)?.creditos || 0;
+      const delta = Number(creditoForm.valor);
+      if (!delta || delta <= 0) return toast('Informe um valor válido', 'error');
+      const novoCredito = creditoForm.tipo === 'remover'
+        ? Math.max(0, saldoAtual - delta)
+        : saldoAtual + delta;
       await api.put(`/users/${creditoModal}`, { creditos: novoCredito });
       setUsuarios(prev => prev.map(u => u._id === creditoModal ? { ...u, creditos: novoCredito } : u));
-      toast('Crédito adicionado', 'success');
+      toast(creditoForm.tipo === 'remover' ? 'Crédito removido' : 'Crédito adicionado', 'success');
       setCreditoModal(null);
-      setCreditoForm({ valor: '', motivo: 'cancelamento', obs: '' });
-    } catch { toast('Erro ao adicionar crédito', 'error'); }
+      setCreditoForm({ tipo: 'adicionar', valor: '', motivo: 'cancelamento', obs: '' });
+    } catch { toast('Erro ao alterar crédito', 'error'); }
   };
 
   const loadRanking = async (esporte, genero, nivel = rankForm.nivel, ano = rankForm.ano, semestre = rankForm.semestre) => {
@@ -1939,7 +1944,8 @@ export default function Admin() {
               <PodiumSelect value={editResForm.payment} onChange={e => setEditResForm({ ...editResForm, payment: e.target.value })}>
                 <option value="pix">PIX</option>
                 <option value="credito">Crédito</option>
-                <option value="dinheiro">Dinheiro</option>
+                <option value="debito">Débito</option>
+                <option value="creditos">Créditos Arena</option>
               </PodiumSelect>
             </div>
             <div className="admin-field" style={{ gridColumn: '1/-1' }}>
@@ -2004,8 +2010,13 @@ export default function Admin() {
               <option value="pix">PIX</option>
               <option value="credito">Crédito</option>
               <option value="debito">Débito</option>
-              <option value="dinheiro">Dinheiro</option>
+              <option value="creditos">Créditos Arena</option>
             </PodiumSelect>
+            {novaResForm.payment === 'creditos' && (() => {
+              const u = usuarios.find(x => x._id === novaResForm.userId);
+              const saldo = u?.creditos || 0;
+              return <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--gold)' }}>Saldo do cliente: <strong>{fmtMoney(saldo)}</strong></p>;
+            })()}
           </div>
 
           {novaResDayUse ? (
@@ -2205,11 +2216,15 @@ export default function Admin() {
       )}
 
       {/* Crédito modal */}
-      <AdminModal open={!!creditoModal} onClose={() => setCreditoModal(null)} eyebrow="Carteira" title="ADICIONAR CRÉDITO" maxWidth={480}
-        footer={<><button className="btn-admin-secondary" onClick={() => setCreditoModal(null)}>Cancelar</button><button className="btn-admin-primary" onClick={adicionarCredito}>Adicionar crédito</button></>}>
-        <div className="admin-notice">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-          <p>Reservas canceladas mantêm a receita e o valor vira crédito na carteira do cliente.</p>
+      <AdminModal open={!!creditoModal} onClose={() => { setCreditoModal(null); setCreditoForm({ tipo: 'adicionar', valor: '', motivo: 'cancelamento', obs: '' }); }} eyebrow="Carteira" title={creditoForm.tipo === 'remover' ? 'REMOVER CRÉDITO' : 'ADICIONAR CRÉDITO'} maxWidth={480}
+        footer={<><button className="btn-admin-secondary" onClick={() => { setCreditoModal(null); setCreditoForm({ tipo: 'adicionar', valor: '', motivo: 'cancelamento', obs: '' }); }}>Cancelar</button><button className="btn-admin-primary" onClick={adicionarCredito}>{creditoForm.tipo === 'remover' ? 'Remover crédito' : 'Adicionar crédito'}</button></>}>
+        <div className="admin-seg-ctrl">
+          {[{ key: 'adicionar', label: 'Adicionar' }, { key: 'remover', label: 'Remover' }].map(op => (
+            <button key={op.key} type="button" className={`admin-seg-btn${creditoForm.tipo === op.key ? ' active' : ''}`}
+              onClick={() => setCreditoForm({ ...creditoForm, tipo: op.key, motivo: op.key === 'remover' ? 'ajuste' : 'cancelamento' })}>
+              {op.label}
+            </button>
+          ))}
         </div>
         <div className="admin-field">
           <label>Cliente</label>
@@ -2226,10 +2241,19 @@ export default function Admin() {
           <div className="admin-field" style={{ margin: 0 }}>
             <label>Motivo</label>
             <PodiumSelect value={creditoForm.motivo} onChange={e => setCreditoForm({ ...creditoForm, motivo: e.target.value })}>
-              <option value="cancelamento">Crédito por cancelamento</option>
-              <option value="bonus">Bônus promocional</option>
-              <option value="ajuste">Ajuste manual</option>
-              <option value="estorno">Estorno</option>
+              {creditoForm.tipo === 'remover'
+                ? [
+                    <option key="ajuste" value="ajuste">Ajuste manual</option>,
+                    <option key="correcao" value="correcao">Correção de erro</option>,
+                    <option key="expiracao" value="expiracao">Expiração</option>,
+                  ]
+                : [
+                    <option key="cancelamento" value="cancelamento">Crédito por cancelamento</option>,
+                    <option key="bonus" value="bonus">Bônus promocional</option>,
+                    <option key="ajuste" value="ajuste">Ajuste manual</option>,
+                    <option key="estorno" value="estorno">Estorno</option>,
+                  ]
+              }
             </PodiumSelect>
           </div>
         </div>
