@@ -2428,15 +2428,11 @@ export default function Admin() {
               <GradeOcupacao reservas={reservas} toast={toast} now={now} />
             </div>
 
-            <div className="dash-2col">
-              {isMaster ? <div className="admin-card">
+            {isMaster ? <div className="dash-2col">
+              <div className="admin-card">
                 <div className="admin-card-header"><h3>Receita — Últimos 7 Meses</h3></div>
                 <div style={{ padding: '.8rem 0' }}><MiniBarChart data={dashboardChartData} /></div>
-              </div> : <div className="admin-card" style={{ padding: '1.4rem' }}>
-                <p className="admin-eyebrow" style={{ marginBottom: '.6rem' }}>Seu acesso</p>
-                <h3 style={{ color: 'var(--white)', marginBottom: '.65rem' }}>ADMINISTRADOR OPERACIONAL</h3>
-                <p style={{ color: 'var(--gray)', fontSize: '.84rem', lineHeight: 1.65, margin: 0 }}>Você pode gerenciar reservas, clientes, eventos e ranking. Dados de receita, saldos, cargos e configurações ficam protegidos no perfil Master.</p>
-              </div>}
+              </div>
               <div className="admin-card">
                 <div className="admin-card-header"><h3>Ações Rápidas</h3></div>
                 <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '.7rem' }}>
@@ -2470,7 +2466,7 @@ export default function Admin() {
                   <input ref={importFileRef} type="file" accept=".json,.csv" style={{ display: 'none' }} onChange={(e) => { importarAgendamentos(e.target.files[0]); e.target.value = ''; }} />
                 </div>
               </div>
-            </div>
+            </div> : null}
 
             <div className="dash-2col" style={{ marginBottom: 0 }}>
               <div className="admin-card">
