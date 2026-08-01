@@ -371,8 +371,9 @@ const criarPagamentoCartao = async (req, res) => {
       declineMessage: declineMsg,
     });
   } catch (err) {
-    console.error('MP Card error:', JSON.stringify(err?.cause ?? err, null, 2));
-    return res.status(500).json({ message: 'Erro ao processar o cartão. Tente novamente.' });
+    const errDetail = err?.cause ?? err;
+    console.error('MP Card error:', JSON.stringify(errDetail, null, 2));
+    return res.status(500).json({ message: 'Erro ao processar o cartão. Tente novamente.', _debug: errDetail });
   }
 };
 
