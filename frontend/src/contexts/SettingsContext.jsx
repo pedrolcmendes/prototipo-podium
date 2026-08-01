@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS = {
   closeWeekend: '22:00',
   cancelWindow: 24,
   maxAdvanceDays: 30,
+  paymentTimeoutMinutes: 30,
   notifEmailConfirm: true,
   notifReminder: true,
   notifCancelAlert: true,

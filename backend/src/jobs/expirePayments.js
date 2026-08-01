@@ -1,8 +1,10 @@
 const PaymentModel = require('../models/Payment');
 const Booking = require('../models/Booking');
 const Registration = require('../models/Registration');
+const Settings = require('../models/Settings');
 const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
+const { normalizePaymentTimeoutMinutes } = require('../utils/paymentTimeout');
 
 const expirePayments = async () => {
   const now = new Date();
@@ -21,7 +23,9 @@ const expirePayments = async () => {
     }
   }
 
-  const legacyCutoff = new Date(now.getTime() - 30 * 60 * 1000);
+  const settings = await Settings.findById('global').select('paymentTimeoutMinutes');
+  const timeoutMinutes = normalizePaymentTimeoutMinutes(settings?.paymentTimeoutMinutes);
+  const legacyCutoff = new Date(now.getTime() - timeoutMinutes * 60 * 1000);
   const holdFilter = {
     status: 'pendente_pagamento',
     $or: [

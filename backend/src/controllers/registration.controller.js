@@ -2,10 +2,12 @@ const mongoose = require('mongoose');
 const Registration = require('../models/Registration');
 const Event = require('../models/Event');
 const User = require('../models/User');
+const Settings = require('../models/Settings');
 const { broadcast } = require('../utils/live');
 const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { sanitizeRegistrationForAdmin } = require('../utils/adminPermissions');
+const { paymentExpirationDate } = require('../utils/paymentTimeout');
 
 const minhasInscricoes = async (req, res) => {
   const registrations = await Registration.find({ userId: req.user._id })
@@ -31,7 +33,10 @@ const porEvento = async (req, res) => {
 };
 
 const inscrever = async (req, res) => {
-  const event = await Event.findById(req.params.eventId);
+  const [event, settings] = await Promise.all([
+    Event.findById(req.params.eventId),
+    Settings.findById('global'),
+  ]);
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
 
   const individual = event.tipoInscricao !== 'dupla';
@@ -90,7 +95,7 @@ const inscrever = async (req, res) => {
     precoDupla: individual ? null : event.preco * 2,
     creditosAplicados: 0,
     creditosEstornados: 0,
-    paymentExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    paymentExpiresAt: paymentExpirationDate(settings),
     status: 'pendente_pagamento',
   };
 

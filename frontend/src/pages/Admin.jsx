@@ -146,6 +146,12 @@ const WEEKDAYS_L = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Qui
 const MONTHS_L  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const GRADE_STATUS_LABEL = { concluida:'Concluído', andamento:'Em quadra', confirmada:'Confirmada', pendente_pagamento:'Pagamento pendente', bloqueado:'Bloqueado', livre:'Disponível' };
 const GRADE_STATUS_BADGE = { concluida:'badge-green', andamento:'badge-gold', confirmada:'badge-gold', pendente_pagamento:'badge-amber', bloqueado:'badge-red', livre:'badge-gray' };
+const bookingPaymentTimeoutMinutes = (booking, fallback = 30) => {
+  const createdAt = new Date(booking?.createdAt).getTime();
+  const expiresAt = new Date(booking?.paymentExpiresAt).getTime();
+  if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt) || expiresAt <= createdAt) return fallback;
+  return Math.round((expiresAt - createdAt) / 60000);
+};
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -302,7 +308,7 @@ function monthlyFinancialData(transactions, start, end, currentMonthKey) {
   return result;
 }
 
-function GradeOcupacao({ reservas, toast, now }) {
+function GradeOcupacao({ reservas, toast, now, paymentTimeoutMinutes = 30 }) {
   const todayStr = localDateIso(now);
   const nowHour = now.getHours();
   const { settings } = useSettings();
@@ -560,7 +566,7 @@ function GradeOcupacao({ reservas, toast, now }) {
               <div className="grade-tip-row"><span>Modalidade</span><strong>{MODALIDADE_LABELS[tooltip.booking.modalidade] || '—'}</strong></div>
               {tooltip.booking.dayUse && <div className="grade-tip-row"><span>Tipo</span><strong>Day Use{tooltip.dayUsers > 1 ? ` · ${tooltip.dayUsers} pessoas` : ''}</strong></div>}
               {tooltip.booking.total != null && <div className="grade-tip-row"><span>Valor</span><strong>{fmtMoney(tooltip.booking.total)}</strong></div>}
-              <p className="grade-tip-note">{tooltip.status === 'pendente_pagamento' ? `${PAYMENT_LABELS[tooltip.booking.payment] || 'Pagamento'} aguardando conclusão. O horário será liberado automaticamente se não houver pagamento em até 30 minutos.` : tooltip.booking.dayUse ? 'Day Use — acesso livre no dia.' : tooltip.status === 'concluida' ? 'Sessão finalizada.' : tooltip.status === 'andamento' ? 'Em andamento agora.' : 'Reserva confirmada.'}</p>
+              <p className="grade-tip-note">{tooltip.status === 'pendente_pagamento' ? `${PAYMENT_LABELS[tooltip.booking.payment] || 'Pagamento'} aguardando conclusão. O horário será liberado automaticamente se não houver pagamento em até ${bookingPaymentTimeoutMinutes(tooltip.booking, paymentTimeoutMinutes)} minutos.` : tooltip.booking.dayUse ? 'Day Use — acesso livre no dia.' : tooltip.status === 'concluida' ? 'Sessão finalizada.' : tooltip.status === 'andamento' ? 'Em andamento agora.' : 'Reserva confirmada.'}</p>
             </>
           )}
           {tooltip.status === 'bloqueado' && <p className="grade-tip-note">Bloqueado pelo administrador.</p>}
@@ -929,12 +935,18 @@ export default function Admin() {
   }, [user, isMaster, fetchAllRegistrations]);
 
   const saveConfig = async () => {
+    const paymentTimeoutMinutes = Number(cfg.paymentTimeoutMinutes);
+    if (!Number.isInteger(paymentTimeoutMinutes) || paymentTimeoutMinutes < 30 || paymentTimeoutMinutes > 1440) {
+      toast('O tempo para pagamento deve ficar entre 30 e 1440 minutos', 'error');
+      return;
+    }
     setCfgSaving(true);
     try {
       const payload = {
         ...cfg,
         cancelWindow: Number(cfg.cancelWindow) || 0,
         maxAdvanceDays: Number(cfg.maxAdvanceDays) || 30,
+        paymentTimeoutMinutes,
       };
       const { data } = await api.put('/settings', payload);
       setCfg(prev => ({ ...prev, ...data }));
@@ -2425,7 +2437,7 @@ export default function Admin() {
 
             {/* Grade de Ocupação */}
             <div className="admin-card grade-card" style={{ marginBottom: '1.5rem' }}>
-              <GradeOcupacao reservas={reservas} toast={toast} now={now} />
+              <GradeOcupacao reservas={reservas} toast={toast} now={now} paymentTimeoutMinutes={cfg.paymentTimeoutMinutes} />
             </div>
 
             {isMaster ? <div className="dash-2col">
@@ -3255,7 +3267,11 @@ export default function Admin() {
                     <div className="admin-field"><label>Antecedência (dias)</label><input type="text" inputMode="numeric" value={cfg.maxAdvanceDays} onChange={e => updCfg('maxAdvanceDays', e.target.value.replace(/\D/g, '').slice(0, 3))} className="cfg-input" /></div>
                     <div className="admin-field"><label>Cancelamento (horas)</label><input type="text" inputMode="numeric" value={cfg.cancelWindow} onChange={e => updCfg('cancelWindow', e.target.value.replace(/\D/g, '').slice(0, 3))} className="cfg-input" /></div>
                   </div>
-                  <p className="admin-config-hint">Clientes reservam com até <strong>{cfg.maxAdvanceDays || 0} dias</strong> de antecedência e cancelam até <strong>{cfg.cancelWindow || 0}h</strong> antes do horário — o site aplica as regras automaticamente.</p>
+                  <div className="admin-field">
+                    <label>Tempo para pagamento (minutos)</label>
+                    <input type="text" inputMode="numeric" value={cfg.paymentTimeoutMinutes} onChange={e => updCfg('paymentTimeoutMinutes', e.target.value.replace(/\D/g, '').slice(0, 4))} min="30" max="1440" className="cfg-input" />
+                  </div>
+                  <p className="admin-config-hint">Clientes reservam com até <strong>{cfg.maxAdvanceDays || 0} dias</strong> de antecedência, cancelam até <strong>{cfg.cancelWindow || 0}h</strong> antes do horário e têm <strong>{cfg.paymentTimeoutMinutes || 30} minutos</strong> para concluir o pagamento. Permitido: 30 a 1440 minutos.</p>
                 </div>
               </div>
 

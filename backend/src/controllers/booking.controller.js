@@ -10,6 +10,7 @@ const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('
 const { broadcast } = require('../utils/live');
 const { isMasterAdmin, sanitizeBookingForAdmin } = require('../utils/adminPermissions');
 const { arenaDateTimeParts, bookingScheduleStatus } = require('../utils/arenaDateTime');
+const { paymentExpirationDate } = require('../utils/paymentTimeout');
 
 const COURT_TYPE_BY_ID = {
   'coberta-1': 'coberta',
@@ -184,7 +185,7 @@ const criar = async (req, res) => {
     payment,
     total: serverTotal,
     creditosAplicados: 0,
-    paymentExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    paymentExpiresAt: paymentExpirationDate(settings),
     foiPago: false,
     status: 'pendente_pagamento',
   };

@@ -8,6 +8,7 @@ const { broadcast } = require('../utils/live');
 const { enviarEmailReservaConfirmada } = require('../utils/email');
 const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
+const { paymentExpirationDate } = require('../utils/paymentTimeout');
 const { MercadoPagoConfig, Payment: MpAPI, Preference } = require('mercadopago');
 
 function validarAssinaturaMP(req) {
@@ -40,6 +41,12 @@ const validarConfiguracaoMP = (res) => {
   if (process.env.MP_ACCESS_TOKEN) return true;
   res.status(503).json({ message: 'Mercado Pago não está configurado neste ambiente.' });
   return false;
+};
+
+const resolvePaymentExpiration = async (referencia) => {
+  if (referencia.paymentExpiresAt) return new Date(referencia.paymentExpiresAt);
+  const settings = await Settings.findById('global').select('paymentTimeoutMinutes');
+  return paymentExpirationDate(settings);
 };
 
 const getReferenciaAndValor = async (tipo, referenciaId, userId) => {
@@ -163,9 +170,7 @@ const criarPagamentoPix = async (req, res) => {
     return res.status(400).json({ message: 'Cadastre seu CPF no perfil antes de pagar via PIX.' });
   }
 
-  const expiresAt = referencia.paymentExpiresAt
-    ? new Date(referencia.paymentExpiresAt)
-    : new Date(Date.now() + 30 * 60 * 1000);
+  const expiresAt = await resolvePaymentExpiration(referencia);
 
   try {
     if (!pagamentoPendente) {
@@ -244,9 +249,7 @@ const criarPreferencia = async (req, res) => {
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-  const expiresAt = referencia.paymentExpiresAt
-    ? new Date(referencia.paymentExpiresAt)
-    : new Date(Date.now() + 30 * 60 * 1000);
+  const expiresAt = await resolvePaymentExpiration(referencia);
   const paymentMethods = PAYMENT_METHOD_FILTERS[metodo] || {};
 
   try {
@@ -436,9 +439,7 @@ const criarPagamentoCartao = async (req, res) => {
           valor,
           metodo: 'cartao',
           idempotencyKey,
-          expiresAt: referencia.paymentExpiresAt
-            ? new Date(referencia.paymentExpiresAt)
-            : new Date(Date.now() + 30 * 60 * 1000),
+          expiresAt: await resolvePaymentExpiration(referencia),
         },
         $set: {
           mpPaymentId: String(mpResult.id),

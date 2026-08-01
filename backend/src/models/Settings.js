@@ -19,6 +19,7 @@ const settingsSchema = new mongoose.Schema({
   // Regras de reserva
   cancelWindow: { type: Number, default: 24 },   // horas de antecedência mínima para cancelar
   maxAdvanceDays: { type: Number, default: 30 },  // dias máximos de antecedência para reservar
+  paymentTimeoutMinutes: { type: Number, min: 30, max: 1440, default: 30 },
 
   // Notificações automáticas
   notifEmailConfirm: { type: Boolean, default: true },   // comprovante ao confirmar reserva
