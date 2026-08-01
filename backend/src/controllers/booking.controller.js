@@ -23,7 +23,7 @@ const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleba
 const DAY_USE_PRICE = 25;
 
 function calcularPrecoSlot(hora, tipoQuadra, isFimDeSemana) {
-  if (tipoQuadra === 'teste') return 0.01;
+  if (tipoQuadra === 'teste') return 0.50;
   const coberta = tipoQuadra === 'coberta';
   if (isFimDeSemana) {
     if (hora < 11) return coberta ? 80 : 60;
