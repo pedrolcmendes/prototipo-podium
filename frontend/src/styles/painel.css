@@ -650,6 +650,7 @@ body.painel-page {
 }
 .status-badge.confirmada { border-color: var(--green); color: var(--green); }
 .status-badge.pendente   { border-color: var(--amber); color: var(--amber); }
+.status-badge.pendente_pagamento { border-color: var(--amber); color: var(--amber); }
 .status-badge.cancelada  { border-color: var(--red); color: var(--red); }
 .status-badge.concluida  { border-color: var(--gray); color: var(--gray); }
 
@@ -849,6 +850,68 @@ body.painel-page {
 /* ══════════════════════════════════════
    EVENTOS GRID
    ══════════════════════════════════════ */
+.event-registrations-panel { margin-bottom: 1.8rem; }
+.event-registrations-panel .painel-card-header > div { min-width: 0; }
+.event-registrations-subtitle { margin-top: .25rem; color: var(--gray); font-size: .8rem; }
+.event-registrations-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 .55rem;
+  border: 1px solid rgba(224,172,107,.3);
+  color: var(--gold);
+  font-family: var(--font-display);
+}
+.event-registrations-list { display: flex; flex-direction: column; }
+.event-registration-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0,1fr);
+  gap: 1rem;
+  padding: 1.2rem 1.4rem;
+  border-top: 1px solid rgba(255,255,255,.05);
+  position: relative;
+}
+.event-registration-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--green);
+}
+.event-registration-card.pendente_pagamento::before { background: var(--amber); }
+.event-registration-card.cancelada::before { background: var(--red); }
+.event-registration-date {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--dark);
+  border: 1px solid var(--border);
+}
+.event-registration-date strong { color: var(--gold); font-family: var(--font-display); font-size: 1.65rem; line-height: 1; }
+.event-registration-date span { color: var(--gray); font-family: var(--font-cond); font-size: .62rem; letter-spacing: 2px; text-transform: uppercase; }
+.event-registration-date svg { width: 24px; height: 24px; stroke: var(--gold); }
+.event-registration-info { min-width: 0; }
+.event-registration-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.event-registration-kicker { color: var(--gold); font-family: var(--font-cond); font-size: .58rem; letter-spacing: 2px; text-transform: uppercase; }
+.event-registration-heading h3 { margin-top: .15rem; color: var(--white); font-family: var(--font-cond); font-size: 1rem; letter-spacing: .6px; }
+.event-registration-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem 1rem; margin-top: .5rem; color: var(--gray); font-size: .76rem; }
+.event-registration-meta span { display: inline-flex; align-items: center; gap: .3rem; }
+.event-registration-meta svg { width: 12px; height: 12px; }
+.event-registration-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-top: .75rem; }
+.event-registration-footer > strong { color: var(--gold); font-family: var(--font-cond); font-size: .9rem; white-space: nowrap; }
+.event-registration-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+.event-registration-tags span { padding: .2rem .5rem; background: rgba(255,255,255,.04); border: 1px solid var(--border); color: var(--gray-light); font-family: var(--font-cond); font-size: .62rem; letter-spacing: .6px; text-transform: capitalize; }
+.event-registration-note { margin-top: .65rem; color: var(--amber); font-size: .75rem; }
+.event-registrations-empty { border-top: 1px solid rgba(255,255,255,.05); }
+.event-available-heading { display: flex; align-items: flex-end; justify-content: space-between; margin: 0 0 1rem; }
+.event-available-heading h3 { margin-top: .2rem; color: var(--white); font-family: var(--font-display); font-size: 1.35rem; letter-spacing: 1px; text-transform: uppercase; }
 .eventos-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1269,6 +1332,11 @@ body.painel-page {
   .prox-hero { flex-wrap: wrap; gap: 1rem; }
   .prox-hero-right { flex-direction: row; align-items: center; width: 100%; }
   .eventos-grid { grid-template-columns: 1fr; }
+  .event-registration-card { grid-template-columns: 52px minmax(0,1fr); gap: .75rem; padding: 1rem; }
+  .event-registration-date { width: 52px; height: 56px; }
+  .event-registration-date strong { font-size: 1.4rem; }
+  .event-registration-heading { flex-direction: column; gap: .5rem; }
+  .event-registration-footer { align-items: flex-start; flex-direction: column; gap: .6rem; }
 
   .booking-item { grid-template-columns: 48px 1fr; gap: .7rem; }
   .booking-actions {

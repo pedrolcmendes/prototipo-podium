@@ -71,7 +71,7 @@ function resolveStatus(r) {
 }
 
 function StatusBadge({ status }) {
-  const map = { confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada', concluida: 'Concluída' };
+  const map = { confirmada: 'Confirmada', pendente: 'Pendente', pendente_pagamento: 'Pagamento pendente', cancelada: 'Cancelada', concluida: 'Concluída' };
   return <span className={`status-badge ${status}`}>{map[status] || status}</span>;
 }
 
@@ -106,6 +106,54 @@ function NavItem({ id, label, icon, activeTab, onSelect }) {
   );
 }
 
+function RegistrationCard({ registration }) {
+  const event = registration.eventId || {};
+  const eventDate = event.data;
+  const dt = eventDate ? new Date(eventDate.includes('T') ? eventDate : `${eventDate}T12:00:00`) : null;
+  const total = registration.valorTotal ?? registration.precoDupla ?? registration.preco;
+  const details = [
+    registration.nivel ? `Nível ${registration.nivel}` : null,
+    registration.genero ? registration.genero : null,
+    registration.parceiro ? `Dupla com ${registration.parceiro}` : 'Inscrição individual',
+  ].filter(Boolean);
+
+  return (
+    <article className={`event-registration-card ${registration.status}`}>
+      <div className="event-registration-date" aria-hidden={!dt}>
+        {dt ? (
+          <>
+            <strong>{String(dt.getDate()).padStart(2, '0')}</strong>
+            <span>{MESES[dt.getMonth()]}</span>
+          </>
+        ) : <IcoTrophy />}
+      </div>
+      <div className="event-registration-info">
+        <div className="event-registration-heading">
+          <div>
+            <span className="event-registration-kicker">Minha inscrição</span>
+            <h3>{event.nome || registration.eventNome}</h3>
+          </div>
+          <StatusBadge status={registration.status} />
+        </div>
+        <div className="event-registration-meta">
+          {eventDate ? <span><IcoCal /> {fmtDate(eventDate)}</span> : null}
+          {event.hora ? <span><IcoClock /> {event.hora}</span> : null}
+          {event.local ? <span>{event.local}</span> : null}
+        </div>
+        <div className="event-registration-footer">
+          <div className="event-registration-tags">
+            {details.map(detail => <span key={detail}>{detail}</span>)}
+          </div>
+          <strong>{fmtMoney(total)}</strong>
+        </div>
+        {registration.status === 'pendente_pagamento' ? (
+          <p className="event-registration-note">Aguardando a conclusão do pagamento.</p>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 export default function Painel() {
   const { user, updateUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -126,6 +174,7 @@ export default function Painel() {
 
   const [reservas, setReservas] = useState([]);
   const [eventos, setEventos] = useState([]);
+  const [inscricoes, setInscricoes] = useState([]);
   const [meuRanking, setMeuRanking] = useState([]);
   const [cancelId, setCancelId] = useState(null);
   const [cancelInfo, setCancelInfo] = useState('');
@@ -154,6 +203,7 @@ export default function Painel() {
   const loadData = () => {
     api.get('/bookings/me').then(r => setReservas(r.data.data || r.data || [])).catch(() => {});
     api.get('/events').then(r => setEventos(r.data.data || r.data || [])).catch(() => {});
+    api.get('/registrations/me').then(r => setInscricoes(r.data.data || r.data || [])).catch(() => {});
     api.get('/users/me').then(r => updateUser(r.data.data || r.data)).catch(() => {});
     api.get('/settings').then(r => setCancelWindow((r.data.data || r.data)?.cancelWindow || 24)).catch(() => {});
     loadMeuRanking();
@@ -168,7 +218,10 @@ export default function Painel() {
     } else if (topic === 'users') {
       api.get('/users/me').then(r => updateUser(r.data.data || r.data)).catch(() => {});
     } else if (topic === 'events' || topic === 'registrations') {
-      api.get('/events').then(r => setEventos(r.data.data || r.data || [])).catch(() => {});
+      Promise.all([
+        api.get('/events').then(r => setEventos(r.data.data || r.data || [])),
+        api.get('/registrations/me').then(r => setInscricoes(r.data.data || r.data || [])),
+      ]).catch(() => {});
     } else if (topic === 'ranking') {
       loadMeuRanking();
     }
@@ -219,6 +272,11 @@ export default function Painel() {
     : reservaFilter === 'pendentes' ? pendentes
     : reservas;
   const proximaReserva = [...proximas].sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+  const inscricoesOrdenadas = [...inscricoes].sort((a, b) => {
+    const dateA = a.eventId?.data || a.createdAt || '';
+    const dateB = b.eventId?.data || b.createdAt || '';
+    return dateB.localeCompare(dateA);
+  });
 
   const extrato = [];
   [...reservas]
@@ -362,7 +420,7 @@ export default function Painel() {
               <NavItem id="reservas" label="Minhas Reservas" icon={<IcoCal />} activeTab={tab} onSelect={handleNavSelect} />
             </NavGroup>
             <NavGroup label="Comunidade">
-              <NavItem id="eventos" label="Eventos" icon={<IcoTrophy />} activeTab={tab} onSelect={handleNavSelect} />
+              <NavItem id="eventos" label="Eventos e Inscrições" icon={<IcoTrophy />} activeTab={tab} onSelect={handleNavSelect} />
               <NavItem id="ranking" label="Ranking" icon={<IcoBar />} activeTab={tab} onSelect={handleNavSelect} />
             </NavGroup>
             <NavGroup label="Conta">
@@ -627,10 +685,41 @@ export default function Painel() {
             <section className="painel-section active">
               <div className="painel-section-header">
                 <div>
-                  <p className="painel-eyebrow">Calendário</p>
-                  <h2 className="painel-section-title-h2">EVENTOS</h2>
+                  <p className="painel-eyebrow">Competições</p>
+                  <h2 className="painel-section-title-h2">EVENTOS & INSCRIÇÕES</h2>
                 </div>
                 <Link to="/eventos" className="btn-ghost">Ver todos →</Link>
+              </div>
+
+              <div className="painel-card event-registrations-panel">
+                <div className="painel-card-header">
+                  <div>
+                    <h3>Minhas inscrições</h3>
+                    <p className="event-registrations-subtitle">Acompanhe os eventos em que você está inscrito.</p>
+                  </div>
+                  <span className="event-registrations-count">{inscricoes.length}</span>
+                </div>
+                {inscricoesOrdenadas.length > 0 ? (
+                  <div className="event-registrations-list">
+                    {inscricoesOrdenadas.map(registration => (
+                      <RegistrationCard key={registration._id} registration={registration} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state event-registrations-empty">
+                    <div className="empty-state-icon"><IcoTrophy /></div>
+                    <h4>Nenhuma inscrição</h4>
+                    <p>Quando você se inscrever em um evento, ele aparecerá aqui.</p>
+                    <Link to="/eventos" className="btn-gold-sm">Ver eventos disponíveis</Link>
+                  </div>
+                )}
+              </div>
+
+              <div className="event-available-heading">
+                <div>
+                  <p className="painel-eyebrow">Agenda Podium</p>
+                  <h3>Eventos disponíveis</h3>
+                </div>
               </div>
 
               {eventos.length === 0 ? (

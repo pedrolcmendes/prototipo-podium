@@ -8,7 +8,7 @@ const { cancelarPagamentosPendentes } = require('../services/paymentCancellation
 
 const minhasInscricoes = async (req, res) => {
   const registrations = await Registration.find({ userId: req.user._id })
-    .populate('eventId', 'nome data hora local status')
+    .populate('eventId', 'nome data hora local status categoria tipoInscricao imagem preco')
     .sort({ createdAt: -1 });
   res.json(registrations);
 };
