@@ -1917,7 +1917,7 @@ export default function Admin() {
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Data</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{fmtDate(detalhesRes.date)}</div></div>
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Horário</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{detalhesRes.dayUse ? 'Day Use' : detalhesRes.slots?.map(h => `${h}h`).join(', ')}</div></div>
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Quadra</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{quadraNome(detalhesRes.quadraId)}</div></div>
-                <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Pagamento</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{detalhesRes.payment}</div></div>
+                <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Pagamento</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{PAYMENT_LABELS[detalhesRes.payment] || detalhesRes.payment}</div></div>
               </div>
               <div className="admin-balance-box" style={{ marginBottom: 0 }}>
                 <span>Valor Total</span>

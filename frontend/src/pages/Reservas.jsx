@@ -30,6 +30,14 @@ const QUADRAS = BOOKING_COURTS;
 const getPrice = getBookingPrice;
 const buildHours = buildBookingHours;
 const DAY_USE_PRICE = PICKLEBALL_DAY_USE_PRICE;
+const PAYMENT_LABELS = {
+  pix: 'PIX',
+  credito: 'Cartão de Crédito',
+  cartao: 'Cartão de Crédito',
+  debito: 'Cartão de Débito',
+  dinheiro: 'Dinheiro',
+  creditos: 'Créditos Arena',
+};
 
 function padDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -194,7 +202,7 @@ export default function Reservas() {
         payload.quadra = quadra.tipo;
         payload.quadraId = quadra.id;
         payload.date = selectedDate;
-        payload.slots = selectedSlots.sort((a, b) => a - b);
+        payload.slots = [...selectedSlots].sort((a, b) => a - b);
       } else if (quadra) {
         payload.quadra = quadra.tipo;
         payload.quadraId = quadra.id;
@@ -596,7 +604,7 @@ export default function Reservas() {
                       ) : (
                         <>
                           <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
-                          <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.length > 0 ? selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ') : '—'}</span></div>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.length > 0 ? [...selectedSlots].sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ') : '—'}</span></div>
                         </>
                       )}
                       <div className="bk-sum-total">
@@ -700,7 +708,7 @@ export default function Reservas() {
                       ) : (
                         <>
                           <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
-                          <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
+                          <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{[...selectedSlots].sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
                         </>
                       )}
                       {payMethod === 'creditos' && (() => {
@@ -757,21 +765,21 @@ export default function Reservas() {
             <p className="conf-sub">Sua quadra está reservada. Nos vemos na arena!</p>
             <div className="conf-id">#{confData?._id?.slice(-6).toUpperCase() || 'PD-000000'}</div>
             <div className="conf-details">
-              <div className="conf-row"><span className="conf-label">Modalidade</span><span className="conf-val">{modalidade?.nome}</span></div>
-              {dayUse ? (
+              <div className="conf-row"><span className="conf-label">Modalidade</span><span className="conf-val">{MODALIDADES.find(item => item.enum === confData?.modalidade)?.nome || modalidade?.nome || confData?.modalidade}</span></div>
+              {confData?.dayUse ? (
                 <>
                   <div className="conf-row"><span className="conf-label">Tipo</span><span className="conf-val">Day Use</span></div>
-                  <div className="conf-row"><span className="conf-label">Data</span><span className="conf-val">{fmtDate(selectedDate)}</span></div>
+                  <div className="conf-row"><span className="conf-label">Data</span><span className="conf-val">{fmtDate(confData?.date)}</span></div>
                 </>
               ) : (
                 <>
-                  <div className="conf-row"><span className="conf-label">Data</span><span className="conf-val">{fmtDate(selectedDate)}</span></div>
-                  <div className="conf-row"><span className="conf-label">Horários</span><span className="conf-val">{selectedSlots.sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span></div>
+                  <div className="conf-row"><span className="conf-label">Data</span><span className="conf-val">{fmtDate(confData?.date)}</span></div>
+                  <div className="conf-row"><span className="conf-label">Horários</span><span className="conf-val">{Array.isArray(confData?.slots) && confData.slots.length > 0 ? [...confData.slots].sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ') : '—'}</span></div>
                 </>
               )}
-              {quadra && <div className="conf-row"><span className="conf-label">Quadra</span><span className="conf-val">{quadra.nome}</span></div>}
-              <div className="conf-row"><span className="conf-label">Pagamento</span><span className="conf-val">{payMethod}</span></div>
-              <div className="conf-row"><span className="conf-label">Valor</span><span className="conf-val">R$ {totalPrice()}</span></div>
+              {confData?.quadraId && <div className="conf-row"><span className="conf-label">Quadra</span><span className="conf-val">{QUADRAS.find(item => item.id === confData.quadraId)?.nome || quadra?.nome || confData.quadraId}</span></div>}
+              <div className="conf-row"><span className="conf-label">Pagamento</span><span className="conf-val">{PAYMENT_LABELS[confData?.payment] || confData?.payment || '—'}</span></div>
+              <div className="conf-row"><span className="conf-label">Valor</span><span className="conf-val">R$ {Number(confData?.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
             </div>
             <div className="conf-actions">
               <button className="conf-btn-secondary" onClick={resetBooking}>Nova reserva</button>
