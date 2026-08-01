@@ -2404,7 +2404,7 @@ export default function Admin() {
               <div><p className="admin-eyebrow">Visão geral</p><h2 className="admin-section-h2">DASHBOARD</h2></div>
               <div className="admin-greeting">
                 <div className="admin-greeting-name">Olá, {user?.nome?.split(' ')[0] || 'Admin'}</div>
-                <div className="admin-greeting-sub">{isMaster ? 'Administrador Master · acesso completo' : 'Administrador Operacional · acesso limitado'}</div>
+                <div className="admin-greeting-sub">{isMaster ? 'Administrador Master · acesso completo' : 'Administrador Operacional'}</div>
               </div>
             </div>
 
