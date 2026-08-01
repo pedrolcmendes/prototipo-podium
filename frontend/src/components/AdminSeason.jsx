@@ -332,13 +332,19 @@ export function SeasonDetailsModal({ season, onClose, onChanged, toast }) {
   const cancelBooking = async (bookingId) => {
     setLoading(true);
     try {
-      await api.patch(`/bookings/${bookingId}/cancelar`);
+      const { data } = await api.patch(`/bookings/${bookingId}/cancelar`);
       setDetails((current) => ({
         ...current,
         bookingIds: current.bookingIds.map((booking) => booking._id === bookingId ? { ...booking, status: 'cancelada' } : booking),
       }));
       onChanged();
-      toast('Reserva da temporada cancelada', 'success');
+      const credit = Number(data?.creditosEstornados || 0);
+      toast(
+        credit > 0
+          ? `Reserva cancelada. ${money(credit)} creditados ao cliente em Créditos Arena.`
+          : 'Reserva da temporada cancelada',
+        'success',
+      );
     } catch (error) {
       toast(error.response?.data?.message || 'Erro ao cancelar reserva', 'error');
     } finally {

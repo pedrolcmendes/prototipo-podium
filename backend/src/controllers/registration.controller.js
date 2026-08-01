@@ -177,6 +177,63 @@ const cancelar = async (req, res) => {
     return res.json({ message: 'Inscrição cancelada', registration: referencia || registration, creditosEstornados });
   }
 
+  if (registration.status === 'confirmada') {
+    const session = await mongoose.startSession();
+    let inscricaoCancelada = null;
+    let creditosEstornados = 0;
+    try {
+      await session.withTransaction(async () => {
+        inscricaoCancelada = await Registration.findOne({
+          _id: registration._id,
+          status: 'confirmada',
+        }).session(session);
+        if (!inscricaoCancelada) return;
+
+        const valorPago = Number(
+          inscricaoCancelada.valorTotal
+          ?? inscricaoCancelada.precoDupla
+          ?? inscricaoCancelada.preco,
+        );
+        creditosEstornados = Math.max(
+          0,
+          valorPago - (inscricaoCancelada.creditosEstornados || 0),
+        );
+
+        inscricaoCancelada.status = 'cancelada';
+        inscricaoCancelada.creditosEstornados = (
+          inscricaoCancelada.creditosEstornados || 0
+        ) + creditosEstornados;
+        await inscricaoCancelada.save({ session });
+
+        if (creditosEstornados > 0) {
+          await User.findByIdAndUpdate(
+            inscricaoCancelada.userId,
+            { $inc: { creditos: creditosEstornados } },
+            { session },
+          );
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao estornar inscrição em Créditos Arena:', error.message);
+      return res.status(500).json({
+        message: 'Não foi possível cancelar a inscrição. Nenhum crédito foi alterado.',
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    if (!inscricaoCancelada) {
+      return res.status(409).json({ message: 'A inscrição já foi alterada. Atualize a página.' });
+    }
+    broadcast('registrations');
+    if (creditosEstornados > 0) broadcast('users');
+    return res.json({
+      message: 'Inscrição cancelada. O estorno foi creditado em Créditos Arena.',
+      registration: inscricaoCancelada,
+      creditosEstornados,
+    });
+  }
+
   registration.status = 'cancelada';
   await registration.save();
   broadcast('registrations');

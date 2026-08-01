@@ -295,6 +295,8 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         .pag-choose-btn-sub{font-size:.68rem;color:var(--gray);letter-spacing:.5px}
         .pag-card-wrap{width:100%;padding:0 .5rem}
         .pag-card-wrap #cardPaymentBrick_container > div{background:transparent!important}
+        .pag-refund-notice{margin:0 1.5rem 1rem;padding:.75rem .9rem;border:1px solid rgba(224,172,107,.35);background:rgba(224,172,107,.08);color:var(--gray);font-size:.72rem;line-height:1.45}
+        .pag-refund-notice strong{color:var(--gold)}
       `}</style>
 
       <div className="pag-overlay">
@@ -323,6 +325,10 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="pag-refund-notice" role="note">
+            <strong>Política de cancelamento:</strong> quando houver devolução, o valor retorna exclusivamente como Créditos Arena. Não há estorno na conta bancária nem na fatura do cartão.
           </div>
 
           {/* BODY */}

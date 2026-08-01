@@ -249,7 +249,7 @@ export default function Painel() {
       const res = await api.patch(`/bookings/${cancelId}/cancelar`);
       const creditos = res.data?.creditosEstornados;
       const msg = creditos > 0
-        ? `Reserva cancelada. ${fmtMoney(creditos)} creditados na sua carteira.`
+        ? `Reserva cancelada. ${fmtMoney(creditos)} devolvidos em Créditos Arena — não na conta bancária ou no cartão.`
         : 'Reserva cancelada.';
       toast(msg, 'success');
       setReservas(prev => prev.map(r => r._id === cancelId ? { ...r, status: 'cancelada' } : r));
@@ -935,7 +935,7 @@ export default function Painel() {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             </div>
             <h3 className="cancel-modal-title">Cancelar Reserva?</h3>
-            <p className="cancel-modal-sub">{cancelStatus === 'pendente_pagamento' ? 'O pagamento ainda não foi realizado — a reserva será cancelada sem nenhuma cobrança.' : 'O valor pago será creditado na sua carteira Podium — não é devolvido ao banco.'}</p>
+            <p className="cancel-modal-sub">{cancelStatus === 'pendente_pagamento' ? 'O pagamento ainda não foi realizado — a reserva será cancelada sem nenhuma cobrança. Créditos Arena já aplicados serão devolvidos à carteira.' : 'O valor pago será devolvido exclusivamente em Créditos Arena — não haverá estorno na conta bancária nem na fatura do cartão.'}</p>
             <div className="cancel-modal-info-box"><span>{cancelInfo}</span></div>
             <div className="cancel-modal-actions">
               <button className="cancel-modal-btn-keep" onClick={() => { setCancelId(null); setCancelStatus(null); }}>Manter Reserva</button>

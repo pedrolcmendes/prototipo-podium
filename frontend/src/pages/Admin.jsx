@@ -1136,12 +1136,13 @@ export default function Admin() {
   // ── Actions ──
   const cancelarReserva = (id) => {
     setConfirmModal({
-      title: 'Cancelar reserva?', text: 'Esta ação não pode ser desfeita.',
+      title: 'Cancelar reserva?', text: 'O valor devolvido será lançado em Créditos Arena para o cliente, não na conta bancária ou na fatura do cartão.',
       onConfirm: async () => {
         try {
-          await api.patch(`/bookings/${id}/cancelar`);
+          const { data } = await api.patch(`/bookings/${id}/cancelar`);
           setReservas(prev => prev.map(r => r._id === id ? { ...r, status: 'cancelada' } : r));
-          toast('Reserva cancelada', 'success');
+          const creditos = Number(data?.creditosEstornados || 0);
+          toast(creditos > 0 ? `Reserva cancelada. R$ ${creditos.toFixed(2)} creditados em Créditos Arena.` : 'Reserva cancelada', 'success');
         } catch { toast('Erro ao cancelar', 'error'); }
         setConfirmModal(null);
       }
