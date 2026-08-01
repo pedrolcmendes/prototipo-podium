@@ -727,6 +727,7 @@ function Pagination({ page, total, perPage, onChange }) {
 // ── MAIN ADMIN ────────────────────────────────────────────────
 export default function Admin() {
   const { user, logout } = useAuth();
+  const isMaster = Boolean(user?.admin && user.adminRole !== 'admin');
   const toast = useToast();
   const [tab, setTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -914,7 +915,7 @@ export default function Admin() {
         api.get('/bookings'),
         api.get('/events'),
         api.get('/settings'),
-        api.get('/seasons'),
+        isMaster ? api.get('/seasons') : Promise.resolve({ data: [] }),
       ]);
       setUsuarios(u.data);
       setReservas(sortRes(b.data));
@@ -925,7 +926,7 @@ export default function Admin() {
       await loadRankings();
     } catch { toast('Erro ao carregar dados', 'error'); }
     finally { setLoading(false); }
-  }, [user, fetchAllRegistrations]);
+  }, [user, isMaster, fetchAllRegistrations]);
 
   const saveConfig = async () => {
     setCfgSaving(true);
@@ -966,7 +967,7 @@ export default function Admin() {
           setInscricoes(await fetchAllRegistrations(eventsResponse.data));
         })
         .catch(() => {}); // vagasRestantes muda junto
-    } else if (topic === 'seasons') {
+    } else if (topic === 'seasons' && isMaster) {
       api.get('/seasons').then(r => setTemporadas(r.data)).catch(() => {});
     } else if (topic === 'ranking') {
       loadRankings();
@@ -1004,7 +1005,7 @@ export default function Admin() {
   const groupedRes = [];
   const seasonGroups = new Map();
   filteredRes.forEach((booking) => {
-    if (!booking.seasonId && !booking.seasonCode) {
+    if (!isMaster || (!booking.seasonId && !booking.seasonCode)) {
       groupedRes.push(booking);
       return;
     }
@@ -1177,23 +1178,27 @@ export default function Admin() {
     } catch { toast('Erro ao atualizar', 'error'); }
   };
 
-  const toggleAdmin = (u) => {
-    const tornar = !u.admin;
-    if (!tornar && u._id === user?._id) {
-      toast('Você não pode remover seu próprio acesso admin', 'error');
+  const setAdminAccess = (u, role) => {
+    const tornarAdmin = role !== 'cliente';
+    const roleLabel = role === 'master' ? 'Administrador Master' : role === 'admin' ? 'Administrador' : 'Cliente';
+    if (u._id === user?._id && role !== 'master') {
+      toast('Você não pode reduzir seu próprio acesso Master', 'error');
       return;
     }
     setConfirmModal({
-      title: tornar ? 'Tornar administrador?' : 'Remover acesso admin?',
-      text: tornar
-        ? `${u.nome} terá acesso total ao painel administrativo: reservas, usuários, eventos, financeiro e configurações.`
-        : `${u.nome} perderá o acesso ao painel administrativo e voltará a ser um usuário comum.`,
+      title: `Definir como ${roleLabel}?`,
+      text: role === 'master'
+        ? `${u.nome} terá acesso completo, incluindo financeiro, créditos, cargos, temporadas e configurações.`
+        : role === 'admin'
+          ? `${u.nome} poderá operar reservas, usuários, eventos e ranking, sem visualizar dados financeiros.`
+          : `${u.nome} perderá o acesso ao painel administrativo e continuará como cliente.`,
       onConfirm: async () => {
         try {
-          await api.put(`/users/${u._id}`, { admin: tornar });
-          setUsuarios(prev => prev.map(x => x._id === u._id ? { ...x, admin: tornar } : x));
-          setEditUser(prev => (prev && prev._id === u._id) ? { ...prev, admin: tornar } : prev);
-          toast(tornar ? `${u.nome.split(' ')[0]} agora é administrador` : 'Acesso admin removido', 'success');
+          const payload = { admin: tornarAdmin, adminRole: tornarAdmin ? role : null };
+          const { data } = await api.put(`/users/${u._id}`, payload);
+          setUsuarios(prev => prev.map(x => x._id === u._id ? { ...x, ...data } : x));
+          setEditUser(prev => (prev && prev._id === u._id) ? { ...prev, ...data } : prev);
+          toast(`${u.nome.split(' ')[0]} agora é ${roleLabel}`, 'success');
         } catch (ex) { toast(ex.response?.data?.message || 'Erro ao atualizar permissão', 'error'); }
         setConfirmModal(null);
       }
@@ -1253,8 +1258,11 @@ export default function Admin() {
 
   const salvarEditRes = async () => {
     try {
-      await api.put(`/bookings/${editRes._id}`, { status: editResForm.status, total: editResForm.total, payment: editResForm.payment });
-      setReservas(prev => prev.map(r => r._id === editRes._id ? { ...r, ...editResForm } : r));
+      const payload = isMaster
+        ? { status: editResForm.status, total: editResForm.total, payment: editResForm.payment }
+        : { status: editResForm.status };
+      await api.put(`/bookings/${editRes._id}`, payload);
+      setReservas(prev => prev.map(r => r._id === editRes._id ? { ...r, ...payload } : r));
       toast('Reserva atualizada', 'success');
       setEditRes(null);
     } catch { toast('Erro ao salvar', 'error'); }
@@ -1373,6 +1381,12 @@ export default function Admin() {
   const handleLogout = () => { logout(); setGateOpen(true); };
 
   const adminTab = (t) => {
+    if (!isMaster && ['temporadas', 'financeiro', 'config'].includes(t)) {
+      toast('Esta área é exclusiva do Administrador Master', 'error');
+      setTab('dashboard');
+      setSidebarOpen(false);
+      return;
+    }
     setTab(t);
     setSidebarOpen(false);
   };
@@ -1629,8 +1643,8 @@ export default function Admin() {
                 <div className="admin-profile-stats">
                   <div className="admin-profile-stat"><strong>{uReservas.length}</strong><span>Reservas</span></div>
                   <div className="admin-profile-stat"><strong>{uInsc.length}</strong><span>Eventos</span></div>
-                  <div className="admin-profile-stat"><strong>{fmtMoney(uGasto)}</strong><span>Gasto</span></div>
-                  <div className="admin-profile-stat credit"><strong>{fmtMoney(u.creditos)}</strong><span>Crédito</span></div>
+                  {isMaster && <div className="admin-profile-stat"><strong>{fmtMoney(uGasto)}</strong><span>Gasto</span></div>}
+                  {isMaster && <div className="admin-profile-stat credit"><strong>{fmtMoney(u.creditos)}</strong><span>Crédito</span></div>}
                 </div>
                 <div className="admin-grid-2" style={{ marginBottom: '.5rem' }}>
                   <div className="admin-field" style={{ margin: 0 }}><label>Nome completo</label><input type="text" defaultValue={u.nome} /></div>
@@ -1659,7 +1673,7 @@ export default function Admin() {
                 </div>
               </div>
               <div className="admin-modal-footer">
-                <button className="btn-admin-secondary" onClick={() => { setCreditoModal(u._id); setViewUser(null); }}>Adicionar Crédito</button>
+                {isMaster && <button className="btn-admin-secondary" onClick={() => { setCreditoModal(u._id); setViewUser(null); }}>Adicionar Crédito</button>}
                 <div style={{ flex: 1 }} />
                 <button className="btn-admin-secondary" onClick={() => setViewUser(null)}>Fechar</button>
               </div>
@@ -1686,8 +1700,10 @@ export default function Admin() {
               {[
                 { label: 'Reservas', val: uReservas.length },
                 { label: 'Eventos', val: uEventos.length },
-                { label: 'Gasto Total', val: fmtMoney(gastoTotal) },
-                { label: 'Crédito', val: fmtMoney(u.creditos || 0) },
+                ...(isMaster ? [
+                  { label: 'Gasto Total', val: fmtMoney(gastoTotal) },
+                  { label: 'Crédito', val: fmtMoney(u.creditos || 0) },
+                ] : []),
               ].map(s => (
                 <div key={s.label} style={{ background: 'var(--dark)', border: '1px solid var(--border)', borderRadius: 8, padding: '.7rem .5rem', textAlign: 'center', minWidth: 0 }}>
                   <div style={{ fontSize: '.68rem', color: 'var(--gray)', fontFamily: 'var(--font-body)', letterSpacing: '1px', marginBottom: '.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label.toUpperCase()}</div>
@@ -1783,26 +1799,38 @@ export default function Admin() {
               })}
             </div>
 
-            {/* Acesso administrativo */}
-            <p className="admin-eyebrow" style={{ margin: '1.4rem 0 .7rem' }}>Acesso Administrativo</p>
-            <div className="admin-adm-box">
-              <div className={`admin-adm-icon${u.admin ? ' is-admin' : ''}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '.85rem', fontWeight: 600, color: u.admin ? 'var(--gold)' : 'var(--white)', fontFamily: 'var(--font-body)' }}>
-                  {u.admin ? 'Este usuário é administrador' : 'Usuário comum'}
+            {/* Acesso administrativo — somente o Master gerencia cargos */}
+            {isMaster && (
+              <>
+                <p className="admin-eyebrow" style={{ margin: '1.4rem 0 .7rem' }}>Nível de Acesso</p>
+                <div className="admin-adm-box" style={{ alignItems: 'stretch', flexDirection: 'column', gap: '.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem' }}>
+                    <div className={`admin-adm-icon${u.admin ? ' is-admin' : ''}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '.85rem', fontWeight: 600, color: u.admin ? 'var(--gold)' : 'var(--white)' }}>
+                        {u.admin ? (u.adminRole === 'admin' ? 'Administrador Operacional' : 'Administrador Master') : 'Cliente'}
+                      </div>
+                      <div style={{ fontSize: '.72rem', color: 'var(--gray)', marginTop: '.15rem' }}>Escolha exatamente o que esta conta poderá acessar.</div>
+                    </div>
+                  </div>
+                  <div className="admin-statusgrp" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                    {[
+                      { value: 'cliente', label: 'Cliente' },
+                      { value: 'admin', label: 'Admin' },
+                      { value: 'master', label: 'Master' },
+                    ].map(({ value, label }) => {
+                      const currentRole = !u.admin ? 'cliente' : (u.adminRole === 'admin' ? 'admin' : 'master');
+                      return <button key={value} type="button" className={currentRole === value ? 'is-on' : ''} disabled={u._id === user?._id && value !== 'master'} onClick={() => currentRole !== value && setAdminAccess(u, value)}>{label}</button>;
+                    })}
+                  </div>
+                  <div style={{ fontSize: '.7rem', color: 'var(--gray)', lineHeight: 1.5 }}>
+                    Admin opera o dia a dia sem valores. Master também acessa financeiro, créditos, cargos e configurações.
+                  </div>
                 </div>
-                <div style={{ fontSize: '.72rem', color: 'var(--gray)', marginTop: '.15rem' }}>
-                  {u._id === user?._id
-                    ? 'Você não pode remover seu próprio acesso'
-                    : u.admin ? 'Tem acesso total ao painel administrativo' : 'Sem acesso ao painel administrativo'}
-                </div>
-              </div>
-              <button type="button" className={`admin-adm-toggle${u.admin ? ' danger' : ''}`} disabled={u._id === user?._id} onClick={() => toggleAdmin(u)}>
-                {u.admin ? 'Remover Admin' : 'Tornar Admin'}
-              </button>
-            </div>
+              </>
+            )}
           </AdminModal>
         );
       })()}
@@ -1924,12 +1952,12 @@ export default function Admin() {
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Data</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{fmtDate(detalhesRes.date)}</div></div>
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Horário</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{detalhesRes.dayUse ? 'Day Use' : detalhesRes.slots?.map(h => `${h}h`).join(', ')}</div></div>
                 <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Quadra</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{quadraNome(detalhesRes.quadraId)}</div></div>
-                <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Pagamento</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{PAYMENT_LABELS[detalhesRes.payment] || detalhesRes.payment}</div></div>
+                {isMaster && <div><div className="admin-chips-label" style={{ display: 'block', marginBottom: '.25rem' }}>Pagamento</div><div style={{ fontSize: '.9rem', fontWeight: 600 }}>{PAYMENT_LABELS[detalhesRes.payment] || detalhesRes.payment}</div></div>}
               </div>
-              <div className="admin-balance-box" style={{ marginBottom: 0 }}>
+              {isMaster && <div className="admin-balance-box" style={{ marginBottom: 0 }}>
                 <span>Valor Total</span>
                 <strong style={{ fontSize: '1.4rem' }}>{fmtMoney(detalhesRes.total)}</strong>
-              </div>
+              </div>}
             </div>
             <div className="admin-modal-footer">
               {detalhesRes.status !== 'cancelada' && <button className="btn-admin-danger" onClick={() => { cancelarReserva(detalhesRes._id); setDetalhesRes(null); }}>Cancelar Reserva</button>}
@@ -1954,7 +1982,7 @@ export default function Admin() {
                 <option value="cancelada">Cancelada</option>
               </PodiumSelect>
             </div>
-            <div className="admin-field">
+            {isMaster && <div className="admin-field">
               <label>Pagamento</label>
               <PodiumSelect value={editResForm.payment} onChange={e => setEditResForm({ ...editResForm, payment: e.target.value })}>
                 <option value="pix">PIX</option>
@@ -1962,11 +1990,11 @@ export default function Admin() {
                 <option value="cartao">Cartão</option>
                 <option value="creditos">Créditos Arena</option>
               </PodiumSelect>
-            </div>
-            <div className="admin-field" style={{ gridColumn: '1/-1' }}>
+            </div>}
+            {isMaster && <div className="admin-field" style={{ gridColumn: '1/-1' }}>
               <label>Valor (R$)</label>
               <PodiumNumberInput min={0} step={0.01} prefix="R$" value={editResForm.total} aria-label="Valor da reserva" onChange={e => setEditResForm({ ...editResForm, total: Number(e.target.value) })} />
-            </div>
+            </div>}
           </div>
         )}
       </AdminModal>
@@ -2236,7 +2264,7 @@ export default function Admin() {
       )}
 
       {/* Crédito modal */}
-      <AdminModal open={!!creditoModal} onClose={() => { setCreditoModal(null); setCreditoForm({ tipo: 'adicionar', valor: '', motivo: 'cancelamento', obs: '' }); }} eyebrow="Carteira" title={creditoForm.tipo === 'remover' ? 'REMOVER CRÉDITO' : 'ADICIONAR CRÉDITO'} maxWidth={480}
+      <AdminModal open={isMaster && !!creditoModal} onClose={() => { setCreditoModal(null); setCreditoForm({ tipo: 'adicionar', valor: '', motivo: 'cancelamento', obs: '' }); }} eyebrow="Carteira" title={creditoForm.tipo === 'remover' ? 'REMOVER CRÉDITO' : 'ADICIONAR CRÉDITO'} maxWidth={480}
         footer={<><button className="btn-admin-secondary" onClick={() => { setCreditoModal(null); setCreditoForm({ tipo: 'adicionar', valor: '', motivo: 'cancelamento', obs: '' }); }}>Cancelar</button><button className="btn-admin-primary" onClick={adicionarCredito}>{creditoForm.tipo === 'remover' ? 'Remover crédito' : 'Adicionar crédito'}</button></>}>
         <div className="admin-seg-ctrl">
           {[{ key: 'adicionar', label: 'Adicionar' }, { key: 'remover', label: 'Remover' }].map(op => (
@@ -2284,7 +2312,7 @@ export default function Admin() {
       <header className="admin-topbar">
         <Link to="/" className="admin-topbar-logo">
           <img src="/img/logo.png" alt="Podium Arena" />
-          <div className="admin-topbar-logo-text"><strong>PODIUM ARENA</strong><span>Administração</span></div>
+          <div className="admin-topbar-logo-text"><strong>PODIUM ARENA</strong><span>{isMaster ? 'Administração Master' : 'Administração Operacional'}</span></div>
         </Link>
         <div className="admin-topbar-right">
           <div className="admin-topbar-user">
@@ -2325,24 +2353,24 @@ export default function Admin() {
               { id: 'usuarios', label: 'Usuários', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
               { id: 'eventos', label: 'Eventos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> },
               { id: 'ranking', label: 'Ranking', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg> },
-            ].map(({ id, label, icon }) => (
+            ].filter(({ id }) => isMaster || id !== 'temporadas').map(({ id, label, icon }) => (
               <button key={id} className={`admin-nav-item${tab === id ? ' active' : ''}`} onClick={() => adminTab(id)}>{icon}{label}</button>
             ))}
           </div>
-          <div className="admin-sidebar-section">
+          {isMaster && <div className="admin-sidebar-section">
             <div className="admin-sidebar-label">Financeiro</div>
             <button className={`admin-nav-item${tab === 'financeiro' ? ' active' : ''}`} onClick={() => adminTab('financeiro')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               Financeiro
             </button>
-          </div>
-          <div className="admin-sidebar-section">
+          </div>}
+          {isMaster && <div className="admin-sidebar-section">
             <div className="admin-sidebar-label">Sistema</div>
             <button className={`admin-nav-item${tab === 'config' ? ' active' : ''}`} onClick={() => adminTab('config')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
               Configurações
             </button>
-          </div>
+          </div>}
           <div className="admin-sidebar-footer">
             <Link to="/painel">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -2376,13 +2404,13 @@ export default function Admin() {
               <div><p className="admin-eyebrow">Visão geral</p><h2 className="admin-section-h2">DASHBOARD</h2></div>
               <div className="admin-greeting">
                 <div className="admin-greeting-name">Olá, {user?.nome?.split(' ')[0] || 'Admin'}</div>
-                <div className="admin-greeting-sub">Bem-vindo de volta ao Painel Admin</div>
+                <div className="admin-greeting-sub">{isMaster ? 'Administrador Master · acesso completo' : 'Administrador Operacional · acesso limitado'}</div>
               </div>
             </div>
 
             <div className="admin-stats">
               {[
-                { label: 'Receita do Mês', value: fmtMoney(receitaAtual), icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, cls: '' },
+                ...(isMaster ? [{ label: 'Receita do Mês', value: fmtMoney(receitaAtual), icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>, cls: '' }] : []),
                 { label: 'Reservas Hoje', value: reservasHoje.length, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>, cls: 'icon-blue' },
                 { label: 'Taxa de Ocupação', value: `${ocupacao}%`, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>, cls: '' },
                 { label: 'Usuários Ativos', value: usuariosAtivos, icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, cls: 'icon-green' },
@@ -2401,10 +2429,14 @@ export default function Admin() {
             </div>
 
             <div className="dash-2col">
-              <div className="admin-card">
+              {isMaster ? <div className="admin-card">
                 <div className="admin-card-header"><h3>Receita — Últimos 7 Meses</h3></div>
                 <div style={{ padding: '.8rem 0' }}><MiniBarChart data={dashboardChartData} /></div>
-              </div>
+              </div> : <div className="admin-card" style={{ padding: '1.4rem' }}>
+                <p className="admin-eyebrow" style={{ marginBottom: '.6rem' }}>Seu acesso</p>
+                <h3 style={{ color: 'var(--white)', marginBottom: '.65rem' }}>ADMINISTRADOR OPERACIONAL</h3>
+                <p style={{ color: 'var(--gray)', fontSize: '.84rem', lineHeight: 1.65, margin: 0 }}>Você pode gerenciar reservas, clientes, eventos e ranking. Dados de receita, saldos, cargos e configurações ficam protegidos no perfil Master.</p>
+              </div>}
               <div className="admin-card">
                 <div className="admin-card-header"><h3>Ações Rápidas</h3></div>
                 <div style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', gap: '.7rem' }}>
@@ -2412,14 +2444,14 @@ export default function Admin() {
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
                     Gerenciar Reservas
                   </button>
-                  <button className="btn-admin-secondary" style={{ justifyContent: 'center' }} onClick={() => setCreditoModal(usuarios[0]?._id)}>
+                  {isMaster && <button className="btn-admin-secondary" style={{ justifyContent: 'center' }} onClick={() => setCreditoModal(usuarios[0]?._id)}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
                     Adicionar Crédito
-                  </button>
-                  <button className="btn-admin-secondary" style={{ justifyContent: 'center' }} onClick={() => adminTab('financeiro')}>
+                  </button>}
+                  {isMaster && <button className="btn-admin-secondary" style={{ justifyContent: 'center' }} onClick={() => adminTab('financeiro')}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     Relatório Financeiro
-                  </button>
+                  </button>}
                   <div style={{ height: 1, background: 'var(--border)', margin: '.2rem 0' }} />
                   <div style={{ display: 'flex', gap: '.5rem' }}>
                     <button className="btn-admin-secondary" style={{ justifyContent: 'center', flex: 1 }} title="Exportar agendamentos como JSON" onClick={() => exportarAgendamentos('json')}>
@@ -2474,10 +2506,10 @@ export default function Admin() {
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">RESERVAS</h2></div>
               <div style={{ display: 'flex', gap: '.65rem', flexWrap: 'wrap' }}>
-                <button className="btn-admin-secondary" onClick={() => setNovaTemporadaModal(true)}>
+                {isMaster && <button className="btn-admin-secondary" onClick={() => setNovaTemporadaModal(true)}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ width: 13, height: 13 }}><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
                   Reserva por Temporada
-                </button>
+                </button>}
                 <button className="btn-admin-primary" onClick={abrirNovaRes}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
                   Nova Reserva
@@ -2503,7 +2535,7 @@ export default function Admin() {
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
-                    <tr><th>ID</th><th>Usuário / Data</th><th>Quadra</th><th>Horário</th><th>Valor</th><th>Status</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+                    <tr><th>ID</th><th>Usuário / Data</th><th>Quadra</th><th>Horário</th>{isMaster && <th>Valor</th>}<th>Status</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
                   </thead>
                   <tbody>
                     {pagedRes.map(r => (
@@ -2524,7 +2556,7 @@ export default function Admin() {
                         </td>
                         <td>{quadraNome(r.quadraId)}</td>
                         <td className="muted">{r.dayUse ? 'Day Use' : r.slots?.map(h => `${h}h`).join(', ')}</td>
-                        <td>{fmtMoney(r.total)}</td>
+                        {isMaster && <td>{fmtMoney(r.total)}</td>}
                         <td><span className={`badge ${STATUS_CLS[r.status]}`}>{r.isSeasonGroup ? (r.status === 'cancelada' ? 'Temporada cancelada' : 'Temporada ativa') : (STATUS_LABELS[r.status] || r.status)}</span></td>
                         <td>
                           <div className="admin-row-actions">
@@ -2547,7 +2579,7 @@ export default function Admin() {
                         </td>
                       </tr>
                     ))}
-                    {pagedRes.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Nenhuma reserva encontrada</td></tr>}
+                    {pagedRes.length === 0 && <tr><td colSpan={isMaster ? 7 : 6} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Nenhuma reserva encontrada</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -2579,7 +2611,7 @@ export default function Admin() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
                         {quadraNome(r.quadraId) !== '—' ? quadraNome(r.quadraId) : 'Day Use'}
                       </span>
-                      <span className="adm-res-card-chip gold">{fmtMoney(r.total)}</span>
+                      {isMaster && <span className="adm-res-card-chip gold">{fmtMoney(r.total)}</span>}
                       {r.isSeasonGroup ? <span className="adm-res-card-chip gold">{r.activeCount}/{r.bookings.length} reservas</span> : null}
                     </div>
                     <div className="adm-res-card-actions">
@@ -2683,7 +2715,7 @@ export default function Admin() {
                     <option value="bloqueados">Bloqueados</option>
                     <option value="inativos">Inativos</option>
                   </PodiumSelect>
-                  <button className="btn-admin-secondary" style={{ whiteSpace: 'nowrap', gap: '.4rem' }} title="Importar usuários de planilha Excel ou CSV" onClick={() => importUsersRef.current?.click()}>
+                  {isMaster && <><button className="btn-admin-secondary" style={{ whiteSpace: 'nowrap', gap: '.4rem' }} title="Importar usuários de planilha Excel ou CSV" onClick={() => importUsersRef.current?.click()}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                     Importar Planilha
                   </button>
@@ -2696,7 +2728,7 @@ export default function Admin() {
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     Limpar Importação
                   </button>
-                  <input ref={importUsersRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { handleImportUsersFile(e.target.files[0]); e.target.value = ''; }} />
+                  <input ref={importUsersRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { handleImportUsersFile(e.target.files[0]); e.target.value = ''; }} /></>}
                 </div>
               </div>
               <div className="admin-table-wrap">
@@ -2718,7 +2750,10 @@ export default function Admin() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem' }}>
                               <div className="admin-avatar-mini" style={{ flexShrink: 0 }}>{getInitials(u.nome)}</div>
                               <div>
-                                <div className="admin-table-name">{u.nome}</div>
+                                <div className="admin-table-name" style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                                  {u.nome}
+                                  {u.admin && <span style={{ color: u.adminRole === 'admin' ? '#72a9ff' : 'var(--gold)', fontSize: '.58rem', letterSpacing: '1px', border: '1px solid currentColor', borderRadius: 10, padding: '.05rem .35rem' }}>{u.adminRole === 'admin' ? 'ADMIN' : 'MASTER'}</span>}
+                                </div>
                                 <div className="admin-table-sub">{u.email}</div>
                               </div>
                             </div>
@@ -2733,9 +2768,9 @@ export default function Admin() {
                               <button className="admin-action-btn" title="Ver / Editar perfil" onClick={() => { setEditUser(u); setEditUserForm({ tel: u.tel ? formatTel(u.tel) : '', genero: u.genero || '', nasc: u.nasc || '', status: u.status || 'ativo', novaSenha: '', confirmarSenha: '' }); }}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                               </button>
-                              <button className="admin-action-btn" title="Adicionar crédito" onClick={() => setCreditoModal(u._id)}>
+                              {isMaster && <button className="admin-action-btn" title="Adicionar crédito" onClick={() => setCreditoModal(u._id)}>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                              </button>
+                              </button>}
                             </div>
                           </td>
                         </tr>
@@ -2772,7 +2807,7 @@ export default function Admin() {
                           {u.tel ? formatTel(u.tel) : '—'}
                         </span>
                         <span className="adm-res-card-chip gold">{nRes} reserva{nRes !== 1 ? 's' : ''}</span>
-                        {Number(u.creditos) > 0 && <span className="adm-res-card-chip gold">{fmtMoney(u.creditos)} em créditos</span>}
+                        {isMaster && Number(u.creditos) > 0 && <span className="adm-res-card-chip gold">{fmtMoney(u.creditos)} em créditos</span>}
                         <span className="adm-res-card-chip">{shortId} · {u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-BR') : '—'}</span>
                       </div>
                       <div className="adm-res-card-actions">
@@ -2780,10 +2815,10 @@ export default function Admin() {
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                           Editar
                         </button>
-                        <button onClick={() => setCreditoModal(u._id)}>
+                        {isMaster && <button onClick={() => setCreditoModal(u._id)}>
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
                           Crédito
-                        </button>
+                        </button>}
                       </div>
                     </div>
                   );
@@ -2869,17 +2904,17 @@ export default function Admin() {
               <div className="admin-card-header"><h3>Inscrições Recentes</h3></div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
-                  <thead><tr><th>Atleta</th><th>Evento / Data</th><th>Valor</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Atleta</th><th>Evento / Data</th>{isMaster && <th>Valor</th>}<th>Status</th></tr></thead>
                   <tbody>
                     {inscricoes.slice(0, 15).map(i => (
                       <tr key={i._id}>
                         <td><div className="admin-table-name">{i.userId?.nome || i.userName || '—'}</div></td>
                         <td><div className="admin-table-name" style={{ fontSize: '.85rem' }}>{i.eventId?.nome || i.eventNome || 'Evento removido'}</div><div className="admin-table-sub">{fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}</div></td>
-                        <td>{fmtMoney(i.valorTotal ?? i.precoDupla ?? i.preco ?? i.eventId?.preco)}</td>
+                        {isMaster && <td>{fmtMoney(i.valorTotal ?? i.precoDupla ?? i.preco ?? i.eventId?.preco)}</td>}
                         <td><span className={`badge ${STATUS_CLS[i.status] || 'badge-success'}`}>{i.status || 'confirmada'}</span></td>
                       </tr>
                     ))}
-                    {inscricoes.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Sem inscrições</td></tr>}
+                    {inscricoes.length === 0 && <tr><td colSpan={isMaster ? 4 : 3} style={{ textAlign: 'center', color: 'var(--gray)', padding: '2rem' }}>Sem inscrições</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -2903,7 +2938,7 @@ export default function Admin() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
                         {fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}
                       </span>
-                      <span className="adm-res-card-chip gold">{fmtMoney(i.valorTotal ?? i.precoDupla ?? i.preco ?? i.eventId?.preco)}</span>
+                      {isMaster && <span className="adm-res-card-chip gold">{fmtMoney(i.valorTotal ?? i.precoDupla ?? i.preco ?? i.eventId?.preco)}</span>}
                     </div>
                   </div>
                 ))}

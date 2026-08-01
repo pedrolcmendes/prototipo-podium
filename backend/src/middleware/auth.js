@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { isMasterAdmin } = require('../utils/adminPermissions');
 
 const protect = async (req, res, next) => {
   const header = req.headers.authorization;
@@ -25,4 +26,11 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-module.exports = { protect, adminOnly };
+const masterOnly = (req, res, next) => {
+  if (!isMasterAdmin(req.user)) {
+    return res.status(403).json({ message: 'Acesso restrito ao Administrador Master' });
+  }
+  next();
+};
+
+module.exports = { protect, adminOnly, masterOnly };

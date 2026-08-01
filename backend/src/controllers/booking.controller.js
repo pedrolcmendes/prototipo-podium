@@ -8,6 +8,7 @@ const { cancelarReferenciaPendente } = require('../services/paymentReference.ser
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
 const { broadcast } = require('../utils/live');
+const { isMasterAdmin, sanitizeBookingForAdmin } = require('../utils/adminPermissions');
 
 const COURT_TYPE_BY_ID = {
   'coberta-1': 'coberta',
@@ -110,7 +111,9 @@ const listar = async (req, res) => {
     .populate('userId', 'nome email')
     .sort({ createdAt: -1 }); // última reserva feita aparece primeiro
   if (concluidas) broadcast('bookings');
-  res.json(bookings);
+  res.json(req.user.admin
+    ? bookings.map((booking) => sanitizeBookingForAdmin(booking, req.user))
+    : bookings);
 };
 
 const criar = async (req, res) => {
@@ -250,7 +253,9 @@ const atualizar = async (req, res) => {
   }
 
   const campos = req.user.admin
-    ? ['status', 'payment', 'slots', 'quadraId', 'date', 'total']
+    ? (isMasterAdmin(req.user)
+      ? ['status', 'payment', 'slots', 'quadraId', 'date', 'total']
+      : ['status', 'slots', 'quadraId', 'date'])
     : ['payment'];
 
   campos.forEach((c) => { if (req.body[c] !== undefined) booking[c] = req.body[c]; });

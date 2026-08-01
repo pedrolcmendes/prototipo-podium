@@ -5,6 +5,7 @@ const User = require('../models/User');
 const { broadcast } = require('../utils/live');
 const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
+const { sanitizeRegistrationForAdmin } = require('../utils/adminPermissions');
 
 const minhasInscricoes = async (req, res) => {
   const registrations = await Registration.find({ userId: req.user._id })
@@ -19,14 +20,14 @@ const listar = async (req, res) => {
     .populate('userId', 'nome email tel')
     .populate('eventId', 'nome data hora local status preco')
     .sort({ createdAt: -1 });
-  res.json(registrations);
+  res.json(registrations.map((registration) => sanitizeRegistrationForAdmin(registration, req.user)));
 };
 
 const porEvento = async (req, res) => {
   const registrations = await Registration.find({ eventId: req.params.eventId })
     .populate('userId', 'nome email tel')
     .sort({ createdAt: 1 });
-  res.json(registrations);
+  res.json(registrations.map((registration) => sanitizeRegistrationForAdmin(registration, req.user)));
 };
 
 const inscrever = async (req, res) => {

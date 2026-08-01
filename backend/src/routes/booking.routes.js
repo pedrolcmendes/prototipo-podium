@@ -1,12 +1,12 @@
 const router = require('express').Router();
 const { listarMinhas, listar, criar, atualizar, cancelar, horariosOcupados, importar } = require('../controllers/booking.controller');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, masterOnly } = require('../middleware/auth');
 
 router.get('/me', protect, listarMinhas);
 router.get('/horarios-ocupados', horariosOcupados);
 router.get('/', protect, listar);
 router.post('/', protect, criar);
-router.post('/importar', protect, adminOnly, importar);
+router.post('/importar', protect, masterOnly, importar);
 router.put('/:id', protect, atualizar);
 router.patch('/:id/cancelar', protect, cancelar);
 

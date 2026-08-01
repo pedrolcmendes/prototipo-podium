@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { enviarEmailSenhaAlterada } = require('../utils/email');
 const { broadcast } = require('../utils/live');
+const { isMasterAdmin, sanitizeUserForAdmin } = require('../utils/adminPermissions');
 
 const me = async (req, res) => {
   res.json(req.user.toPublic());
@@ -38,25 +39,28 @@ const alterarSenha = async (req, res) => {
 
 const listar = async (req, res) => {
   const users = await User.find().select('-senha').sort({ createdAt: -1 });
-  res.json(users);
+  res.json(users.map((user) => sanitizeUserForAdmin(user, req.user)));
 };
 
 const buscarPorId = async (req, res) => {
   const user = await User.findById(req.params.id).select('-senha');
   if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
-  res.json(user);
+  res.json(sanitizeUserForAdmin(user, req.user));
 };
 
 const atualizar = async (req, res) => {
-  const ehAdmin = req.user.admin;
+  const ehMaster = isMasterAdmin(req.user);
   const ehProprioUsuario = req.user._id.toString() === req.params.id;
 
-  if (!ehAdmin && !ehProprioUsuario) {
-    return res.status(403).json({ message: 'Sem permissão para editar este usuário' });
+  const alvo = await User.findById(req.params.id);
+  if (!alvo) return res.status(404).json({ message: 'Usuário não encontrado' });
+  if (!ehMaster && isMasterAdmin(alvo)) {
+    return res.status(403).json({ message: 'Apenas um Administrador Master pode editar outro Master' });
   }
 
   const camposPermitidos = ['nome', 'tel', 'nasc', 'genero'];
-  if (ehAdmin) camposPermitidos.push('status', 'creditos', 'admin');
+  camposPermitidos.push('status');
+  if (ehMaster) camposPermitidos.push('creditos', 'admin', 'adminRole');
 
   const atualizacoes = {};
   camposPermitidos.forEach((campo) => {
@@ -64,15 +68,22 @@ const atualizar = async (req, res) => {
   });
 
   // admin não pode remover o próprio acesso (evita perder o painel sem querer)
-  if (atualizacoes.admin === false && ehProprioUsuario) {
+  if ((atualizacoes.admin === false || atualizacoes.adminRole === 'admin') && ehProprioUsuario) {
     return res.status(400).json({ message: 'Você não pode remover seu próprio acesso admin' });
   }
 
+  if (ehMaster && atualizacoes.admin !== undefined) {
+    atualizacoes.adminRole = atualizacoes.admin
+      ? (['admin', 'master'].includes(req.body.adminRole) ? req.body.adminRole : 'admin')
+      : null;
+  } else if (ehMaster && atualizacoes.adminRole !== undefined) {
+    atualizacoes.admin = true;
+  }
+
   if (req.body.senha) {
-    const user = await User.findById(req.params.id);
-    user.senha = req.body.senha;
-    await user.save();
-    enviarEmailSenhaAlterada({ destinatario: user.email, nome: user.nome }).catch(() => {});
+    alvo.senha = req.body.senha;
+    await alvo.save();
+    enviarEmailSenhaAlterada({ destinatario: alvo.email, nome: alvo.nome }).catch(() => {});
     delete atualizacoes.senha;
   }
 
@@ -83,7 +94,7 @@ const atualizar = async (req, res) => {
 
   if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
   broadcast('users');
-  res.json(user);
+  res.json(sanitizeUserForAdmin(user, req.user));
 };
 
 const remover = async (req, res) => {

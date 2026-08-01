@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
   status: { type: String, enum: ['ativo', 'pendente', 'bloqueado', 'inativo'], default: 'ativo' },
   creditos: { type: Number, default: 0 },
   admin: { type: Boolean, default: false },
+  adminRole: { type: String, enum: ['admin', 'master', null], default: null },
   resetToken: { type: String, default: null },
   resetTokenExpires: { type: Date, default: null },
 }, { timestamps: true });
@@ -34,6 +35,11 @@ userSchema.methods.verificarSenha = function (senha) {
 userSchema.methods.toPublic = function () {
   const obj = this.toObject();
   delete obj.senha;
+  delete obj.resetToken;
+  delete obj.resetTokenExpires;
+  // Compatibilidade: administradores criados antes dos perfis sao Masters.
+  if (obj.admin && !obj.adminRole) obj.adminRole = 'master';
+  if (!obj.admin) obj.adminRole = null;
   return obj;
 };
 
