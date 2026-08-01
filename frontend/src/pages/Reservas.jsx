@@ -640,7 +640,6 @@ export default function Reservas() {
                             {[
                               { id: 'pix', label: 'PIX', sub: 'Aprovação imediata', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/><path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/></svg> },
                               { id: 'credito', label: 'Cartão de Crédito', sub: '1x sem juros', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="9" y2="15"/></svg> },
-                              { id: 'debito', label: 'Cartão de Débito', sub: 'Aprovação na hora', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="16" y2="15"/></svg> },
                               { id: 'creditos', label: 'Créditos Arena', sub: creditoSub, icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
                             ].map(m => (
                               <div key={m.id} className={`bk-pay-method${payMethod === m.id ? ' active' : ''}`} onClick={() => setPayMethod(m.id)}>
@@ -657,7 +656,7 @@ export default function Reservas() {
                               </div>
                               {restante > 0 && (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-cond)', fontSize: '.78rem', letterSpacing: '1px', color: 'var(--gray)' }}>
-                                  <span>Restante via PIX</span>
+                                  <span>Restante a pagar</span>
                                   <span>R$ {restante.toFixed(2).replace('.',',')}</span>
                                 </div>
                               )}
@@ -665,11 +664,15 @@ export default function Reservas() {
                                 <div style={{ fontFamily: 'var(--font-cond)', fontSize: '.75rem', color: 'var(--green)', letterSpacing: '1px' }}>Reserva coberta integralmente — sem cobrança adicional.</div>
                               )}
                             </div>
-                          ) : payMethod && (
+                          ) : payMethod === 'credito' ? (
                             <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '1px', marginTop: '.8rem' }}>
-                              Você será redirecionado ao <strong style={{ color: 'var(--gold)' }}>Mercado Pago</strong> para concluir o pagamento com segurança.
+                              Preencha os dados do seu cartão na próxima etapa — processado pelo <strong style={{ color: 'var(--gold)' }}>Mercado Pago</strong> com segurança.
                             </p>
-                          )}
+                          ) : payMethod ? (
+                            <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '1px', marginTop: '.8rem' }}>
+                              Será gerado um QR Code PIX para você escanear e confirmar o pagamento.
+                            </p>
+                          ) : null}
                         </>
                       );
                     })()}
@@ -703,7 +706,7 @@ export default function Reservas() {
                           <>
                             {aplicados > 0 && <div className="bk-summary-row"><span className="bk-summary-label" style={{ color: 'var(--gold)' }}>Créditos Arena</span><span className="bk-summary-val" style={{ color: 'var(--gold)' }}>— R$ {aplicados.toFixed(2).replace('.',',')}</span></div>}
                             <div className="bk-sum-total">
-                              <span className="bk-sum-total-label">{restante === 0 ? 'Total (créditos)' : 'A pagar (PIX)'}</span>
+                              <span className="bk-sum-total-label">{restante === 0 ? 'Total (créditos)' : 'A pagar'}</span>
                               <span className="bk-sum-total-val">R$ {restante === 0 ? '0,00' : restante.toFixed(2).replace('.',',')}</span>
                             </div>
                           </>

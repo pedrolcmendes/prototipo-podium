@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { CardPayment } from '@mercadopago/sdk-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const fmtReal = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
@@ -10,9 +11,10 @@ function formatTime(ms) {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
-const CARD_METHODS = new Set(['credito', 'debito', 'cartao']);
+const CARD_METHODS = new Set(['credito', 'cartao']);
 
 export default function PagamentoModal({ tipo, referenciaId, metodo, valor, creditosAplicados = 0, onClose }) {
+  const { user } = useAuth();
   const isCreditos = metodo === 'creditos';
   const isCard = CARD_METHODS.has(metodo);
 
@@ -109,6 +111,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         paymentMethodId: formData.payment_method_id,
         installments: formData.installments,
         issuerId: formData.issuer_id,
+        payerIdentification: formData.payer?.identification,
       });
 
       if (data.status === 'approved') {
@@ -125,7 +128,14 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
     }
   }, [tipo, referenciaId]);
 
-  const brickInit = useMemo(() => ({ amount: Number(valor) }), [valor]);
+  const cpfLimpo = user?.cpf ? user.cpf.replace(/\D/g, '') : '';
+  const brickInit = useMemo(() => ({
+    amount: Number(valor),
+    payer: {
+      email: user?.email || '',
+      identification: { type: 'CPF', number: cpfLimpo },
+    },
+  }), [valor, cpfLimpo, user?.email]);
   const brickCustomization = useMemo(() => ({
     visual: {
       style: {
@@ -152,6 +162,19 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
     paymentMethods: { maxInstallments: 1 },
   }), []);
 
+  const handleBrickReady = useCallback(() => {
+    const container = document.getElementById('cardPaymentBrick_container');
+    if (!container) return;
+    const docInput = container.querySelector('input[name="DOCUMENT"], select[name="DOCUMENT"]');
+    if (!docInput) return;
+    let el = docInput.parentElement;
+    while (el && el !== container) {
+      if (el.querySelector('label')) { el.style.display = 'none'; return; }
+      el = el.parentElement;
+    }
+    docInput.closest('div').style.display = 'none';
+  }, []);
+
   const tentarNovamente = () => {
     setCardError(null);
     setCardBrickKey(k => k + 1);
@@ -176,8 +199,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const headerLabel = {
     pix: 'PIX',
     credito: 'Cartão de Crédito',
-    debito: 'Cartão de Débito',
-    cartao: 'Cartão',
+    cartao: 'Cartão de Crédito',
     creditos: 'Créditos Arena',
   }[metodo] || 'Pagamento';
 
@@ -301,8 +323,8 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                       <line x1="2" y1="10" x2="22" y2="10"/>
                       <line x1="6" y1="15" x2="9" y2="15"/>
                     </svg>
-                    <div className="pag-choose-btn-name">Cartão</div>
-                    <div className="pag-choose-btn-sub">Crédito ou débito</div>
+                    <div className="pag-choose-btn-name">Cartão de Crédito</div>
+                    <div className="pag-choose-btn-sub">Preencha na próxima tela</div>
                   </button>
                 </div>
               </>

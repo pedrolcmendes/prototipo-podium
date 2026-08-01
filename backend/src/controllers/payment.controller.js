@@ -83,7 +83,6 @@ const cancelarReferencia = async (tipo, referenciaId) => {
 const PAYMENT_METHOD_FILTERS = {
   pix:     { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'prepaid_card' }, { id: 'atm' }] },
   credito: { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'atm' }] },
-  debito:  { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'credit_card' }, { id: 'ticket' }, { id: 'atm' }] },
 };
 
 const criarPagamentoPix = async (req, res) => {
@@ -304,7 +303,7 @@ const DECLINE_MESSAGES = {
 };
 
 const criarPagamentoCartao = async (req, res) => {
-  const { tipo, referenciaId, token, paymentMethodId, installments, issuerId } = req.body;
+  const { tipo, referenciaId, token, paymentMethodId, installments, issuerId, payerIdentification } = req.body;
   if (!['booking', 'registration'].includes(tipo)) return res.status(400).json({ message: 'Tipo inválido' });
   if (!token || !paymentMethodId) return res.status(400).json({ message: 'Dados do cartão inválidos' });
 
@@ -312,27 +311,32 @@ const criarPagamentoCartao = async (req, res) => {
   if (error) return res.status(error.status).json({ message: error.message });
 
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  const isLocalhost = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1');
   const nomes = req.user.nome.split(' ');
 
+  const mpBody = {
+    transaction_amount: Number(valor),
+    token,
+    description: descricao,
+    installments: Number(installments) || 1,
+    payment_method_id: paymentMethodId,
+    three_d_secure_mode: 'optional',
+    external_reference: `${tipo}:${referenciaId}`,
+    ...(!isLocalhost ? { notification_url: `${backendUrl}/api/pagamentos/webhook` } : {}),
+    payer: {
+      email: req.user.email,
+      first_name: nomes[0],
+      last_name: nomes.slice(1).join(' ') || 'Usuário',
+      identification: payerIdentification?.number
+        ? payerIdentification
+        : req.user.cpf
+          ? { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') }
+          : undefined,
+    },
+  };
+
   try {
-    const mpResult = await mpApi.create({
-      body: {
-        transaction_amount: Number(valor),
-        token,
-        description: descricao,
-        installments: Number(installments) || 1,
-        payment_method_id: paymentMethodId,
-        ...(issuerId ? { issuer_id: Number(issuerId) } : {}),
-        external_reference: `${tipo}:${referenciaId}`,
-        notification_url: `${backendUrl}/api/pagamentos/webhook`,
-        payer: {
-          email: req.user.email,
-          first_name: nomes[0],
-          last_name: nomes.slice(1).join(' ') || 'Usuário',
-          ...(req.user.cpf ? { identification: { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') } } : {}),
-        },
-      },
-    });
+    const mpResult = await mpApi.create({ body: mpBody });
 
     const mpStatus = mpResult.status;
     const approved = mpStatus === 'approved';

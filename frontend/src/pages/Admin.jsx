@@ -1944,7 +1944,6 @@ export default function Admin() {
               <PodiumSelect value={editResForm.payment} onChange={e => setEditResForm({ ...editResForm, payment: e.target.value })}>
                 <option value="pix">PIX</option>
                 <option value="credito">Crédito</option>
-                <option value="debito">Débito</option>
                 <option value="cartao">Cartão</option>
                 <option value="creditos">Créditos Arena</option>
               </PodiumSelect>
@@ -2010,7 +2009,6 @@ export default function Admin() {
             <PodiumSelect value={novaResForm.payment} onChange={e => setNovaResForm((current) => ({ ...current, payment: e.target.value }))}>
               <option value="pix">PIX</option>
               <option value="credito">Crédito</option>
-              <option value="debito">Débito</option>
               <option value="cartao">Cartão</option>
               <option value="creditos">Créditos Arena</option>
             </PodiumSelect>

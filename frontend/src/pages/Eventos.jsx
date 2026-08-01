@@ -322,7 +322,6 @@ export default function Eventos() {
                         {[
                           { id: 'pix', label: 'PIX' },
                           { id: 'credito', label: 'Crédito' },
-                          { id: 'debito', label: 'Débito' },
                         ].map(m => (
                           <button key={m.id} onClick={() => setPayMetodo(m.id)} style={{ flex: 1, padding: '.5rem', fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', border: payMetodo === m.id ? '1px solid var(--gold)' : '1px solid var(--border)', background: payMetodo === m.id ? 'var(--gold-faint)' : 'var(--dark)', color: payMetodo === m.id ? 'var(--gold)' : 'var(--gray)', transition: 'all var(--trans-fast)' }}>
                             {m.label}
@@ -369,6 +368,7 @@ export default function Eventos() {
         <PagamentoModal
           tipo="registration"
           referenciaId={pendingReg._id}
+          metodo={payMetodo}
           valor={pendingReg.precoDupla}
           onClose={() => { setPagOpen(false); setPendingReg(null); setPendingEvt(null); }}
         />

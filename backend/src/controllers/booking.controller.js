@@ -17,13 +17,13 @@ const COURT_TYPE_BY_ID = {
   'teste-1': 'teste',
 };
 const BOOKING_MODALITIES = new Set(['beach-tennis', 'futevolei', 'volei', 'pickleball']);
-const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'debito', 'creditos', 'cartao']);
+const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'creditos', 'cartao']);
 const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball', 'teste']);
 
 const DAY_USE_PRICE = 25;
 
 function calcularPrecoSlot(hora, tipoQuadra, isFimDeSemana) {
-  if (tipoQuadra === 'teste') return 0.50;
+  if (tipoQuadra === 'teste') return 1.00;
   const coberta = tipoQuadra === 'coberta';
   if (isFimDeSemana) {
     if (hora < 11) return coberta ? 80 : 60;
