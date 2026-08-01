@@ -71,7 +71,16 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
 
   const triggerGoogle = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
-    onError: () => toast('Erro ao conectar com Google', 'error'),
+    onError: (googleError) => {
+      console.error('[Google OAuth]', googleError);
+      const detail = googleError?.error_description || googleError?.error;
+      toast(
+        detail
+          ? `Não foi possível entrar com Google: ${detail}`
+          : 'Não foi possível entrar com Google. Verifique se este domínio está autorizado no Google Cloud.',
+        'error',
+      );
+    },
   });
 
   const [cadData, setCadData] = useState({ nome: '', genero: '', email: '', tel: '', cpf: '', nasc: '', senha: '', conf: '' });

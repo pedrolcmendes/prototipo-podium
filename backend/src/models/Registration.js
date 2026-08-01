@@ -7,6 +7,17 @@ const registrationSchema = new Schema({
   eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true },
   eventNome: { type: String, required: true },
   preco: { type: Number, required: true },
+  valorTotal: { type: Number, default: null },
+  genero: {
+    type: String,
+    enum: ['masculino', 'feminino', null],
+    default: null,
+  },
+  nivel: {
+    type: String,
+    enum: ['A', 'B', 'C', 'D', null],
+    default: null,
+  },
   parceiro: { type: String, default: null },
   precoDupla: { type: Number, default: null },
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },

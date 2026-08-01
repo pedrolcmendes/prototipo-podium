@@ -7,6 +7,7 @@ import Footer from '../components/Footer';
 import useLive from '../hooks/useLive';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import PagamentoModal from '../components/PagamentoModal';
+import SuperligaShowcase from '../components/SuperligaShowcase';
 
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -54,8 +55,9 @@ export default function Eventos() {
   const [inscLoading, setInscLoading] = useState(false);
   const [userRegs, setUserRegs] = useState([]);
   const [posterZoom, setPosterZoom] = useState(false);
-  const [inscStep, setInscStep] = useState('btn'); // 'btn' | 'parceiro'
+  const [inscStep, setInscStep] = useState('btn'); // 'btn' | 'details'
   const [parceiro, setParceiro] = useState('');
+  const [nivel, setNivel] = useState('');
   const [payMetodo, setPayMetodo] = useState('pix');
   const [pagOpen, setPagOpen] = useState(false);
   const [pendingReg, setPendingReg] = useState(null);
@@ -80,17 +82,26 @@ export default function Eventos() {
 
   const handleInscrever = () => {
     if (!user) { setAuthOpen(true); return; }
+    const individual = selectedEvt?.tipoInscricao !== 'dupla';
+    if (individual && !['masculino', 'feminino'].includes(user.genero)) {
+      toast('Informe masculino ou feminino no seu perfil antes de se inscrever', 'error');
+      return;
+    }
     setParceiro('');
+    setNivel('');
     setPayMetodo('pix');
-    setInscStep('parceiro');
+    setInscStep('details');
   };
 
-  const handleParceiroContinuar = async () => {
-    if (!parceiro.trim()) { toast('Informe o nome do(a) parceiro(a)', 'error'); return; }
+  const handleRegistrationContinue = async () => {
     if (!selectedEvt) return;
+    const individual = selectedEvt.tipoInscricao !== 'dupla';
+    if (individual && !nivel) { toast('Selecione seu nível: A, B, C ou D', 'error'); return; }
+    if (!individual && !parceiro.trim()) { toast('Informe o nome do(a) parceiro(a)', 'error'); return; }
     setInscLoading(true);
     try {
-      const res = await api.post(`/registrations/evento/${selectedEvt._id}`, { parceiro: parceiro.trim() });
+      const payload = individual ? { nivel } : { parceiro: parceiro.trim() };
+      const res = await api.post(`/registrations/evento/${selectedEvt._id}`, payload);
       const reg = res.data.data || res.data;
       setPendingReg(reg);
       setPendingEvt(selectedEvt);
@@ -117,6 +128,9 @@ export default function Eventos() {
 
   const isInscrito = selectedEvt && userRegs.includes(selectedEvt._id);
   const inscritosDe = (ev) => ev.inscritos ?? ev.vagasOcupadas ?? 0;
+  const superligaRegistration = eventos.find((ev) => (
+    ev.status === 'aberto' && ev.nome?.toLocaleLowerCase('pt-BR').includes('superliga')
+  ));
 
   return (
     <>
@@ -206,10 +220,26 @@ export default function Eventos() {
         <p>Campeonatos, ligas e eventos de beach sports. Inscreva-se e faça parte da arena.</p>
       </div>
 
+      <SuperligaShowcase
+        registrationEvent={superligaRegistration}
+        onRegister={(event) => {
+          setPosterZoom(false);
+          setInscStep('btn');
+          setSelectedEvt(event);
+        }}
+      />
+
       <div className="events-wrap">
+        <div className="events-list-head">
+          <div>
+            <p className="section-eyebrow">Agenda Podium</p>
+            <h2>INSCRIÇÕES <span>DISPONÍVEIS</span></h2>
+          </div>
+          <p>Eventos cadastrados com inscrição e pagamento direto pelo site.</p>
+        </div>
         {loading && <p style={{ color: 'var(--gray)', fontFamily: 'var(--font-cond)', letterSpacing: '1px' }}>Carregando eventos…</p>}
         {!loading && eventos.length === 0 && (
-          <p style={{ color: 'var(--gray)', fontFamily: 'var(--font-cond)', letterSpacing: '1px' }}>Nenhum evento disponível no momento.</p>
+          <p className="events-list-empty">As próximas inscrições online serão liberadas em breve.</p>
         )}
         <div className="evt-grid">
           {[...eventos]
@@ -245,7 +275,7 @@ export default function Eventos() {
                   <div className="evt-foot">
                     <div className="evt-price">
                       {ev.preco > 0 ? `R$ ${ev.preco}` : 'Gratuito'}
-                      {ev.preco > 0 && <small>por pessoa</small>}
+                      {ev.preco > 0 && <small>por inscrição</small>}
                     </div>
                     {ev.vagas > 0 && (
                       <div className="evt-slots">
@@ -289,7 +319,7 @@ export default function Eventos() {
                   <div className="evt-highlight">
                     <label>Inscrição</label>
                     <strong>{selectedEvt.preco > 0 ? `R$ ${selectedEvt.preco}` : 'GRÁTIS'}</strong>
-                    <span>{selectedEvt.preco > 0 ? 'por pessoa' : 'entrada livre'}</span>
+                    <span>{selectedEvt.preco > 0 ? 'por inscrição' : 'entrada livre'}</span>
                   </div>
                 </div>
 
@@ -306,34 +336,44 @@ export default function Eventos() {
                 {selectedEvt.desc && <p className="evt-desc">{selectedEvt.desc}</p>}
 
                 <div className="evt-modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                  {inscStep === 'parceiro' ? (
+                  {inscStep === 'details' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
-                      <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Inscrição em Dupla</p>
-                      <input
-                        type="text"
-                        placeholder="Nome do(a) parceiro(a)"
-                        value={parceiro}
-                        onChange={e => setParceiro(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleParceiroContinuar()}
-                        autoFocus
-                        style={{ background: 'var(--dark)', border: '1px solid var(--border)', color: 'var(--white)', padding: '.7rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.9rem', outline: 'none', transition: 'border-color var(--trans-fast)' }}
-                      />
+                      {selectedEvt.tipoInscricao !== 'dupla' ? (
+                        <>
+                          <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Escolha seu nível</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.6rem' }}>
+                            {['A', 'B', 'C', 'D'].map(item => (
+                              <button key={item} type="button" aria-pressed={nivel === item} onClick={() => setNivel(item)} style={{ padding: '.8rem', fontFamily: 'var(--font-display)', fontSize: '1.15rem', cursor: 'pointer', border: nivel === item ? '1px solid var(--gold)' : '1px solid var(--border)', background: nivel === item ? 'var(--gold)' : 'var(--dark)', color: nivel === item ? 'var(--black)' : 'var(--white)', transition: 'all var(--trans-fast)' }}>
+                                {item}
+                              </button>
+                            ))}
+                          </div>
+                          <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '.5px', margin: 0 }}>
+                            Categoria <strong style={{ color: 'var(--white)', textTransform: 'capitalize' }}>{user?.genero}</strong>, identificada pelo seu perfil.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Inscrição em dupla</p>
+                          <input type="text" placeholder="Nome do(a) parceiro(a)" value={parceiro} onChange={e => setParceiro(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRegistrationContinue()} autoFocus style={{ background: 'var(--dark)', border: '1px solid var(--border)', color: 'var(--white)', padding: '.7rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.9rem', outline: 'none' }} />
+                        </>
+                      )}
                       <div style={{ display: 'flex', gap: '.7rem' }}>
                         {[
                           { id: 'pix', label: 'PIX' },
                           { id: 'credito', label: 'Crédito' },
                         ].map(m => (
-                          <button key={m.id} onClick={() => setPayMetodo(m.id)} style={{ flex: 1, padding: '.5rem', fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', border: payMetodo === m.id ? '1px solid var(--gold)' : '1px solid var(--border)', background: payMetodo === m.id ? 'var(--gold-faint)' : 'var(--dark)', color: payMetodo === m.id ? 'var(--gold)' : 'var(--gray)', transition: 'all var(--trans-fast)' }}>
+                          <button key={m.id} type="button" onClick={() => setPayMetodo(m.id)} style={{ flex: 1, padding: '.5rem', fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', border: payMetodo === m.id ? '1px solid var(--gold)' : '1px solid var(--border)', background: payMetodo === m.id ? 'var(--gold-faint)' : 'var(--dark)', color: payMetodo === m.id ? 'var(--gold)' : 'var(--gray)', transition: 'all var(--trans-fast)' }}>
                             {m.label}
                           </button>
                         ))}
                       </div>
                       <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '.5px', margin: 0 }}>
-                        R$ {selectedEvt.preco}/atleta × 2 = <strong style={{ color: 'var(--gold)' }}>R$ {selectedEvt.preco * 2}</strong>
+                        Total da inscrição: <strong style={{ color: 'var(--gold)' }}>R$ {selectedEvt.tipoInscricao === 'dupla' ? selectedEvt.preco * 2 : selectedEvt.preco}</strong>
                       </p>
                       <div style={{ display: 'flex', gap: '.7rem' }}>
                         <button className="btn-ghost" onClick={() => setInscStep('btn')} style={{ flex: 1 }}>Voltar</button>
-                        <button className="btn-gold" disabled={inscLoading} onClick={handleParceiroContinuar} style={{ flex: 2 }}>
+                        <button className="btn-gold" disabled={inscLoading} onClick={handleRegistrationContinue} style={{ flex: 2 }}>
                           {inscLoading ? 'Aguarde…' : `Ir para pagamento`}
                         </button>
                       </div>
@@ -369,7 +409,7 @@ export default function Eventos() {
           tipo="registration"
           referenciaId={pendingReg._id}
           metodo={payMetodo}
-          valor={pendingReg.precoDupla}
+          valor={pendingReg.valorTotal ?? pendingReg.precoDupla ?? pendingReg.preco}
           onClose={() => { setPagOpen(false); setPendingReg(null); setPendingEvt(null); }}
         />
       )}
