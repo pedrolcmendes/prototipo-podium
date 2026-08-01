@@ -1,7 +1,6 @@
 const PaymentModel = require('../models/Payment');
-const Booking = require('../models/Booking');
-const Registration = require('../models/Registration');
-const { broadcast } = require('../utils/live');
+const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
+const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 
 const expirePayments = async () => {
   const expired = await PaymentModel.find({
@@ -10,15 +9,12 @@ const expirePayments = async () => {
   });
 
   for (const payment of expired) {
-    payment.status = 'expirado';
-    await payment.save();
-
-    if (payment.tipo === 'booking') {
-      await Booking.findByIdAndUpdate(payment.referenciaId, { status: 'cancelada' });
-      broadcast('bookings');
-    } else {
-      await Registration.findByIdAndUpdate(payment.referenciaId, { status: 'cancelada' });
-      broadcast('registrations');
+    try {
+      await cancelarPagamentosPendentes(payment.tipo, payment.referenciaId);
+      await PaymentModel.findByIdAndUpdate(payment._id, { $set: { status: 'expirado' } });
+      await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
+    } catch (error) {
+      console.error(`[jobs] Falha ao expirar pagamento ${payment._id}:`, error.message);
     }
   }
 

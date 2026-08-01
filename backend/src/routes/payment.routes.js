@@ -7,7 +7,7 @@ router.post('/webhook', webhook);
 router.post('/pix', protect, criarPagamentoPix);
 router.post('/preferencia', protect, criarPreferencia);
 router.post('/cartao', protect, criarPagamentoCartao);
-router.get('/sync', syncPagamento);
+router.get('/sync', protect, syncPagamento);
 router.get('/:id/status', protect, getStatus);
 
 module.exports = router;

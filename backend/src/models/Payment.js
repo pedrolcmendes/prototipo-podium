@@ -11,7 +11,16 @@ const paymentSchema = new mongoose.Schema({
   mpPreferenceId: { type: String, default: null },
   checkoutUrl: { type: String, default: null },
   sandboxUrl: { type: String, default: null },
+  idempotencyKey: { type: String, default: null },
   expiresAt: { type: Date, required: true },
 }, { timestamps: true });
+
+paymentSchema.index(
+  { idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { idempotencyKey: { $type: 'string' } },
+  },
+);
 
 module.exports = mongoose.model('Payment', paymentSchema);

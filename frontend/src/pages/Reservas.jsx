@@ -87,7 +87,7 @@ function Calendar({ year, month, onPrev, onNext, selectedDate, onSelect, busyDat
 }
 
 export default function Reservas() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
   const [authOpen, setAuthOpen] = useState(false);
@@ -207,6 +207,11 @@ export default function Reservas() {
       }
       const res = await api.post('/bookings', payload);
       const booking = res.data.data || res.data;
+      if (booking.creditosAplicados > 0) {
+        updateUser({
+          creditos: Math.max(0, Number(user?.creditos || 0) - booking.creditosAplicados),
+        });
+      }
       if (booking.status === 'confirmada') {
         // Admin: reserva já confirmada pelo backend, pula pagamento
         setConfData(booking);

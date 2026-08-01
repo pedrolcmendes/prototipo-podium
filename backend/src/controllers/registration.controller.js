@@ -1,6 +1,10 @@
+const mongoose = require('mongoose');
 const Registration = require('../models/Registration');
 const Event = require('../models/Event');
+const User = require('../models/User');
 const { broadcast } = require('../utils/live');
+const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
+const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 
 const minhasInscricoes = async (req, res) => {
   const registrations = await Registration.find({ userId: req.user._id })
@@ -31,7 +35,12 @@ const inscrever = async (req, res) => {
   const individual = event.tipoInscricao !== 'dupla';
   const parceiro = req.body.parceiro?.trim() || null;
   const nivel = req.body.nivel?.toUpperCase() || null;
+  const payment = req.body.payment || 'pix';
   const genero = ['masculino', 'feminino'].includes(req.user.genero) ? req.user.genero : null;
+
+  if (!['pix', 'credito', 'cartao', 'creditos'].includes(payment)) {
+    return res.status(400).json({ message: 'Forma de pagamento inválida' });
+  }
 
   if (individual && !['A', 'B', 'C', 'D'].includes(nivel)) {
     return res.status(400).json({ message: 'Selecione o nível A, B, C ou D' });
@@ -61,38 +70,87 @@ const inscrever = async (req, res) => {
     eventId: event._id,
   });
 
-  if (jaInscrito) {
-    if (jaInscrito.status === 'confirmada' || jaInscrito.status === 'pendente_pagamento') {
-      return res.status(409).json({ message: jaInscrito.status === 'pendente_pagamento' ? 'Você já tem uma inscrição pendente de pagamento' : 'Você já está inscrito neste evento' });
-    }
-    jaInscrito.status = 'pendente_pagamento';
-    jaInscrito.preco = event.preco;
-    jaInscrito.valorTotal = individual ? event.preco : event.preco * 2;
-    jaInscrito.genero = individual ? genero : null;
-    jaInscrito.nivel = individual ? nivel : null;
-    jaInscrito.parceiro = individual ? null : parceiro;
-    jaInscrito.precoDupla = individual ? null : event.preco * 2;
-    await jaInscrito.save();
-    broadcast('registrations');
-    return res.json(jaInscrito);
+  if (jaInscrito && (jaInscrito.status === 'confirmada' || jaInscrito.status === 'pendente_pagamento')) {
+    return res.status(409).json({ message: jaInscrito.status === 'pendente_pagamento' ? 'Você já tem uma inscrição pendente de pagamento' : 'Você já está inscrito neste evento' });
   }
 
-  const registration = await Registration.create({
+  const valorTotal = individual ? event.preco : event.preco * 2;
+  const registrationData = {
     userId: req.user._id,
     userName: req.user.nome,
     eventId: event._id,
     eventNome: event.nome,
     preco: event.preco,
-    valorTotal: individual ? event.preco : event.preco * 2,
+    valorTotal,
     genero: individual ? genero : null,
     nivel: individual ? nivel : null,
     parceiro: individual ? null : parceiro,
     precoDupla: individual ? null : event.preco * 2,
+    creditosAplicados: 0,
+    creditosEstornados: 0,
     status: 'pendente_pagamento',
-  });
+  };
+
+  let registration;
+  let creditosAplicados = 0;
+
+  if (payment === 'creditos') {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const freshUser = await User.findById(req.user._id).select('creditos').session(session);
+        if (!freshUser) throw new Error('Cliente não encontrado');
+
+        creditosAplicados = Math.min(freshUser.creditos || 0, valorTotal);
+        if (creditosAplicados > 0) {
+          const debit = await User.updateOne(
+            { _id: req.user._id, creditos: { $gte: creditosAplicados } },
+            { $inc: { creditos: -creditosAplicados } },
+            { session },
+          );
+          if (debit.modifiedCount !== 1) throw new Error('Saldo de créditos alterado. Tente novamente.');
+        }
+
+        const data = {
+          ...registrationData,
+          creditosAplicados,
+          status: creditosAplicados === valorTotal ? 'confirmada' : 'pendente_pagamento',
+        };
+
+        if (jaInscrito) {
+          registration = await Registration.findByIdAndUpdate(
+            jaInscrito._id,
+            { $set: data },
+            { new: true, session, runValidators: true },
+          );
+        } else {
+          [registration] = await Registration.create([data], { session });
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao aplicar créditos Arena na inscrição:', error.message);
+      const conflitoSaldo = error.message.includes('Saldo de créditos alterado');
+      return res.status(conflitoSaldo ? 409 : 500).json({
+        message: conflitoSaldo
+          ? error.message
+          : 'Não foi possível aplicar os créditos Arena. Nenhum crédito foi descontado.',
+      });
+    } finally {
+      await session.endSession();
+    }
+    if (creditosAplicados > 0) broadcast('users');
+  } else if (jaInscrito) {
+    registration = await Registration.findByIdAndUpdate(
+      jaInscrito._id,
+      { $set: registrationData },
+      { new: true, runValidators: true },
+    );
+  } else {
+    registration = await Registration.create(registrationData);
+  }
 
   broadcast('registrations');
-  res.status(201).json(registration);
+  return res.status(jaInscrito ? 200 : 201).json(registration);
 };
 
 const cancelar = async (req, res) => {
@@ -104,10 +162,25 @@ const cancelar = async (req, res) => {
     return res.status(403).json({ message: 'Sem permissão' });
   }
 
+  if (registration.status === 'pendente_pagamento') {
+    try {
+      await cancelarPagamentosPendentes('registration', registration._id);
+    } catch (error) {
+      console.error('Erro ao cancelar cobrança pendente:', error.message);
+      return res.status(error.status || 502).json({
+        message: error.status === 409
+          ? error.message
+          : 'Não foi possível cancelar a cobrança no Mercado Pago. Tente novamente.',
+      });
+    }
+    const { referencia, creditosEstornados } = await cancelarReferenciaPendente('registration', registration._id);
+    return res.json({ message: 'Inscrição cancelada', registration: referencia || registration, creditosEstornados });
+  }
+
   registration.status = 'cancelada';
   await registration.save();
   broadcast('registrations');
-  res.json({ message: 'Inscrição cancelada', registration });
+  return res.json({ message: 'Inscrição cancelada', registration });
 };
 
 module.exports = { minhasInscricoes, listar, porEvento, inscrever, cancelar };

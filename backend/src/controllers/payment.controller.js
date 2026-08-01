@@ -6,6 +6,8 @@ const User = require('../models/User');
 const Settings = require('../models/Settings');
 const { broadcast } = require('../utils/live');
 const { enviarEmailReservaConfirmada } = require('../utils/email');
+const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
+const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { MercadoPagoConfig, Payment: MpAPI, Preference } = require('mercadopago');
 
 function validarAssinaturaMP(req) {
@@ -24,12 +26,21 @@ function validarAssinaturaMP(req) {
   const dataId = req.body?.data?.id ?? '';
   const manifest = `id:${dataId};request-id:${xRequestId ?? ''};ts:${ts}`;
   const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1));
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(v1);
+  if (expectedBuffer.length !== receivedBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 const mpApi = new MpAPI(mpClient);
 const mpPreference = new Preference(mpClient);
+
+const validarConfiguracaoMP = (res) => {
+  if (process.env.MP_ACCESS_TOKEN) return true;
+  res.status(503).json({ message: 'Mercado Pago não está configurado neste ambiente.' });
+  return false;
+};
 
 const getReferenciaAndValor = async (tipo, referenciaId, userId) => {
   if (tipo === 'booking') {
@@ -39,18 +50,29 @@ const getReferenciaAndValor = async (tipo, referenciaId, userId) => {
     if (b.status !== 'pendente_pagamento') return { error: { status: 400, message: 'Reserva não está pendente de pagamento' } };
     const valorLiquido = b.total - (b.creditosAplicados || 0);
     if (valorLiquido <= 0) return { error: { status: 400, message: 'Reserva já coberta por créditos Arena' } };
+    if (!Number.isFinite(valorLiquido) || valorLiquido <= 0) {
+      return { error: { status: 400, message: 'Valor de pagamento inválido' } };
+    }
     return { referencia: b, valor: valorLiquido, descricao: 'Reserva Podium Arena' };
   }
   const r = await Registration.findById(referenciaId);
   if (!r) return { error: { status: 404, message: 'Inscrição não encontrada' } };
   if (r.userId.toString() !== userId.toString()) return { error: { status: 403, message: 'Sem permissão' } };
   if (r.status !== 'pendente_pagamento') return { error: { status: 400, message: 'Inscrição não está pendente de pagamento' } };
-  return { referencia: r, valor: r.valorTotal ?? r.precoDupla ?? r.preco, descricao: `Inscrição — ${r.eventNome}` };
+  const valor = Number(r.valorTotal ?? r.precoDupla ?? r.preco) - (r.creditosAplicados || 0);
+  if (!Number.isFinite(valor) || valor <= 0) {
+    return { error: { status: 400, message: 'Valor de pagamento inválido' } };
+  }
+  return { referencia: r, valor, descricao: `Inscrição — ${r.eventNome}` };
 };
 
 const confirmarReferencia = async (tipo, referenciaId, userId) => {
   if (tipo === 'booking') {
-    const booking = await Booking.findByIdAndUpdate(referenciaId, { status: 'confirmada', foiPago: true }, { new: true });
+    const booking = await Booking.findOneAndUpdate(
+      { _id: referenciaId, status: 'pendente_pagamento' },
+      { $set: { status: 'confirmada', foiPago: true } },
+      { new: true },
+    );
     broadcast('bookings');
     if (booking) {
       const settings = await Settings.findById('global');
@@ -61,22 +83,12 @@ const confirmarReferencia = async (tipo, referenciaId, userId) => {
       }
     }
   } else {
-    await Registration.findByIdAndUpdate(referenciaId, { status: 'confirmada' });
-    broadcast('registrations');
-  }
-};
-
-const cancelarReferencia = async (tipo, referenciaId) => {
-  try {
-    if (tipo === 'booking') {
-      await Booking.findByIdAndUpdate(referenciaId, { status: 'cancelada' });
-      broadcast('bookings');
-    } else {
-      await Registration.findByIdAndUpdate(referenciaId, { status: 'cancelada' });
-      broadcast('registrations');
-    }
-  } catch (e) {
-    console.warn('Erro ao cancelar após falha de pagamento:', e.message);
+    const registration = await Registration.findOneAndUpdate(
+      { _id: referenciaId, status: 'pendente_pagamento' },
+      { $set: { status: 'confirmada' } },
+      { new: true },
+    );
+    if (registration) broadcast('registrations');
   }
 };
 
@@ -86,6 +98,7 @@ const PAYMENT_METHOD_FILTERS = {
 };
 
 const criarPagamentoPix = async (req, res) => {
+  if (!validarConfiguracaoMP(res)) return;
   const { tipo, referenciaId } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
     return res.status(400).json({ message: 'Tipo inválido' });
@@ -94,11 +107,16 @@ const criarPagamentoPix = async (req, res) => {
   const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
-  const pagamentoPendente = await PaymentModel.findOne({ referenciaId, status: 'pendente' });
+  let pagamentoPendente = await PaymentModel.findOne({
+    tipo,
+    referenciaId,
+    metodo: 'pix',
+    status: 'pendente',
+  });
   if (pagamentoPendente?.mpPaymentId) {
     try {
       const mpResult = await mpApi.get({ id: pagamentoPendente.mpPaymentId });
-      if (mpResult.status === 'pending') {
+      if (mpResult.status === 'pending' && new Date() <= pagamentoPendente.expiresAt) {
         // PIX ainda válido — devolve QR code existente para o usuário continuar
         const txData = mpResult.point_of_interaction?.transaction_data;
         return res.json({
@@ -109,13 +127,34 @@ const criarPagamentoPix = async (req, res) => {
           expiresAt: pagamentoPendente.expiresAt.toISOString(),
         });
       }
-      // PIX já expirou no MP — marca como expirado e cria novo
-      pagamentoPendente.status = 'expirado';
-      await pagamentoPendente.save();
+      if (mpResult.status === 'approved') {
+        pagamentoPendente.status = 'aprovado';
+        await pagamentoPendente.save();
+        await confirmarReferencia(tipo, referenciaId, req.user._id);
+        return res.json({
+          paymentId: pagamentoPendente._id,
+          mpPaymentId: pagamentoPendente.mpPaymentId,
+          status: 'aprovado',
+        });
+      }
+      const expirado = ['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status)
+        || new Date() > pagamentoPendente.expiresAt;
+      if (!expirado) {
+        return res.status(409).json({ message: 'Já existe um pagamento em processamento para esta reserva.' });
+      }
+      if (mpResult.status === 'pending') {
+        await cancelarPagamentosPendentes(tipo, referenciaId);
+        pagamentoPendente.status = 'expirado';
+        await pagamentoPendente.save();
+      } else {
+        pagamentoPendente.status = 'expirado';
+        await pagamentoPendente.save();
+      }
+      await cancelarReferenciaPendente(tipo, referenciaId);
+      return res.status(410).json({ message: 'O PIX anterior expirou. Inicie uma nova reserva para tentar novamente.' });
     } catch (e) {
       console.warn('Erro ao verificar PIX existente no MP:', e.message);
-      pagamentoPendente.status = 'expirado';
-      await pagamentoPendente.save();
+      return res.status(503).json({ message: 'Não foi possível consultar o PIX existente. Tente novamente em instantes.' });
     }
   }
 
@@ -126,6 +165,29 @@ const criarPagamentoPix = async (req, res) => {
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
   try {
+    if (!pagamentoPendente) {
+      const tentativa = await PaymentModel.countDocuments({ tipo, referenciaId, metodo: 'pix' });
+      const idempotencyKey = crypto
+        .createHash('sha256')
+        .update(`pix:${tipo}:${referenciaId}:${tentativa}`)
+        .digest('hex');
+
+      try {
+        pagamentoPendente = await PaymentModel.create({
+          userId: req.user._id,
+          tipo,
+          referenciaId,
+          valor,
+          metodo: 'pix',
+          idempotencyKey,
+          expiresAt,
+        });
+      } catch (errorCriacao) {
+        if (errorCriacao?.code !== 11000) throw errorCriacao;
+        pagamentoPendente = await PaymentModel.findOne({ idempotencyKey });
+      }
+    }
+
     const nomes = req.user.nome.split(' ');
     const payerBody = {
       email: `pix.${req.user._id}@podiumarena.com.br`,
@@ -143,24 +205,19 @@ const criarPagamentoPix = async (req, res) => {
         payer: payerBody,
         date_of_expiration: expiresAt.toISOString(),
       },
+      requestOptions: { idempotencyKey: pagamentoPendente.idempotencyKey },
     });
 
-    const payment = await PaymentModel.create({
-      userId: req.user._id,
-      tipo,
-      referenciaId,
-      valor,
-      metodo: 'pix',
-      mpPaymentId: String(mpResult.id),
-      expiresAt,
-    });
+    pagamentoPendente.mpPaymentId = String(mpResult.id);
+    pagamentoPendente.expiresAt = expiresAt;
+    await pagamentoPendente.save();
 
-    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: pagamentoPendente._id });
+    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: pagamentoPendente._id });
 
     const txData = mpResult.point_of_interaction?.transaction_data;
     return res.status(201).json({
-      paymentId: payment._id,
+      paymentId: pagamentoPendente._id,
       mpPaymentId: String(mpResult.id),
       qrCode: txData?.qr_code,
       qrCodeBase64: txData?.qr_code_base64,
@@ -168,12 +225,12 @@ const criarPagamentoPix = async (req, res) => {
     });
   } catch (err) {
     console.error('MP PIX error:', JSON.stringify(err?.cause ?? err, null, 2));
-    await cancelarReferencia(tipo, referenciaId);
-    return res.status(500).json({ message: 'Erro ao gerar PIX. Reserva cancelada.' });
+    return res.status(502).json({ message: 'Erro ao gerar PIX. Sua reserva continua pendente; tente novamente.' });
   }
 };
 
 const criarPreferencia = async (req, res) => {
+  if (!validarConfiguracaoMP(res)) return;
   const { tipo, referenciaId, metodo } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
     return res.status(400).json({ message: 'Tipo inválido' });
@@ -236,8 +293,7 @@ const criarPreferencia = async (req, res) => {
     });
   } catch (err) {
     console.error('MP Preference error:', JSON.stringify(err?.cause ?? err, null, 2));
-    await cancelarReferencia(tipo, referenciaId);
-    return res.status(500).json({ message: 'Erro ao iniciar pagamento. Reserva cancelada.' });
+    return res.status(502).json({ message: 'Erro ao iniciar pagamento. Sua reserva continua pendente.' });
   }
 };
 
@@ -249,15 +305,24 @@ const getStatus = async (req, res) => {
   }
 
   if (payment.status === 'pendente' && new Date() > payment.expiresAt) {
-    payment.status = 'expirado';
-    await payment.save();
-    await cancelarReferencia(payment.tipo, payment.referenciaId);
+    try {
+      await cancelarPagamentosPendentes(payment.tipo, payment.referenciaId);
+      payment.status = 'expirado';
+      await payment.save();
+    } catch (error) {
+      console.error('Erro ao expirar cobrança no Mercado Pago:', error.message);
+      return res.status(error.status || 502).json({
+        message: 'Não foi possível encerrar a cobrança expirada. Tente novamente.',
+      });
+    }
+    await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
   }
 
   return res.json({ status: payment.status, expiresAt: payment.expiresAt, valor: payment.valor });
 };
 
 const webhook = async (req, res) => {
+  if (!process.env.MP_ACCESS_TOKEN) return res.sendStatus(503);
   if (!validarAssinaturaMP(req)) {
     return res.sendStatus(401);
   }
@@ -267,8 +332,6 @@ const webhook = async (req, res) => {
     if (type !== 'payment' || !data?.id) return;
 
     const mpResult = await mpApi.get({ id: String(data.id) });
-    if (mpResult.status !== 'approved') return;
-
     // Busca pelo mpPaymentId ou, para Checkout Pro, pelo external_reference
     let payment = await PaymentModel.findOne({ mpPaymentId: String(data.id) });
 
@@ -280,9 +343,15 @@ const webhook = async (req, res) => {
     if (!payment || payment.status !== 'pendente') return;
 
     payment.mpPaymentId = String(data.id);
-    payment.status = 'aprovado';
-    await payment.save();
-    await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
+    if (mpResult.status === 'approved') {
+      payment.status = 'aprovado';
+      await payment.save();
+      await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
+    } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status)) {
+      payment.status = 'cancelado';
+      await payment.save();
+      await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
+    }
   } catch (err) {
     console.error('Webhook error:', err?.message);
   }
@@ -303,6 +372,7 @@ const DECLINE_MESSAGES = {
 };
 
 const criarPagamentoCartao = async (req, res) => {
+  if (!validarConfiguracaoMP(res)) return;
   const { tipo, referenciaId, token, paymentMethodId, installments, issuerId, payerIdentification } = req.body;
   if (!['booking', 'registration'].includes(tipo)) return res.status(400).json({ message: 'Tipo inválido' });
   if (!token || !paymentMethodId) return res.status(400).json({ message: 'Dados do cartão inválidos' });
@@ -313,6 +383,10 @@ const criarPagamentoCartao = async (req, res) => {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
   const isLocalhost = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1');
   const nomes = req.user.nome.split(' ');
+  const idempotencyKey = crypto
+    .createHash('sha256')
+    .update(`card:${tipo}:${referenciaId}:${token}`)
+    .digest('hex');
 
   const mpBody = {
     transaction_amount: Number(valor),
@@ -320,6 +394,7 @@ const criarPagamentoCartao = async (req, res) => {
     description: descricao,
     installments: Number(installments) || 1,
     payment_method_id: paymentMethodId,
+    ...(issuerId ? { issuer_id: issuerId } : {}),
     three_d_secure_mode: 'optional',
     external_reference: `${tipo}:${referenciaId}`,
     ...(!isLocalhost ? { notification_url: `${backendUrl}/api/pagamentos/webhook` } : {}),
@@ -336,22 +411,34 @@ const criarPagamentoCartao = async (req, res) => {
   };
 
   try {
-    const mpResult = await mpApi.create({ body: mpBody });
+    const mpResult = await mpApi.create({
+      body: mpBody,
+      requestOptions: { idempotencyKey },
+    });
 
     const mpStatus = mpResult.status;
     const approved = mpStatus === 'approved';
     const rejected = mpStatus === 'rejected';
 
-    const payment = await PaymentModel.create({
-      userId: req.user._id,
-      tipo,
-      referenciaId,
-      valor,
-      metodo: 'cartao',
-      mpPaymentId: String(mpResult.id),
-      status: approved ? 'aprovado' : rejected ? 'cancelado' : 'pendente',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    });
+    const payment = await PaymentModel.findOneAndUpdate(
+      { idempotencyKey },
+      {
+        $setOnInsert: {
+          userId: req.user._id,
+          tipo,
+          referenciaId,
+          valor,
+          metodo: 'cartao',
+          idempotencyKey,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+        $set: {
+          mpPaymentId: String(mpResult.id),
+          status: approved ? 'aprovado' : rejected ? 'cancelado' : 'pendente',
+        },
+      },
+      { upsert: true, new: true, runValidators: true },
+    );
 
     if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
     else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
@@ -373,11 +460,12 @@ const criarPagamentoCartao = async (req, res) => {
   } catch (err) {
     const errDetail = err?.cause ?? err;
     console.error('MP Card error:', JSON.stringify(errDetail, null, 2));
-    return res.status(500).json({ message: 'Erro ao processar o cartão. Tente novamente.', _debug: errDetail });
+    return res.status(502).json({ message: 'Erro ao processar o cartão. Sua reserva continua pendente; tente novamente.' });
   }
 };
 
 const syncPagamento = async (req, res) => {
+  if (!validarConfiguracaoMP(res)) return;
   const { mpPaymentId } = req.query;
   if (!mpPaymentId) return res.status(400).json({ message: 'mpPaymentId obrigatório' });
 
@@ -392,12 +480,19 @@ const syncPagamento = async (req, res) => {
     }
 
     if (!payment) return res.json({ status: 'not_found' });
+    if (payment.userId.toString() !== req.user._id.toString() && !req.user.admin) {
+      return res.status(403).json({ message: 'Sem permissão' });
+    }
 
     if (mpResult.status === 'approved' && payment.status === 'pendente') {
       payment.mpPaymentId = String(mpPaymentId);
       payment.status = 'aprovado';
       await payment.save();
       await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
+    } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status) && payment.status === 'pendente') {
+      payment.status = 'cancelado';
+      await payment.save();
+      await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
     }
 
     return res.json({ status: payment.status });

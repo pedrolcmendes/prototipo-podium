@@ -14,13 +14,12 @@ function formatTime(ms) {
 const CARD_METHODS = new Set(['credito', 'cartao']);
 
 export default function PagamentoModal({ tipo, referenciaId, metodo, valor, creditosAplicados = 0, onClose }) {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const isCreditos = metodo === 'creditos';
   const isCard = CARD_METHODS.has(metodo);
 
   const initialPhase = isCreditos ? 'choose' : isCard ? 'cartao' : 'loading';
   const [phase, setPhase] = useState(initialPhase);
-  const [metodoEmAndamento, setMetodoEmAndamento] = useState(isCard ? metodo : isCreditos ? null : metodo);
 
   // PIX state
   const [pixData, setPixData] = useState(null);
@@ -29,6 +28,8 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const pollRef = useRef(null);
   const timerRef = useRef(null);
   const pixCalledRef = useRef(false);
+  const cardSubmittingRef = useRef(false);
+  const cancellationCalledRef = useRef(false);
 
   // Card state
   const [cardError, setCardError] = useState(null);
@@ -45,6 +46,10 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
 
     api.post('/pagamentos/pix', { tipo, referenciaId })
       .then(({ data }) => {
+        if (data.status === 'aprovado') {
+          window.location.href = `/pagamento/retorno?collection_id=${data.mpPaymentId}&collection_status=approved`;
+          return;
+        }
         setPixData(data);
         setPhase('pix');
         pollRef.current = setInterval(async () => {
@@ -53,6 +58,9 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
             if (sync.status === 'aprovado') {
               clearInterval(pollRef.current);
               window.location.href = `/pagamento/retorno?collection_id=${data.mpPaymentId}&collection_status=approved`;
+            } else if (['cancelado', 'expirado'].includes(sync.status)) {
+              clearInterval(pollRef.current);
+              setPhase('expired');
             }
           } catch { /* ignora */ }
         }, 3000);
@@ -69,7 +77,22 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       iniciarPix();
     }
     return () => { clearInterval(pollRef.current); clearInterval(timerRef.current); };
-  }, []);
+  }, [isCreditos, isCard, iniciarPix]);
+
+  const cancelarReferencia = useCallback(async () => {
+    if (cancellationCalledRef.current) return;
+    cancellationCalledRef.current = true;
+    const resource = tipo === 'registration' ? 'registrations' : 'bookings';
+    try {
+      const { data } = await api.patch(`/${resource}/${referenciaId}/cancelar`);
+      const estornados = Number(data?.creditosEstornados || 0);
+      if (estornados > 0) {
+        updateUser({ creditos: Number(user?.creditos || 0) + estornados });
+      }
+    } catch {
+      cancellationCalledRef.current = false;
+    }
+  }, [tipo, referenciaId, updateUser, user?.creditos]);
 
   // Countdown do PIX
   useEffect(() => {
@@ -81,28 +104,35 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         clearInterval(timerRef.current);
         clearInterval(pollRef.current);
         setPhase('expired');
+        void cancelarReferencia();
       }
     };
     tick();
     timerRef.current = setInterval(tick, 1000);
     return () => clearInterval(timerRef.current);
-  }, [pixData]);
+  }, [pixData, cancelarReferencia]);
 
-  const copiarPix = () => {
-    navigator.clipboard.writeText(pixData.qrCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const copiarPix = async () => {
+    try {
+      await navigator.clipboard.writeText(pixData.qrCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setErrorMsg('Não foi possível copiar automaticamente. Selecione a chave PIX e copie manualmente.');
+    }
   };
 
   const cancelarPix = async () => {
     clearInterval(pollRef.current);
     clearInterval(timerRef.current);
-    try { await api.patch(`/bookings/${referenciaId}/cancelar`); } catch { /* ignora */ }
+    await cancelarReferencia();
     onClose();
   };
 
   // ─── CARTÃO ────────────────────────────────────────────
   const handleCardSubmit = useCallback(async (formData) => {
+    if (cardSubmittingRef.current) return;
+    cardSubmittingRef.current = true;
     try {
       const { data } = await api.post('/pagamentos/cartao', {
         tipo,
@@ -121,10 +151,12 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       } else {
         setCardError(data.declineMessage || 'Pagamento recusado. Verifique os dados ou tente outro cartão.');
         setPhase('cartao_erro');
+        cardSubmittingRef.current = false;
       }
     } catch (err) {
       setCardError(err.response?.data?.message || 'Erro ao processar o pagamento. Tente novamente.');
       setPhase('cartao_erro');
+      cardSubmittingRef.current = false;
     }
   }, [tipo, referenciaId]);
 
@@ -163,6 +195,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   }), []);
 
   const handleBrickReady = useCallback(() => {
+    if (!cpfLimpo) return;
     const container = document.getElementById('cardPaymentBrick_container');
     if (!container) return;
     const docInput = container.querySelector('input[name="DOCUMENT"], select[name="DOCUMENT"]');
@@ -173,9 +206,16 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       el = el.parentElement;
     }
     docInput.closest('div').style.display = 'none';
-  }, []);
+  }, [cpfLimpo]);
+
+  const tentarPixNovamente = () => {
+    pixCalledRef.current = false;
+    setErrorMsg(null);
+    iniciarPix();
+  };
 
   const tentarNovamente = () => {
+    cardSubmittingRef.current = false;
     setCardError(null);
     setCardBrickKey(k => k + 1);
     setPhase('cartao');
@@ -183,12 +223,10 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
 
   // ─── Choose (creditos parcial) ──────────────────────────
   const escolherPix = () => {
-    setMetodoEmAndamento('pix');
     iniciarPix();
   };
 
   const escolherCartao = () => {
-    setMetodoEmAndamento('cartao');
     setPhase('cartao');
   };
 
@@ -371,6 +409,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                   key={cardBrickKey}
                   initialization={brickInit}
                   onSubmit={handleCardSubmit}
+                  onReady={handleBrickReady}
                   customization={brickCustomization}
                 />
               </div>
@@ -423,9 +462,15 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
           </div>
 
           {/* FOOTER */}
-          {(phase === 'error' || phase === 'expired' || phase === 'cartao_pendente') && (
+          {(phase === 'expired' || phase === 'cartao_pendente') && (
             <div className="pag-footer">
               <button className="pag-cancel-btn" onClick={onClose}>Fechar</button>
+            </div>
+          )}
+          {phase === 'error' && (
+            <div className="pag-footer">
+              <button className="pag-cancel-btn" onClick={onClose}>Fechar</button>
+              <button className="pag-retry-btn" onClick={tentarPixNovamente}>Tentar novamente</button>
             </div>
           )}
           {phase === 'cartao_erro' && (

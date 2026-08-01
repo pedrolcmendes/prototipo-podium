@@ -46,7 +46,7 @@ const IcoTrophy = () => <svg xmlns="http://www.w3.org/2000/svg" width="13" heigh
 const IcoUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
 
 export default function Eventos() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const toast = useToast();
   const [eventos, setEventos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,9 +100,24 @@ export default function Eventos() {
     if (!individual && !parceiro.trim()) { toast('Informe o nome do(a) parceiro(a)', 'error'); return; }
     setInscLoading(true);
     try {
-      const payload = individual ? { nivel } : { parceiro: parceiro.trim() };
+      const payload = individual
+        ? { nivel, payment: payMetodo }
+        : { parceiro: parceiro.trim(), payment: payMetodo };
       const res = await api.post(`/registrations/evento/${selectedEvt._id}`, payload);
       const reg = res.data.data || res.data;
+      if (reg.creditosAplicados > 0) {
+        updateUser({
+          creditos: Math.max(0, Number(user?.creditos || 0) - reg.creditosAplicados),
+        });
+      }
+      if (reg.status === 'confirmada') {
+        toast('Inscrição confirmada com Créditos Arena! Bora jogar!', 'success');
+        setUserRegs(prev => [...prev, selectedEvt._id]);
+        setEventos(prev => prev.map(e => e._id === selectedEvt._id ? { ...e, inscritos: (e.inscritos || 0) + 1 } : e));
+        setSelectedEvt(null);
+        setInscStep('btn');
+        return;
+      }
       setPendingReg(reg);
       setPendingEvt(selectedEvt);
       setSelectedEvt(null);
@@ -362,6 +377,7 @@ export default function Eventos() {
                         {[
                           { id: 'pix', label: 'PIX' },
                           { id: 'credito', label: 'Crédito' },
+                          { id: 'creditos', label: `Créditos Arena (${Number(user?.creditos || 0)})` },
                         ].map(m => (
                           <button key={m.id} type="button" onClick={() => setPayMetodo(m.id)} style={{ flex: 1, padding: '.5rem', fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', border: payMetodo === m.id ? '1px solid var(--gold)' : '1px solid var(--border)', background: payMetodo === m.id ? 'var(--gold-faint)' : 'var(--dark)', color: payMetodo === m.id ? 'var(--gold)' : 'var(--gray)', transition: 'all var(--trans-fast)' }}>
                             {m.label}
@@ -409,7 +425,8 @@ export default function Eventos() {
           tipo="registration"
           referenciaId={pendingReg._id}
           metodo={payMetodo}
-          valor={pendingReg.valorTotal ?? pendingReg.precoDupla ?? pendingReg.preco}
+          valor={(pendingReg.valorTotal ?? pendingReg.precoDupla ?? pendingReg.preco) - (pendingReg.creditosAplicados || 0)}
+          creditosAplicados={pendingReg.creditosAplicados || 0}
           onClose={() => { setPagOpen(false); setPendingReg(null); setPendingEvt(null); }}
         />
       )}

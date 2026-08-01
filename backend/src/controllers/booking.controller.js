@@ -4,6 +4,8 @@ const BlockedSlot = require('../models/BlockedSlot');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
 const PaymentModel = require('../models/Payment');
+const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
+const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
 const { broadcast } = require('../utils/live');
 
@@ -162,20 +164,7 @@ const criar = async (req, res) => {
     return res.status(409).json({ message: 'Você já tem uma reserva com pagamento pendente. Conclua ou cancele antes de criar uma nova.' });
   }
 
-  // Aplicar créditos da arena se selecionado
-  let creditosAplicados = 0;
-  if (payment === 'creditos') {
-    const credDisponiveis = targetUser.creditos || 0;
-    creditosAplicados = Math.min(credDisponiveis, serverTotal);
-    if (creditosAplicados > 0) {
-      await User.findByIdAndUpdate(targetUserId, { $inc: { creditos: -creditosAplicados } });
-      broadcast('users');
-    }
-  }
-  const restante = serverTotal - creditosAplicados;
-  const pagoComCreditos = payment === 'creditos' && restante === 0;
-
-  const booking = await Booking.create({
+  const bookingData = {
     userId: targetUserId,
     userName: targetUser.nome,
     modalidade,
@@ -186,10 +175,56 @@ const criar = async (req, res) => {
     dayUse: isDayUse,
     payment,
     total: serverTotal,
-    creditosAplicados,
-    foiPago: pagoComCreditos,
-    status: pagoComCreditos ? 'confirmada' : 'pendente_pagamento',
-  });
+    creditosAplicados: 0,
+    foiPago: false,
+    status: 'pendente_pagamento',
+  };
+
+  let booking;
+  let creditosAplicados = 0;
+  let pagoComCreditos = false;
+
+  if (payment === 'creditos') {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const freshUser = await User.findById(targetUserId).select('creditos').session(session);
+        if (!freshUser) throw new Error('Cliente não encontrado');
+
+        creditosAplicados = Math.min(freshUser.creditos || 0, serverTotal);
+        pagoComCreditos = creditosAplicados === serverTotal;
+
+        if (creditosAplicados > 0) {
+          const debit = await User.updateOne(
+            { _id: targetUserId, creditos: { $gte: creditosAplicados } },
+            { $inc: { creditos: -creditosAplicados } },
+            { session },
+          );
+          if (debit.modifiedCount !== 1) throw new Error('Saldo de créditos alterado. Tente novamente.');
+        }
+
+        [booking] = await Booking.create([{
+          ...bookingData,
+          creditosAplicados,
+          foiPago: pagoComCreditos,
+          status: pagoComCreditos ? 'confirmada' : 'pendente_pagamento',
+        }], { session });
+      });
+    } catch (error) {
+      console.error('Erro ao aplicar créditos Arena:', error.message);
+      const conflitoSaldo = error.message.includes('Saldo de créditos alterado');
+      return res.status(conflitoSaldo ? 409 : 500).json({
+        message: conflitoSaldo
+          ? error.message
+          : 'Não foi possível aplicar os créditos Arena. Nenhum crédito foi descontado.',
+      });
+    } finally {
+      await session.endSession();
+    }
+    if (creditosAplicados > 0) broadcast('users');
+  } else {
+    booking = await Booking.create(bookingData);
+  }
 
   // Enviar e-mail para reservas confirmadas na hora (créditos totais)
   if (pagoComCreditos && settings?.notifEmailConfirm !== false) {
@@ -231,6 +266,25 @@ const cancelar = async (req, res) => {
   const ehDono = booking.userId.toString() === req.user._id.toString();
   if (!req.user.admin && !ehDono) {
     return res.status(403).json({ message: 'Sem permissão' });
+  }
+
+  if (booking.status === 'pendente_pagamento') {
+    try {
+      await cancelarPagamentosPendentes('booking', booking._id);
+    } catch (error) {
+      console.error('Erro ao cancelar cobrança pendente:', error.message);
+      return res.status(error.status || 502).json({
+        message: error.status === 409
+          ? error.message
+          : 'Não foi possível cancelar a cobrança no Mercado Pago. Tente novamente.',
+      });
+    }
+    const cancelamento = await cancelarReferenciaPendente('booking', booking._id);
+    return res.json({
+      message: 'Reserva cancelada',
+      booking: cancelamento.referencia || booking,
+      creditosEstornados: cancelamento.creditosEstornados,
+    });
   }
 
   // Reserva nunca paga pode ser cancelada a qualquer momento sem restrição de tempo

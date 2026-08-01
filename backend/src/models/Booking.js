@@ -23,6 +23,7 @@ const bookingSchema = new mongoose.Schema({
     required: true,
   },
   creditosAplicados: { type: Number, default: 0 },
+  creditosEstornados: { type: Number, default: 0 },
   total: { type: Number, required: true },
   seasonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Season', default: null, index: true },
   seasonCode: { type: String, default: null, index: true },

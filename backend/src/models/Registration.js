@@ -20,6 +20,8 @@ const registrationSchema = new Schema({
   },
   parceiro: { type: String, default: null },
   precoDupla: { type: Number, default: null },
+  creditosAplicados: { type: Number, default: 0 },
+  creditosEstornados: { type: Number, default: 0 },
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
   status: {
     type: String,
