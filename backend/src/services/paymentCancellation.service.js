@@ -13,6 +13,17 @@ function getMpApi() {
 }
 
 async function cancelarPagamentosPendentes(tipo, referenciaId) {
+  const pagamentoAprovado = await PaymentModel.findOne({
+    tipo,
+    referenciaId,
+    status: 'aprovado',
+  });
+  if (pagamentoAprovado) {
+    const error = new Error('O pagamento já foi aprovado e aguarda conciliação da reserva.');
+    error.status = 409;
+    throw error;
+  }
+
   const payments = await PaymentModel.find({
     tipo,
     referenciaId,

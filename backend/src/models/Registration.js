@@ -23,6 +23,7 @@ const registrationSchema = new Schema({
   creditosAplicados: { type: Number, default: 0 },
   creditosEstornados: { type: Number, default: 0 },
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
+  paymentExpiresAt: { type: Date, default: null },
   status: {
     type: String,
     enum: ['confirmada', 'cancelada', 'pendente_pagamento'],

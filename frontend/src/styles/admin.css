@@ -2247,6 +2247,7 @@ body.gate-active .admin-layout { display: none; }
 .grade-dot.mod-fv { background: var(--mod-fv); }
 .grade-dot.mod-vl { background: var(--mod-vl); }
 .grade-dot.mod-pb { background: var(--mod-pb); }
+.grade-dot.status-pending { background: var(--amber); box-shadow: 0 0 0 3px rgba(245,158,11,.14); }
 
 .grade-hint {
   display: flex; align-items: center; gap: .5rem;
@@ -2322,6 +2323,12 @@ body.gate-active .admin-layout { display: none; }
 .grade-cell.mod-fv { background: var(--mod-fv); }
 .grade-cell.mod-vl { background: var(--mod-vl); }
 .grade-cell.mod-pb { background: var(--mod-pb); }
+.grade-cell.st-pendente_pagamento {
+  color: var(--amber);
+  background: repeating-linear-gradient(135deg, rgba(245,158,11,.24) 0 7px, rgba(245,158,11,.08) 7px 14px);
+  border-color: rgba(245,158,11,.6);
+  box-shadow: 0 0 0 1px rgba(245,158,11,.12) inset;
+}
 .grade-cell.st-concluida { opacity: .55; }
 .grade-cell.st-andamento { box-shadow: 0 0 0 2px rgba(255,255,255,.55) inset; filter: brightness(1.25); }
 .grade-cell:not(.st-livre):not(.st-bloqueado):hover { filter: brightness(1.15); }

@@ -24,6 +24,7 @@ async function cancelarReferenciaPendente(tipo, referenciaId) {
           (registration.creditosAplicados || 0) - (registration.creditosEstornados || 0),
         );
         registration.status = 'cancelada';
+        registration.paymentExpiresAt = null;
         registration.creditosEstornados = (registration.creditosEstornados || 0) + creditosEstornados;
         await registration.save({ session });
 
@@ -65,6 +66,7 @@ async function cancelarReferenciaPendente(tipo, referenciaId) {
       );
 
       booking.status = 'cancelada';
+      booking.paymentExpiresAt = null;
       booking.creditosEstornados = (booking.creditosEstornados || 0) + creditosEstornados;
       await booking.save({ session });
 

@@ -88,6 +88,7 @@ const inscrever = async (req, res) => {
     precoDupla: individual ? null : event.preco * 2,
     creditosAplicados: 0,
     creditosEstornados: 0,
+    paymentExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
     status: 'pendente_pagamento',
   };
 
@@ -114,6 +115,7 @@ const inscrever = async (req, res) => {
         const data = {
           ...registrationData,
           creditosAplicados,
+          paymentExpiresAt: creditosAplicados === valorTotal ? null : registrationData.paymentExpiresAt,
           status: creditosAplicados === valorTotal ? 'confirmada' : 'pendente_pagamento',
         };
 
@@ -200,6 +202,7 @@ const cancelar = async (req, res) => {
         );
 
         inscricaoCancelada.status = 'cancelada';
+        inscricaoCancelada.paymentExpiresAt = null;
         inscricaoCancelada.creditosEstornados = (
           inscricaoCancelada.creditosEstornados || 0
         ) + creditosEstornados;
@@ -235,6 +238,7 @@ const cancelar = async (req, res) => {
   }
 
   registration.status = 'cancelada';
+  registration.paymentExpiresAt = null;
   await registration.save();
   broadcast('registrations');
   return res.json({ message: 'Inscrição cancelada', registration });

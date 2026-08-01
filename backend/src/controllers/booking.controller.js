@@ -176,6 +176,7 @@ const criar = async (req, res) => {
     payment,
     total: serverTotal,
     creditosAplicados: 0,
+    paymentExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
     foiPago: false,
     status: 'pendente_pagamento',
   };
@@ -206,6 +207,7 @@ const criar = async (req, res) => {
         [booking] = await Booking.create([{
           ...bookingData,
           creditosAplicados,
+          paymentExpiresAt: pagoComCreditos ? null : bookingData.paymentExpiresAt,
           foiPago: pagoComCreditos,
           status: pagoComCreditos ? 'confirmada' : 'pendente_pagamento',
         }], { session });
@@ -305,6 +307,7 @@ const cancelar = async (req, res) => {
 
   const statusAnterior = booking.status;
   booking.status = 'cancelada';
+  booking.paymentExpiresAt = null;
   await booking.save();
 
   // Bloqueia payment pendente para o webhook não reativar a reserva cancelada

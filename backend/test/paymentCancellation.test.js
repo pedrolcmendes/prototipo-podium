@@ -16,6 +16,7 @@ require.cache[paymentModelPath] = {
   filename: paymentModelPath,
   loaded: true,
   exports: {
+    findOne: async () => state.approvedPayment,
     find: async () => state.payments,
     updateMany: async (...args) => {
       state.updateCalls.push(args);
@@ -49,6 +50,7 @@ const { cancelarPagamentosPendentes } = require('../src/services/paymentCancella
 
 function resetState() {
   state.payments = [];
+  state.approvedPayment = null;
   state.cancelResult = null;
   state.cancelError = null;
   state.getResult = null;
@@ -86,6 +88,17 @@ test('não cancela a referência quando o pagamento já foi aprovado', async () 
     cancelarPagamentosPendentes('booking', 'booking-1'),
     (error) => error.status === 409,
   );
+  assert.equal(state.updateCalls.length, 0);
+});
+
+test('preserva a referência quando o banco local já registrou aprovação', async () => {
+  state.approvedPayment = { _id: 'approved' };
+
+  await assert.rejects(
+    cancelarPagamentosPendentes('booking', 'booking-1'),
+    (error) => error.status === 409,
+  );
+  assert.deepEqual(state.cancelCalls, []);
   assert.equal(state.updateCalls.length, 0);
 });
 

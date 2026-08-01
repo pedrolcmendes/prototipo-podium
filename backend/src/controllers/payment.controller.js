@@ -70,7 +70,7 @@ const confirmarReferencia = async (tipo, referenciaId, userId) => {
   if (tipo === 'booking') {
     const booking = await Booking.findOneAndUpdate(
       { _id: referenciaId, status: 'pendente_pagamento' },
-      { $set: { status: 'confirmada', foiPago: true } },
+      { $set: { status: 'confirmada', foiPago: true, paymentExpiresAt: null } },
       { new: true },
     );
     broadcast('bookings');
@@ -85,7 +85,7 @@ const confirmarReferencia = async (tipo, referenciaId, userId) => {
   } else {
     const registration = await Registration.findOneAndUpdate(
       { _id: referenciaId, status: 'pendente_pagamento' },
-      { $set: { status: 'confirmada' } },
+      { $set: { status: 'confirmada', paymentExpiresAt: null } },
       { new: true },
     );
     if (registration) broadcast('registrations');
@@ -104,7 +104,7 @@ const criarPagamentoPix = async (req, res) => {
     return res.status(400).json({ message: 'Tipo inválido' });
   }
 
-  const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
+  const { error, referencia, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
   let pagamentoPendente = await PaymentModel.findOne({
@@ -162,7 +162,9 @@ const criarPagamentoPix = async (req, res) => {
     return res.status(400).json({ message: 'Cadastre seu CPF no perfil antes de pagar via PIX.' });
   }
 
-  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+  const expiresAt = referencia.paymentExpiresAt
+    ? new Date(referencia.paymentExpiresAt)
+    : new Date(Date.now() + 30 * 60 * 1000);
 
   try {
     if (!pagamentoPendente) {
@@ -236,12 +238,14 @@ const criarPreferencia = async (req, res) => {
     return res.status(400).json({ message: 'Tipo inválido' });
   }
 
-  const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
+  const { error, referencia, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+  const expiresAt = referencia.paymentExpiresAt
+    ? new Date(referencia.paymentExpiresAt)
+    : new Date(Date.now() + 30 * 60 * 1000);
   const paymentMethods = PAYMENT_METHOD_FILTERS[metodo] || {};
 
   try {
@@ -377,7 +381,7 @@ const criarPagamentoCartao = async (req, res) => {
   if (!['booking', 'registration'].includes(tipo)) return res.status(400).json({ message: 'Tipo inválido' });
   if (!token || !paymentMethodId) return res.status(400).json({ message: 'Dados do cartão inválidos' });
 
-  const { error, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
+  const { error, referencia, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
@@ -430,7 +434,9 @@ const criarPagamentoCartao = async (req, res) => {
           valor,
           metodo: 'cartao',
           idempotencyKey,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          expiresAt: referencia.paymentExpiresAt
+            ? new Date(referencia.paymentExpiresAt)
+            : new Date(Date.now() + 30 * 60 * 1000),
         },
         $set: {
           mpPaymentId: String(mpResult.id),

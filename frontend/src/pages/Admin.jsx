@@ -93,11 +93,13 @@ const fmtCompactMoney = (value) => {
 const getInitials = (nome) => nome ? nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : '?';
 const STATUS_CLS = {
   confirmada: 'badge-green', pendente: 'badge-amber', cancelada: 'badge-red', concluida: 'badge-gray',
+  pendente_pagamento: 'badge-amber',
   ativo: 'badge-green', bloqueado: 'badge-red', inativo: 'badge-gray',
   aberto: 'badge-green', encerrado: 'badge-red', breve: 'badge-amber',
 };
 const STATUS_LABELS = {
   confirmada: 'Confirmada', pendente: 'Pendente', cancelada: 'Cancelada',
+  pendente_pagamento: 'Pagamento pendente',
   concluida: 'Concluída', ativo: 'Ativo', aberto: 'Aberto', encerrado: 'Encerrado',
 };
 const PAYMENT_LABELS = { pix: 'PIX', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro', creditos: 'Créditos Arena', cartao: 'Cartão' };
@@ -142,8 +144,8 @@ const eventCategoryLabel = (category) => EVENT_CATEGORY_LABELS[category] || cate
 const WEEKDAYS_S = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const WEEKDAYS_L = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const MONTHS_L  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const GRADE_STATUS_LABEL = { concluida:'Concluído', andamento:'Em quadra', confirmada:'Confirmada', bloqueado:'Bloqueado', livre:'Disponível' };
-const GRADE_STATUS_BADGE = { concluida:'badge-green', andamento:'badge-gold', confirmada:'badge-gold', bloqueado:'badge-red', livre:'badge-gray' };
+const GRADE_STATUS_LABEL = { concluida:'Concluído', andamento:'Em quadra', confirmada:'Confirmada', pendente_pagamento:'Pagamento pendente', bloqueado:'Bloqueado', livre:'Disponível' };
+const GRADE_STATUS_BADGE = { concluida:'badge-green', andamento:'badge-gold', confirmada:'badge-gold', pendente_pagamento:'badge-amber', bloqueado:'badge-red', livre:'badge-gray' };
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -341,7 +343,8 @@ function GradeOcupacao({ reservas, toast, now }) {
     const booking = matches.find(r => !r.dayUse) || matches[0];
     if (booking) {
       let status;
-      if (dateStr < todayStr) status = 'concluida';
+      if (booking.status === 'pendente_pagamento') status = 'pendente_pagamento';
+      else if (dateStr < todayStr) status = 'concluida';
       else if (dateStr > todayStr) status = 'confirmada';
       else {
         status = hour < nowHour ? 'concluida' : hour === nowHour ? 'andamento' : 'confirmada';
@@ -409,6 +412,7 @@ function GradeOcupacao({ reservas, toast, now }) {
   const IconCheck  = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
   const IconPlay   = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>;
   const IconLock   = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+  const IconClock  = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
 
   const dayCell = (court, hour) => {
     const { status, booking, dayUsers } = getCellStatus(court.id, navDate, hour);
@@ -432,6 +436,7 @@ function GradeOcupacao({ reservas, toast, now }) {
       >
         {status === 'concluida' && <IconCheck />}
         {status === 'andamento' && <IconPlay />}
+        {status === 'pendente_pagamento' && <IconClock />}
         {status === 'bloqueado' && <IconLock />}
       </div>
     );
@@ -555,7 +560,7 @@ function GradeOcupacao({ reservas, toast, now }) {
               <div className="grade-tip-row"><span>Modalidade</span><strong>{MODALIDADE_LABELS[tooltip.booking.modalidade] || '—'}</strong></div>
               {tooltip.booking.dayUse && <div className="grade-tip-row"><span>Tipo</span><strong>Day Use{tooltip.dayUsers > 1 ? ` · ${tooltip.dayUsers} pessoas` : ''}</strong></div>}
               {tooltip.booking.total != null && <div className="grade-tip-row"><span>Valor</span><strong>{fmtMoney(tooltip.booking.total)}</strong></div>}
-              <p className="grade-tip-note">{tooltip.booking.dayUse ? 'Day Use — acesso livre no dia.' : tooltip.status === 'concluida' ? 'Sessão finalizada.' : tooltip.status === 'andamento' ? 'Em andamento agora.' : 'Reserva confirmada.'}</p>
+              <p className="grade-tip-note">{tooltip.status === 'pendente_pagamento' ? `${PAYMENT_LABELS[tooltip.booking.payment] || 'Pagamento'} aguardando conclusão. O horário será liberado automaticamente se não houver pagamento em até 30 minutos.` : tooltip.booking.dayUse ? 'Day Use — acesso livre no dia.' : tooltip.status === 'concluida' ? 'Sessão finalizada.' : tooltip.status === 'andamento' ? 'Em andamento agora.' : 'Reserva confirmada.'}</p>
             </>
           )}
           {tooltip.status === 'bloqueado' && <p className="grade-tip-note">Bloqueado pelo administrador.</p>}
@@ -587,6 +592,7 @@ function GradeOcupacao({ reservas, toast, now }) {
         <span className="grade-legend-item"><i className="grade-dot mod-fv" />Futevôlei</span>
         <span className="grade-legend-item"><i className="grade-dot mod-vl" />Vôlei</span>
         <span className="grade-legend-item"><i className="grade-dot mod-pb" />Pickleball</span>
+        <span className="grade-legend-item"><i className="grade-dot status-pending" />Pagamento pendente</span>
         <span className="grade-legend-item">
           <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           {' '}Concluído

@@ -33,6 +33,7 @@ const bookingSchema = new mongoose.Schema({
     default: 'confirmada',
   },
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
+  paymentExpiresAt: { type: Date, default: null },
   foiPago: { type: Boolean, default: false },
   reminderSent: { type: Boolean, default: false }, // lembrete de 2h antes já enviado
 }, { timestamps: true });
