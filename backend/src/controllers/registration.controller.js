@@ -25,11 +25,23 @@ const porEvento = async (req, res) => {
 };
 
 const inscrever = async (req, res) => {
-  const { parceiro } = req.body;
-  if (!parceiro?.trim()) return res.status(400).json({ message: 'Informe o nome do(a) parceiro(a)' });
-
   const event = await Event.findById(req.params.eventId);
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
+
+  const individual = event.tipoInscricao !== 'dupla';
+  const parceiro = req.body.parceiro?.trim() || null;
+  const nivel = req.body.nivel?.toUpperCase() || null;
+  const genero = ['masculino', 'feminino'].includes(req.user.genero) ? req.user.genero : null;
+
+  if (individual && !['A', 'B', 'C', 'D'].includes(nivel)) {
+    return res.status(400).json({ message: 'Selecione o nível A, B, C ou D' });
+  }
+  if (individual && !genero) {
+    return res.status(400).json({ message: 'Informe masculino ou feminino no seu perfil antes de se inscrever' });
+  }
+  if (!individual && !parceiro) {
+    return res.status(400).json({ message: 'Informe o nome do(a) parceiro(a)' });
+  }
 
   if (event.status !== 'aberto') {
     return res.status(400).json({ message: 'Inscrições encerradas para este evento' });
@@ -54,8 +66,12 @@ const inscrever = async (req, res) => {
       return res.status(409).json({ message: jaInscrito.status === 'pendente_pagamento' ? 'Você já tem uma inscrição pendente de pagamento' : 'Você já está inscrito neste evento' });
     }
     jaInscrito.status = 'pendente_pagamento';
-    jaInscrito.parceiro = parceiro.trim();
-    jaInscrito.precoDupla = event.preco * 2;
+    jaInscrito.preco = event.preco;
+    jaInscrito.valorTotal = individual ? event.preco : event.preco * 2;
+    jaInscrito.genero = individual ? genero : null;
+    jaInscrito.nivel = individual ? nivel : null;
+    jaInscrito.parceiro = individual ? null : parceiro;
+    jaInscrito.precoDupla = individual ? null : event.preco * 2;
     await jaInscrito.save();
     broadcast('registrations');
     return res.json(jaInscrito);
@@ -67,8 +83,11 @@ const inscrever = async (req, res) => {
     eventId: event._id,
     eventNome: event.nome,
     preco: event.preco,
-    parceiro: parceiro.trim(),
-    precoDupla: event.preco * 2,
+    valorTotal: individual ? event.preco : event.preco * 2,
+    genero: individual ? genero : null,
+    nivel: individual ? nivel : null,
+    parceiro: individual ? null : parceiro,
+    precoDupla: individual ? null : event.preco * 2,
     status: 'pendente_pagamento',
   });
 

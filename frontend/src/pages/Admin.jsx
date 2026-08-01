@@ -775,7 +775,7 @@ export default function Admin() {
   const [importLoading, setImportLoading] = useState(false);
   const importUsersRef = useRef(null);
   const [eventoModal, setEventoModal] = useState(null);
-  const [eventoForm, setEventoForm] = useState({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 0, categoria: 'beachtennis', status: 'aberto', nivel: 'Todos os níveis', desc: '' });
+  const [eventoForm, setEventoForm] = useState({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 40, tipoInscricao: 'individual', categoria: 'beachtennis', status: 'aberto', nivel: 'A, B, C e D', desc: '' });
   const [eventoImagemFile, setEventoImagemFile] = useState(null);
   const [eventoImagemPreview, setEventoImagemPreview] = useState('');
   const [detalhesRes, setDetalhesRes] = useState(null);
@@ -1842,8 +1842,15 @@ export default function Admin() {
             <PodiumNumberInput min={0} value={eventoForm.vagas} aria-label="Quantidade de vagas" onChange={e => setEventoForm({ ...eventoForm, vagas: Number(e.target.value) })} />
           </div>
           <div className="admin-field">
-            <label>Preço (R$)</label>
+            <label>Preço por inscrição (R$)</label>
             <PodiumNumberInput min={0} step={0.01} prefix="R$" value={eventoForm.preco} aria-label="Preço do evento" onChange={e => setEventoForm({ ...eventoForm, preco: Number(e.target.value) })} />
+          </div>
+          <div className="admin-field">
+            <label>Formato da inscrição</label>
+            <PodiumSelect value={eventoForm.tipoInscricao} onChange={e => setEventoForm({ ...eventoForm, tipoInscricao: e.target.value })}>
+              <option value="individual">Individual</option>
+              <option value="dupla">Em dupla</option>
+            </PodiumSelect>
           </div>
           <div className="admin-field">
             <label>Categoria</label>
@@ -2094,7 +2101,12 @@ export default function Admin() {
                     <div className="admin-avatar-mini">{getInitials(i.userId?.nome || i.userName || '?')}</div>
                     <div className="insc-who">
                       <div className="insc-name">{i.userId?.nome || i.userName || '—'}</div>
-                      <div className="insc-sub">{i.userId?.tel ? formatTel(i.userId.tel) : (i.userId?.email || 'sem contato')}</div>
+                      <div className="insc-sub">
+                        {i.userId?.tel ? formatTel(i.userId.tel) : (i.userId?.email || 'sem contato')}
+                        {i.genero && ` · ${i.genero === 'masculino' ? 'Masculino' : 'Feminino'}`}
+                        {i.nivel && ` · Nível ${i.nivel}`}
+                        {i.parceiro && ` · Dupla: ${i.parceiro}`}
+                      </div>
                     </div>
                     <span className={`badge ${STATUS_CLS[i.status] || 'badge-green'}`}>{i.status || 'confirmada'}</span>
                   </div>
@@ -2779,7 +2791,7 @@ export default function Admin() {
           <section id="admin-eventos" className={`admin-section${tab === 'eventos' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">EVENTOS</h2></div>
-              <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 0, categoria: 'beachtennis', status: 'aberto', nivel: 'Todos os níveis', desc: '' }); setEventoImagemFile(null); setEventoImagemPreview(''); }}>
+              <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 40, tipoInscricao: 'individual', categoria: 'beachtennis', status: 'aberto', nivel: 'A, B, C e D', desc: '' }); setEventoImagemFile(null); setEventoImagemPreview(''); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
                 Novo Evento
               </button>
@@ -2830,7 +2842,7 @@ export default function Admin() {
                           </div>
                           <div className="admin-event-actions">
                             <button className="btn-admin-secondary" style={{ fontSize: '.77rem', padding: '.45rem' }} onClick={() => setInscricoesModal(ev)}>Ver inscrições</button>
-                            <button className="admin-action-btn" title="Editar" onClick={() => { setEventoModal(ev); setEventoForm({ nome: ev.nome, data: ev.data, hora: ev.hora, local: ev.local, vagas: ev.vagas, preco: ev.preco, categoria: ev.categoria, status: ev.status, nivel: ev.nivel || '', desc: ev.desc || '' }); setEventoImagemFile(null); setEventoImagemPreview(ev.imagem || ''); }}>
+                            <button className="admin-action-btn" title="Editar" onClick={() => { setEventoModal(ev); setEventoForm({ nome: ev.nome, data: ev.data, hora: ev.hora, local: ev.local, vagas: ev.vagas, preco: ev.preco, tipoInscricao: ev.tipoInscricao || 'individual', categoria: ev.categoria, status: ev.status, nivel: ev.nivel || '', desc: ev.desc || '' }); setEventoImagemFile(null); setEventoImagemPreview(ev.imagem || ''); }}>
                               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                             </button>
                             <button className="admin-action-btn danger" title="Remover" onClick={() => removerEvento(ev._id)}>
@@ -2855,7 +2867,7 @@ export default function Admin() {
                       <tr key={i._id}>
                         <td><div className="admin-table-name">{i.userId?.nome || i.userName || '—'}</div></td>
                         <td><div className="admin-table-name" style={{ fontSize: '.85rem' }}>{i.eventId?.nome || i.eventNome || 'Evento removido'}</div><div className="admin-table-sub">{fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}</div></td>
-                        <td>{fmtMoney(i.preco ?? i.eventId?.preco)}</td>
+                        <td>{fmtMoney(i.valorTotal ?? i.precoDupla ?? i.preco ?? i.eventId?.preco)}</td>
                         <td><span className={`badge ${STATUS_CLS[i.status] || 'badge-success'}`}>{i.status || 'confirmada'}</span></td>
                       </tr>
                     ))}
@@ -2883,7 +2895,7 @@ export default function Admin() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
                         {fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}
                       </span>
-                      <span className="adm-res-card-chip gold">{fmtMoney(i.preco ?? i.eventId?.preco)}</span>
+                      <span className="adm-res-card-chip gold">{fmtMoney(i.valorTotal ?? i.precoDupla ?? i.preco ?? i.eventId?.preco)}</span>
                     </div>
                   </div>
                 ))}

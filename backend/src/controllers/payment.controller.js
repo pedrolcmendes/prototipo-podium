@@ -45,7 +45,7 @@ const getReferenciaAndValor = async (tipo, referenciaId, userId) => {
   if (!r) return { error: { status: 404, message: 'Inscrição não encontrada' } };
   if (r.userId.toString() !== userId.toString()) return { error: { status: 403, message: 'Sem permissão' } };
   if (r.status !== 'pendente_pagamento') return { error: { status: 400, message: 'Inscrição não está pendente de pagamento' } };
-  return { referencia: r, valor: r.precoDupla, descricao: `Inscrição — ${r.eventNome}` };
+  return { referencia: r, valor: r.valorTotal ?? r.precoDupla ?? r.preco, descricao: `Inscrição — ${r.eventNome}` };
 };
 
 const confirmarReferencia = async (tipo, referenciaId, userId) => {

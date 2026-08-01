@@ -12,6 +12,11 @@ const eventSchema = new mongoose.Schema({
     required: true,
   },
   preco: { type: Number, required: true },
+  tipoInscricao: {
+    type: String,
+    enum: ['individual', 'dupla'],
+    default: 'individual',
+  },
   status: {
     type: String,
     enum: ['aberto', 'encerrado', 'breve'],
