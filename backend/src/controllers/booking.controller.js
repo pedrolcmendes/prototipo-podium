@@ -92,6 +92,7 @@ const listarMinhas = async (req, res) => {
   if (req.query.status) filtro.status = req.query.status;
   const bookings = await Booking.find(filtro)
     .populate('userId', 'nome email')
+    .populate('paymentId', 'metodo status paidAt createdAt updatedAt')
     .sort({ createdAt: -1 }); // última reserva feita aparece primeiro
   if (concluidas) broadcast('bookings');
   res.json(bookings);

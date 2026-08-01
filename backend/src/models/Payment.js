@@ -13,6 +13,7 @@ const paymentSchema = new mongoose.Schema({
   sandboxUrl: { type: String, default: null },
   idempotencyKey: { type: String, default: null },
   expiresAt: { type: Date, required: true },
+  paidAt: { type: Date, default: null },
 }, { timestamps: true });
 
 paymentSchema.index(

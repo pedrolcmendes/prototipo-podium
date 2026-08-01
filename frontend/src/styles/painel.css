@@ -1142,7 +1142,17 @@ body.painel-page {
 .extrato-dot.debito  { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,.35); }
 .extrato-info { flex: 1; }
 .extrato-desc { font-family: var(--font-cond); font-size: .9rem; font-weight: 600; letter-spacing: .5px; color: var(--gray-light); }
-.extrato-date { font-size: .78rem; color: var(--gray); margin-top: .1rem; }
+.extrato-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; margin-top: .25rem; }
+.extrato-method {
+  padding: .12rem .42rem;
+  border: 1px solid rgba(224,172,107,.25);
+  color: var(--gold);
+  font-family: var(--font-cond);
+  font-size: .58rem;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+}
+.extrato-date { font-size: .72rem; color: var(--gray); }
 .extrato-valor { font-family: var(--font-cond); font-size: .95rem; font-weight: 700; letter-spacing: .5px; white-space: nowrap; }
 .extrato-valor.credito { color: var(--green); }
 .extrato-valor.debito  { color: var(--red); }

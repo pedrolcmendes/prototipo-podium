@@ -64,6 +64,40 @@ function fmtMoney(v) {
   return `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
+const PAYMENT_METHOD_LABELS = {
+  pix: 'PIX',
+  credito: 'Cartão de crédito',
+  cartao: 'Cartão de crédito',
+  debito: 'Cartão de débito',
+  dinheiro: 'Dinheiro',
+  creditos: 'Créditos Arena',
+  checkout_pro: 'Mercado Pago',
+};
+
+function fmtDateTime(value) {
+  if (!value) return 'Data não disponível';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Data não disponível';
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(',', ' às');
+}
+
+function paymentDetails(record) {
+  const payment = record.paymentId;
+  const remoteMethod = payment?.metodo === 'checkout_pro' ? null : payment?.metodo;
+  const method = remoteMethod || record.payment || payment?.metodo || 'creditos';
+  const methodLabel = PAYMENT_METHOD_LABELS[method] || method;
+  const usedArenaCredits = Number(record.creditosAplicados || 0) > 0;
+  return {
+    method: usedArenaCredits && method !== 'creditos'
+      ? `Créditos Arena + ${methodLabel}`
+      : methodLabel,
+    paidAt: payment?.paidAt || payment?.updatedAt || payment?.createdAt || record.createdAt,
+  };
+}
+
 function resolveStatus(r) {
   if (!r.date || r.status === 'cancelada') return r.status;
   if (new Date(r.date + 'T23:59:00') < new Date()) return 'concluida';
@@ -281,13 +315,14 @@ export default function Painel() {
   const extrato = [];
   [...reservas]
     .filter(r => r.total > 0 && r.foiPago)
-    .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))
     .forEach(r => {
+      const payment = paymentDetails(r);
       extrato.push({
         id: `${r._id}-deb`,
         tipo: 'debito',
         desc: `Reserva — ${r.modalidade || '—'}`,
-        data: r.createdAt ? new Date(r.createdAt).toLocaleDateString('pt-BR') : fmtDate(r.date),
+        metodo: payment.method,
+        timestamp: payment.paidAt,
         valor: r.total,
       });
       if (r.status === 'cancelada') {
@@ -295,11 +330,44 @@ export default function Painel() {
           id: `${r._id}-cred`,
           tipo: 'credito',
           desc: `Estorno — ${r.modalidade || '—'}`,
-          data: r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('pt-BR') : fmtDate(r.date),
-          valor: r.total,
+          metodo: 'Créditos Arena',
+          timestamp: r.updatedAt || r.createdAt,
+          valor: r.creditosEstornados || r.total,
         });
       }
     });
+
+  [...inscricoes]
+    .filter(registration => (
+      Number(registration.valorTotal ?? registration.precoDupla ?? registration.preco) > 0
+      && (registration.status === 'confirmada'
+        || registration.paymentId?.status === 'aprovado'
+        || Number(registration.creditosEstornados || 0) > 0)
+    ))
+    .forEach(registration => {
+      const payment = paymentDetails(registration);
+      const total = registration.valorTotal ?? registration.precoDupla ?? registration.preco;
+      extrato.push({
+        id: `${registration._id}-event-deb`,
+        tipo: 'debito',
+        desc: `Evento — ${registration.eventId?.nome || registration.eventNome}`,
+        metodo: payment.method,
+        timestamp: payment.paidAt,
+        valor: total,
+      });
+      if (registration.status === 'cancelada' && Number(registration.creditosEstornados || 0) > 0) {
+        extrato.push({
+          id: `${registration._id}-event-cred`,
+          tipo: 'credito',
+          desc: `Estorno — ${registration.eventId?.nome || registration.eventNome}`,
+          metodo: 'Créditos Arena',
+          timestamp: registration.updatedAt || registration.createdAt,
+          valor: registration.creditosEstornados,
+        });
+      }
+    });
+
+  extrato.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
   const handleCancelar = async () => {
     if (!cancelId) return;
@@ -876,7 +944,10 @@ export default function Painel() {
                           <div className={`extrato-dot ${t.tipo}`} />
                           <div className="extrato-info">
                             <div className="extrato-desc">{t.desc}</div>
-                            <div className="extrato-date">{t.data}</div>
+                            <div className="extrato-meta">
+                              <span className="extrato-method">{t.metodo}</span>
+                              <span className="extrato-date">{fmtDateTime(t.timestamp)}</span>
+                            </div>
                           </div>
                           <div className={`extrato-valor ${t.tipo}`}>
                             {t.tipo === 'credito' ? '+' : '-'}{fmtMoney(t.valor)}

@@ -129,6 +129,7 @@ const criarPagamentoPix = async (req, res) => {
       }
       if (mpResult.status === 'approved') {
         pagamentoPendente.status = 'aprovado';
+        pagamentoPendente.paidAt ||= new Date();
         await pagamentoPendente.save();
         await confirmarReferencia(tipo, referenciaId, req.user._id);
         return res.json({
@@ -349,6 +350,7 @@ const webhook = async (req, res) => {
     payment.mpPaymentId = String(data.id);
     if (mpResult.status === 'approved') {
       payment.status = 'aprovado';
+      payment.paidAt ||= new Date();
       await payment.save();
       await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
     } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status)) {
@@ -441,6 +443,7 @@ const criarPagamentoCartao = async (req, res) => {
         $set: {
           mpPaymentId: String(mpResult.id),
           status: approved ? 'aprovado' : rejected ? 'cancelado' : 'pendente',
+          ...(approved ? { paidAt: new Date() } : {}),
         },
       },
       { upsert: true, new: true, runValidators: true },
@@ -493,6 +496,7 @@ const syncPagamento = async (req, res) => {
     if (mpResult.status === 'approved' && payment.status === 'pendente') {
       payment.mpPaymentId = String(mpPaymentId);
       payment.status = 'aprovado';
+      payment.paidAt ||= new Date();
       await payment.save();
       await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
     } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status) && payment.status === 'pendente') {
