@@ -12,6 +12,7 @@ import api from '../services/api';
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const PAINEL_TABS = new Set(['inicio', 'reservas', 'eventos', 'ranking', 'carteira', 'perfil']);
+const ARENA_TIME_ZONE = 'America/Sao_Paulo';
 
 const QUADRA_LABEL = {
   // IDs atuais
@@ -98,9 +99,41 @@ function paymentDetails(record) {
   };
 }
 
-function resolveStatus(r) {
+function dateOnlyValue(date) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const [year, month, day] = date.split('-').map(Number);
+  return Date.UTC(year, month - 1, day);
+}
+
+function arenaNowParts(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ARENA_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) };
+}
+
+function calendarDayDiff(date, now = new Date()) {
+  const target = dateOnlyValue(date);
+  const current = dateOnlyValue(arenaNowParts(now).date);
+  return target == null ? null : Math.round((target - current) / 86400000);
+}
+
+function resolveStatus(r, now = new Date()) {
   if (!r.date || r.status === 'cancelada') return r.status;
-  if (new Date(r.date + 'T23:59:00') < new Date()) return 'concluida';
+  if (!['confirmada', 'concluida'].includes(r.status)) return r.status;
+  const arenaNow = arenaNowParts(now);
+  const diffDays = calendarDayDiff(r.date, now);
+  if (diffDays < 0) return 'concluida';
+  if (diffDays > 0) return 'confirmada';
+  if (r.dayUse) return r.status;
+  const slots = (r.slots || []).map(Number).filter(Number.isInteger);
+  if (!slots.length) return r.status;
+  if (Math.max(...slots) + 1 <= arenaNow.hour) return 'concluida';
+  // Também corrige visualmente um status antecipado que tenha vindo do servidor.
+  if (r.status === 'concluida') return 'confirmada';
   return r.status;
 }
 
@@ -215,6 +248,7 @@ export default function Painel() {
   const [cancelStatus, setCancelStatus] = useState(null);
   const [cancelWindow, setCancelWindow] = useState(24);
   const [pagResumeBooking, setPagResumeBooking] = useState(null);
+  const [now, setNow] = useState(() => new Date());
 
   const [perfil, setPerfil] = useState({ nome: '', email: '', telefone: '', dataNascimento: '' });
   const [senhaData, setSenhaData] = useState({ senhaAtual: '', novaSenha: '', confirmar: '' });
@@ -232,6 +266,11 @@ export default function Painel() {
     loadData();
     return () => document.body.classList.remove('painel-page');
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const loadData = () => {
@@ -297,15 +336,18 @@ export default function Painel() {
     ? user.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?';
 
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const pendentes = reservas.filter(r => r.status === 'pendente_pagamento');
-  const proximas = reservas.filter(r => r.status !== 'cancelada' && r.status !== 'pendente_pagamento' && r.date && new Date(r.date + 'T12:00:00') >= hoje);
-  const anteriores = reservas.filter(r => r.date && new Date(r.date + 'T12:00:00') < hoje);
+  const proximas = reservas.filter(r => resolveStatus(r, now) === 'confirmada');
+  const anteriores = reservas.filter(r => resolveStatus(r, now) === 'concluida');
   const reservasFiltradas = reservaFilter === 'proximas' ? proximas
     : reservaFilter === 'anteriores' ? anteriores
     : reservaFilter === 'pendentes' ? pendentes
     : reservas;
-  const proximaReserva = [...proximas].sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+  const proximaReserva = [...proximas].sort((a, b) => {
+    const dateOrder = (a.date || '').localeCompare(b.date || '');
+    if (dateOrder) return dateOrder;
+    return Math.min(...(a.slots || [24])) - Math.min(...(b.slots || [24]));
+  })[0];
   const inscricoesOrdenadas = [...inscricoes].sort((a, b) => {
     const dateA = a.eventId?.data || a.createdAt || '';
     const dateB = b.eventId?.data || b.createdAt || '';
@@ -556,7 +598,7 @@ export default function Painel() {
               {proximaReserva && (() => {
                 const dt = new Date(proximaReserva.date + 'T12:00:00');
                 const DIAS_S = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-                const diffDias = Math.round((dt - hoje) / 86400000);
+                const diffDias = calendarDayDiff(proximaReserva.date, now);
                 const diasLabel = diffDias === 0 ? 'Hoje' : diffDias === 1 ? 'Amanhã' : `Em ${diffDias} dias`;
                 const slots = (proximaReserva.slots || []).slice().sort((a, b) => a - b);
                 const modalidade = (proximaReserva.modalidade || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -586,7 +628,7 @@ export default function Painel() {
                     </div>
                     <div className="prox-hero-right">
                       <div className="prox-hero-dias">{diasLabel}</div>
-                      <StatusBadge status={resolveStatus(proximaReserva)} />
+                      <StatusBadge status={resolveStatus(proximaReserva, now)} />
                     </div>
                   </div>
                 );
@@ -602,7 +644,7 @@ export default function Painel() {
                   {[...reservas].slice(0, 4).map(r => {
                     const dt = r.date ? new Date(r.date + 'T12:00:00') : null;
                     return (
-                      <div key={r._id} className={`booking-item ${resolveStatus(r)}`}>
+                      <div key={r._id} className={`booking-item ${resolveStatus(r, now)}`}>
                         <div className="booking-date-block">
                           <div className="booking-day">{dt ? String(dt.getDate()).padStart(2,'0') : '—'}</div>
                           <div className="booking-month">{dt ? MESES[dt.getMonth()] : '—'}</div>
@@ -614,7 +656,7 @@ export default function Painel() {
                           </div>
                         </div>
                         <div className="booking-actions">
-                          <StatusBadge status={resolveStatus(r)} />
+                          <StatusBadge status={resolveStatus(r, now)} />
                         </div>
                       </div>
                     );
@@ -669,7 +711,7 @@ export default function Painel() {
                 <div className="res-list">
                   {reservasFiltradas.map(r => {
                     const dt = r.date ? new Date(r.date + 'T12:00:00') : null;
-                    const displaySt = resolveStatus(r);
+                    const displaySt = resolveStatus(r, now);
                     const podeCancel = displaySt !== 'cancelada' && displaySt !== 'concluida';
                     const slots = r.slots?.slice().sort((a, b) => a - b) || [];
                     const horaInicio = slots.length > 0 ? `${String(slots[0]).padStart(2,'0')}:00` : '—';

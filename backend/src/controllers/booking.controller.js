@@ -9,6 +9,7 @@ const { cancelarPagamentosPendentes } = require('../services/paymentCancellation
 const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
 const { broadcast } = require('../utils/live');
 const { isMasterAdmin, sanitizeBookingForAdmin } = require('../utils/adminPermissions');
+const { arenaDateTimeParts, bookingScheduleStatus } = require('../utils/arenaDateTime');
 
 const COURT_TYPE_BY_ID = {
   'coberta-1': 'coberta',
@@ -38,43 +39,46 @@ function calcularPrecoSlot(hora, tipoQuadra, isFimDeSemana) {
   if (hora < 21) return coberta ? 100 : 80;
   return coberta ? 80 : 60;
 }
-const localDateIso = (date = new Date()) => (
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-);
+const localDateIso = (date = new Date()) => arenaDateTimeParts(date).date;
 
 const concluirReservasRealizadas = async () => {
   const now = new Date();
   const today = localDateIso(now);
-  const currentHour = now.getHours();
 
   const pastResult = await Booking.updateMany(
     { status: 'confirmada', date: { $lt: today } },
     { $set: { status: 'concluida' } },
   );
 
+  // Corrige reservas marcadas cedo demais por servidores configurados em UTC.
+  const futureResult = await Booking.updateMany(
+    { status: 'concluida', date: { $gt: today } },
+    { $set: { status: 'confirmada' } },
+  );
+
   const todayBookings = await Booking.find({
-    status: 'confirmada',
+    status: { $in: ['confirmada', 'concluida'] },
     date: today,
     dayUse: false,
-  }).select('_id slots');
+  }).select('_id date slots dayUse status');
 
-  const completedTodayIds = todayBookings
-    .filter((booking) => {
-      const slots = (booking.slots || []).map(Number).filter(Number.isFinite);
-      return slots.length > 0 && Math.max(...slots) + 1 <= currentHour;
-    })
-    .map((booking) => booking._id);
+  const corrections = todayBookings
+    .map((booking) => ({ booking, status: bookingScheduleStatus(booking, now) }))
+    .filter(({ booking, status }) => status !== booking.status)
+    .map(({ booking, status }) => ({
+      updateOne: {
+        filter: { _id: booking._id, status: booking.status },
+        update: { $set: { status } },
+      },
+    }));
 
-  let todayModified = 0;
-  if (completedTodayIds.length) {
-    const todayResult = await Booking.updateMany(
-      { _id: { $in: completedTodayIds }, status: 'confirmada' },
-      { $set: { status: 'concluida' } },
-    );
-    todayModified = todayResult.modifiedCount || 0;
-  }
+  const todayResult = corrections.length
+    ? await Booking.bulkWrite(corrections)
+    : { modifiedCount: 0 };
 
-  return (pastResult.modifiedCount || 0) + todayModified;
+  return (pastResult.modifiedCount || 0)
+    + (futureResult.modifiedCount || 0)
+    + (todayResult.modifiedCount || 0);
 };
 
 const verificarConflito = async (quadraId, date, slots, excludeId = null) => {
