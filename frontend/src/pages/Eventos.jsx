@@ -14,6 +14,9 @@ const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho
 const DIAS_FULL = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const CAT_LABEL = { beachtennis: 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball', taekwondo: 'Taekwondo', geral: 'Geral' };
 const catLabel = (c) => CAT_LABEL[c] || c || 'Evento';
+const isDupla = (event) => event?.tipoInscricao === 'dupla';
+const registrationTotal = (event) => Number(event?.preco || 0) * (isDupla(event) ? 2 : 1);
+const fmtBRL = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 // imagem com caminho morto (uploads antigos em disco) cai no fallback
 const hideBroken = (e) => { e.currentTarget.style.display = 'none'; };
 
@@ -82,7 +85,7 @@ export default function Eventos() {
 
   const handleInscrever = () => {
     if (!user) { setAuthOpen(true); return; }
-    const individual = selectedEvt?.tipoInscricao !== 'dupla';
+    const individual = !isDupla(selectedEvt);
     if (individual && !['masculino', 'feminino'].includes(user.genero)) {
       toast('Informe masculino ou feminino no seu perfil antes de se inscrever', 'error');
       return;
@@ -95,7 +98,7 @@ export default function Eventos() {
 
   const handleRegistrationContinue = async () => {
     if (!selectedEvt) return;
-    const individual = selectedEvt.tipoInscricao !== 'dupla';
+    const individual = !isDupla(selectedEvt);
     if (individual && !nivel) { toast('Selecione seu nível: A, B, C ou D', 'error'); return; }
     if (!individual && !parceiro.trim()) { toast('Informe o nome do(a) parceiro(a)', 'error'); return; }
     setInscLoading(true);
@@ -207,6 +210,8 @@ export default function Eventos() {
         .evt-desc{font-size:.9rem;color:var(--gray);line-height:1.75;margin-bottom:1.3rem}
         .evt-modal-actions{margin-top:auto;padding-top:1.3rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:flex-end;gap:1rem;flex-wrap:wrap}
         .evt-modal-actions .btn-gold,.evt-modal-actions .btn-outline{white-space:nowrap}
+        .evt-payment-methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem}
+        .evt-payment-methods button{min-width:0;line-height:1.35;overflow-wrap:anywhere}
 
         /* arte em tela cheia */
         .evt-zoom{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:2rem;cursor:zoom-out}
@@ -226,6 +231,7 @@ export default function Eventos() {
           .evt-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1.1rem}
           .evt-overlay{padding:.9rem}
           .evt-detail-grid{grid-template-columns:1fr 1fr;gap:.9rem 1rem}
+          .evt-payment-methods{grid-template-columns:1fr}
         }
       `}</style>
 
@@ -289,8 +295,8 @@ export default function Eventos() {
                   </div>
                   <div className="evt-foot">
                     <div className="evt-price">
-                      {ev.preco > 0 ? `R$ ${ev.preco}` : 'Gratuito'}
-                      {ev.preco > 0 && <small>por inscrição</small>}
+                      {ev.preco > 0 ? fmtBRL(registrationTotal(ev)) : 'Gratuito'}
+                      {ev.preco > 0 && <small>{isDupla(ev) ? 'por dupla' : 'por atleta'}</small>}
                     </div>
                     {ev.vagas > 0 && (
                       <div className="evt-slots">
@@ -333,8 +339,8 @@ export default function Eventos() {
                   </div>
                   <div className="evt-highlight">
                     <label>Inscrição</label>
-                    <strong>{selectedEvt.preco > 0 ? `R$ ${selectedEvt.preco}` : 'GRÁTIS'}</strong>
-                    <span>{selectedEvt.preco > 0 ? 'por inscrição' : 'entrada livre'}</span>
+                    <strong>{selectedEvt.preco > 0 ? fmtBRL(registrationTotal(selectedEvt)) : 'GRÁTIS'}</strong>
+                    <span>{selectedEvt.preco > 0 ? (isDupla(selectedEvt) ? 'total da dupla' : 'por atleta') : 'entrada livre'}</span>
                   </div>
                 </div>
 
@@ -342,6 +348,7 @@ export default function Eventos() {
                   <div className="evt-detail-item"><label><IcoClock /> Horário</label><span>{selectedEvt.hora || '—'}</span></div>
                   <div className="evt-detail-item"><label><IcoPin /> Local</label><span>{selectedEvt.local || '—'}</span></div>
                   <div className="evt-detail-item"><label><IcoTrophy /> Nível</label><span>{selectedEvt.nivel || 'Todos os níveis'}</span></div>
+                  <div className="evt-detail-item"><label><IcoUsers /> Inscrição</label><span>{isDupla(selectedEvt) ? 'Em dupla' : 'Individual'}</span></div>
                   <div className="evt-detail-item">
                     <label><IcoUsers /> Vagas</label>
                     <span>{restantes != null ? `${restantes} restantes` : 'Livre'}</span>
@@ -353,7 +360,7 @@ export default function Eventos() {
                 <div className="evt-modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                   {inscStep === 'details' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
-                      {selectedEvt.tipoInscricao !== 'dupla' ? (
+                      {!isDupla(selectedEvt) ? (
                         <>
                           <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Escolha seu nível</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.6rem' }}>
@@ -373,11 +380,11 @@ export default function Eventos() {
                           <input type="text" placeholder="Nome do(a) parceiro(a)" value={parceiro} onChange={e => setParceiro(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRegistrationContinue()} autoFocus style={{ background: 'var(--dark)', border: '1px solid var(--border)', color: 'var(--white)', padding: '.7rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.9rem', outline: 'none' }} />
                         </>
                       )}
-                      <div style={{ display: 'flex', gap: '.7rem' }}>
+                      <div className="evt-payment-methods">
                         {[
                           { id: 'pix', label: 'PIX' },
                           { id: 'credito', label: 'Crédito' },
-                          { id: 'creditos', label: `Créditos Arena (${Number(user?.creditos || 0)})` },
+                          { id: 'creditos', label: `Créditos Arena (saldo: ${fmtBRL(user?.creditos)})` },
                         ].map(m => (
                           <button key={m.id} type="button" onClick={() => setPayMetodo(m.id)} style={{ flex: 1, padding: '.5rem', fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', border: payMetodo === m.id ? '1px solid var(--gold)' : '1px solid var(--border)', background: payMetodo === m.id ? 'var(--gold-faint)' : 'var(--dark)', color: payMetodo === m.id ? 'var(--gold)' : 'var(--gray)', transition: 'all var(--trans-fast)' }}>
                             {m.label}
@@ -385,7 +392,7 @@ export default function Eventos() {
                         ))}
                       </div>
                       <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '.5px', margin: 0 }}>
-                        Total da inscrição: <strong style={{ color: 'var(--gold)' }}>R$ {selectedEvt.tipoInscricao === 'dupla' ? selectedEvt.preco * 2 : selectedEvt.preco}</strong>
+                        Total da inscrição: <strong style={{ color: 'var(--gold)' }}>{fmtBRL(registrationTotal(selectedEvt))}</strong>
                       </p>
                       <div style={{ display: 'flex', gap: '.7rem' }}>
                         <button className="btn-ghost" onClick={() => setInscStep('btn')} style={{ flex: 1 }}>Voltar</button>

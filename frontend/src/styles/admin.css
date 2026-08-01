@@ -1429,6 +1429,11 @@ body.gate-active .admin-layout { display: none; }
   font-size: .72rem; font-weight: 600;
   letter-spacing: 2px; text-transform: uppercase; color: var(--gray);
 }
+.admin-field-hint {
+  color: var(--gray);
+  font-size: .72rem;
+  line-height: 1.45;
+}
 .admin-field input,
 .admin-field select,
 .admin-field textarea {

@@ -1849,14 +1849,15 @@ export default function Admin() {
             <PodiumNumberInput min={0} value={eventoForm.vagas} aria-label="Quantidade de vagas" onChange={e => setEventoForm({ ...eventoForm, vagas: Number(e.target.value) })} />
           </div>
           <div className="admin-field">
-            <label>Preço por inscrição (R$)</label>
+            <label>Preço por atleta (R$)</label>
             <PodiumNumberInput min={0} step={0.01} prefix="R$" value={eventoForm.preco} aria-label="Preço do evento" onChange={e => setEventoForm({ ...eventoForm, preco: Number(e.target.value) })} />
+            <small className="admin-field-hint">{eventoForm.tipoInscricao === 'dupla' ? `A dupla pagará R$ ${(Number(eventoForm.preco || 0) * 2).toFixed(2).replace('.', ',')} no total.` : 'Cada atleta fará e pagará a própria inscrição.'}</small>
           </div>
           <div className="admin-field">
-            <label>Formato da inscrição</label>
+            <label>Formato da inscrição e pagamento</label>
             <PodiumSelect value={eventoForm.tipoInscricao} onChange={e => setEventoForm({ ...eventoForm, tipoInscricao: e.target.value })}>
-              <option value="individual">Individual</option>
-              <option value="dupla">Em dupla</option>
+              <option value="individual">Individual — cada atleta se inscreve e paga</option>
+              <option value="dupla">Dupla — uma inscrição e um pagamento para 2 atletas</option>
             </PodiumSelect>
           </div>
           <div className="admin-field">
