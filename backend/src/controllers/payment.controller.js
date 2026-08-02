@@ -22,6 +22,20 @@ const MP_REFUNDED_STATUSES = new Set(['refunded']);
 const MP_CHARGEBACK_STATUSES = new Set(['charged_back']);
 const WEBHOOK_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
 
+const detalhesSegurosErroMp = (error) => ({
+  status: Number(error?.status || error?.api_response?.status) || null,
+  error: typeof error?.error === 'string' ? error.error : null,
+  message: typeof error?.message === 'string' ? error.message : null,
+  causes: Array.isArray(error?.cause)
+    ? error.cause.map((cause) => cause?.code || cause?.description).filter(Boolean)
+    : [],
+});
+
+const erroMpDefinitivoSemCobranca = (error) => {
+  const status = detalhesSegurosErroMp(error).status;
+  return status >= 400 && status < 500 && ![408, 409].includes(status);
+};
+
 function validarAssinaturaMP(req) {
   const secret = process.env.MP_WEBHOOK_SECRET;
   if (!secret) return false;
@@ -751,8 +765,25 @@ const criarPagamentoCartao = async (req, res) => {
     payment = await reconciliarResultadoMp(payment, mpResult);
     return res.status(201).json(respostaPagamentoCartao(payment, mpResult));
   } catch (err) {
-    console.error('MP Card error:', err?.message || 'falha desconhecida');
-    return res.status(502).json({ message: 'Erro ao processar o cartão. Sua reserva continua pendente; tente novamente.' });
+    const mpError = detalhesSegurosErroMp(err);
+    console.error('MP Card error:', JSON.stringify(mpError));
+
+    if (erroMpDefinitivoSemCobranca(err)) {
+      payment.status = 'cancelado';
+      payment.processingStartedAt = null;
+      payment.statusDetail = mpError.error || mpError.causes[0] || 'provider_rejected_request';
+      await payment.save();
+
+      const policyBlocked = [401, 403].includes(mpError.status)
+        || mpError.error === 'blocked_by'
+        || mpError.causes.includes('pa_unauthorized_result_from_policies');
+      const message = policyBlocked
+        ? 'O Mercado Pago bloqueou esta tentativa por uma política de segurança. Não tente novamente agora; aguarde e use os dados reais do titular do cartão.'
+        : 'O Mercado Pago recusou os dados desta tentativa antes de criar a cobrança. Revise os dados e tente novamente mais tarde.';
+      return res.status(mpError.status === 429 ? 429 : 422).json({ message });
+    }
+
+    return res.status(502).json({ message: 'Não foi possível confirmar se o Mercado Pago recebeu a tentativa. Sua reserva continua pendente; aguarde antes de tentar novamente.' });
   }
 };
 

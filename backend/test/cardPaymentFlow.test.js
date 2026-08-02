@@ -367,6 +367,30 @@ test('timeout preserva a tentativa e reutiliza a mesma idempotência no reenvio'
   );
 });
 
+test('erro definitivo de política encerra a tentativa e gera nova idempotência', async () => {
+  const policyError = Object.assign(new Error('At least one policy returned UNAUTHORIZED.'), {
+    status: 403,
+    error: 'blocked_by',
+    cause: [{ code: 'pa_unauthorized_result_from_policies' }],
+  });
+  state.mpCreateResults.push(policyError, { id: 'mp-after-policy', status: 'approved' });
+
+  const firstResponse = response();
+  await criarPagamentoCartao(request(), firstResponse);
+
+  assert.equal(firstResponse.statusCode, 422);
+  assert.match(firstResponse.payload.message, /política de segurança/i);
+  assert.equal(state.payments[0].status, 'cancelado');
+  const firstKey = state.payments[0].idempotencyKey;
+
+  const retryResponse = response();
+  await criarPagamentoCartao(request(), retryResponse);
+
+  assert.equal(retryResponse.payload.status, 'approved');
+  assert.equal(state.payments.length, 2);
+  assert.notEqual(state.payments[1].idempotencyKey, firstKey);
+});
+
 test('envio duplicado consulta a cobrança existente sem criar outra', async () => {
   await payWith({ id: 'mp-existing', status: 'in_process' });
   state.mpGetResult = { id: 'mp-existing', status: 'approved', status_detail: 'accredited' };
