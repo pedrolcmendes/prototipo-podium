@@ -33,6 +33,7 @@ test('cancelamento de inscrição confirmada estorna o valor integral em Crédit
     findById: async () => registration,
     findOne: () => ({ session: async () => registration }),
   });
+  mockModule('../src/models/Payment', { findById: () => null });
   mockModule('../src/models/Event', {});
   mockModule('../src/models/Settings', { findById: async () => ({ paymentTimeoutMinutes: 30 }) });
   mockModule('../src/models/User', {

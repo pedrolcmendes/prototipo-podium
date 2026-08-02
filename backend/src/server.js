@@ -22,6 +22,8 @@ async function fixCpfIndex(db) {
 connectDB().then(async () => {
   const mongoose = require('mongoose');
   await fixCpfIndex(mongoose.connection.db);
+  const { startExpireJob } = require('./jobs/expirePayments');
+  startExpireJob();
   const { iniciarScheduler } = require('./utils/scheduler');
   iniciarScheduler();
   app.listen(PORT, () => {

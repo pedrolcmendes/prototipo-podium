@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { CardPayment } from '@mercadopago/sdk-react';
+import { CardPayment, StatusScreen } from '@mercadopago/sdk-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -19,14 +19,24 @@ function formatTime(ms) {
 }
 
 const CARD_METHODS = new Set(['credito', 'cartao']);
+const isUnsupportedPaymentWebView = () => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /Instagram|FBAN|FBAV|FB_IAB|Line\/|; wv\)|\bwv\b/i.test(ua);
+};
 
 export default function PagamentoModal({ tipo, referenciaId, metodo, valor, creditosAplicados = 0, onClose }) {
   const { user, updateUser } = useAuth();
   const isCreditos = metodo === 'creditos';
   const isCard = CARD_METHODS.has(metodo);
   const cpfLimpo = user?.cpf ? user.cpf.replace(/\D/g, '') : '';
+  const unsupportedWebView = isUnsupportedPaymentWebView();
 
-  const initialPhase = isCreditos ? 'choose' : isCard ? (cpfLimpo ? 'cartao' : 'sem_cpf') : 'loading';
+  const initialPhase = isCreditos
+    ? 'choose'
+    : isCard
+      ? (unsupportedWebView ? 'navegador_incompativel' : (cpfLimpo ? 'cartao' : 'sem_cpf'))
+      : 'loading';
   const [phase, setPhase] = useState(initialPhase);
 
   // PIX state
@@ -45,8 +55,12 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
 
   // Card state
   const [cardError, setCardError] = useState(null);
+  const [cardErrorTitle, setCardErrorTitle] = useState('Pagamento recusado');
   const [cardBrickKey, setCardBrickKey] = useState(0); // remonta o brick ao tentar novamente
   const [cardPaymentId, setCardPaymentId] = useState(null);
+  const [threeDsInfo, setThreeDsInfo] = useState(null);
+  const [cardSyncWarning, setCardSyncWarning] = useState(null);
+  const cardExpiresAtRef = useRef(null);
 
   // CPF state
   const [cpfInput, setCpfInput] = useState('');
@@ -101,7 +115,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   }, [isCreditos, isCard, iniciarPix]);
 
   const cancelarReferencia = useCallback(async () => {
-    if (cancellationCalledRef.current) return;
+    if (cancellationCalledRef.current) return false;
     cancellationCalledRef.current = true;
     const resource = tipo === 'registration' ? 'registrations' : 'bookings';
     try {
@@ -110,8 +124,11 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       if (estornados > 0) {
         updateUser({ creditos: Number(user?.creditos || 0) + estornados });
       }
-    } catch {
+      return true;
+    } catch (error) {
       cancellationCalledRef.current = false;
+      setErrorMsg(error.response?.data?.message || 'Não foi possível cancelar agora. Aguarde a confirmação do pagamento.');
+      return false;
     }
   }, [tipo, referenciaId, updateUser, user?.creditos]);
 
@@ -146,39 +163,56 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const cancelarPix = async () => {
     clearInterval(pollRef.current);
     clearInterval(timerRef.current);
-    await cancelarReferencia();
-    onClose();
+    if (await cancelarReferencia()) onClose();
   };
 
   const confirmarCancelPix = () => setConfirmCancelPix(true);
   const voltarPix = () => setConfirmCancelPix(false);
 
   const cancelarCartao = async () => {
-    await cancelarReferencia();
-    onClose();
+    setCardError(null);
+    if (await cancelarReferencia()) onClose();
   };
 
   // ─── CARTÃO ────────────────────────────────────────────
-  const handleCardSubmit = useCallback(async (formData) => {
+  const handleCardSubmit = useCallback(async (formData, additionalData = {}) => {
     if (cardSubmittingRef.current) return;
+    if (additionalData.paymentTypeId && additionalData.paymentTypeId !== 'credit_card') {
+      setCardErrorTitle('Forma de pagamento não aceita');
+      setCardError('A Podium Arena aceita somente cartão de crédito.');
+      setPhase('cartao_erro');
+      return;
+    }
+
     cardSubmittingRef.current = true;
+    setCardError(null);
+    setCardSyncWarning(null);
+    setPhase('cartao_processando');
     try {
       const { data } = await api.post('/pagamentos/cartao', {
         tipo,
         referenciaId,
         token: formData.token,
         paymentMethodId: formData.payment_method_id,
+        paymentTypeId: additionalData.paymentTypeId || 'credit_card',
         installments: formData.installments,
         issuerId: formData.issuer_id,
-        payerIdentification: formData.payer?.identification,
+        cardLastFour: additionalData.lastFourDigits,
       });
 
       if (data.status === 'approved') {
         window.location.href = `/pagamento/retorno?collection_id=${data.mpPaymentId}&collection_status=approved`;
+      } else if (data.requiresAction && data.statusDetail === 'pending_challenge' && data.threeDsInfo) {
+        setCardPaymentId(data.mpPaymentId);
+        cardExpiresAtRef.current = data.expiresAt || null;
+        setThreeDsInfo(data.threeDsInfo);
+        setPhase('cartao_3ds');
       } else if (['in_process', 'pending', 'authorized'].includes(data.status)) {
         setCardPaymentId(data.mpPaymentId);
+        cardExpiresAtRef.current = data.expiresAt || null;
         setPhase('cartao_pendente');
       } else {
+        setCardErrorTitle('Pagamento recusado');
         setCardError(data.declineMessage || 'Pagamento recusado. Verifique os dados ou tente outro cartão.');
         setPhase('cartao_erro');
         cardSubmittingRef.current = false;
@@ -187,6 +221,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       const msg = err.code === 'ECONNABORTED'
         ? 'O servidor demorou para responder. Verifique sua conexão e tente novamente.'
         : err.response?.data?.message || 'Erro ao processar o pagamento. Tente novamente.';
+      setCardErrorTitle('Erro no pagamento');
       setCardError(msg);
       setPhase('cartao_erro');
       cardSubmittingRef.current = false;
@@ -194,40 +229,86 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   }, [tipo, referenciaId]);
 
   useEffect(() => {
-    if (phase !== 'cartao_pendente' || !cardPaymentId) return undefined;
+    if (!['cartao_pendente', 'cartao_3ds'].includes(phase) || !cardPaymentId) return undefined;
 
     let active = true;
+    let attempts = 0;
+    let consecutiveErrors = 0;
+    let currentExpiresAt = cardExpiresAtRef.current;
     const sincronizarCartao = async () => {
+      if (!active) return;
       try {
         const { data } = await api.get(`/pagamentos/sync?mpPaymentId=${cardPaymentId}`);
         if (!active) return;
+        consecutiveErrors = 0;
+        setCardSyncWarning(null);
+        if (data.expiresAt) {
+          currentExpiresAt = data.expiresAt;
+          cardExpiresAtRef.current = data.expiresAt;
+        }
 
         if (data.status === 'aprovado') {
-          clearInterval(cardPollRef.current);
+          clearTimeout(cardPollRef.current);
           window.location.href = `/pagamento/retorno?collection_id=${cardPaymentId}&collection_status=approved`;
+          return;
+        } else if (data.status === 'estornado_creditos') {
+          clearTimeout(cardPollRef.current);
+          setCardErrorTitle('Valor devolvido em Créditos Arena');
+          setCardError('O pagamento foi aprovado após o cancelamento. O valor foi devolvido em Créditos Arena.');
+          setPhase('cartao_erro');
+          cardSubmittingRef.current = false;
+          return;
+        } else if (['estornado', 'chargeback', 'em_mediacao'].includes(data.status)) {
+          clearTimeout(cardPollRef.current);
+          setCardErrorTitle('Pagamento em revisão');
+          setCardError('O pagamento foi revertido pelo Mercado Pago e foi encaminhado para conferência financeira. Fale com a Podium Arena se precisar de ajuda.');
+          setPhase('cartao_erro');
+          cardSubmittingRef.current = false;
+          return;
         } else if (['cancelado', 'expirado'].includes(data.status)) {
-          clearInterval(cardPollRef.current);
+          clearTimeout(cardPollRef.current);
+          setCardErrorTitle(data.status === 'expirado' ? 'Tentativa expirada' : 'Pagamento recusado');
           setCardError(data.declineMessage || 'Pagamento recusado pelo banco. Tente outro cartão ou fale com a instituição emissora.');
           setPhase('cartao_erro');
           cardSubmittingRef.current = false;
+          return;
+        } else if (data.requiresAction && data.threeDsInfo && phase !== 'cartao_3ds') {
+          setThreeDsInfo(data.threeDsInfo);
+          setPhase('cartao_3ds');
+          return;
         }
-      } catch {
-        // O webhook continua conciliando no backend; a próxima consulta tenta novamente.
+      } catch (error) {
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 3) {
+          setCardSyncWarning('Conexão instável. O pagamento continua sendo conciliado com segurança.');
+        }
       }
+
+      attempts += 1;
+      const expired = currentExpiresAt && Date.now() >= new Date(currentExpiresAt).getTime();
+      if (expired) {
+        setCardError('O prazo desta tentativa terminou. Aguarde a conciliação final ou tente novamente.');
+      }
+      const delay = Math.min(3_000 * (2 ** Math.floor(attempts / 5)), 15_000);
+      cardPollRef.current = setTimeout(sincronizarCartao, delay);
     };
 
-    void sincronizarCartao();
-    cardPollRef.current = setInterval(sincronizarCartao, 3000);
+    cardPollRef.current = setTimeout(sincronizarCartao, phase === 'cartao_3ds' ? 2_000 : 0);
     return () => {
       active = false;
-      clearInterval(cardPollRef.current);
+      clearTimeout(cardPollRef.current);
     };
   }, [phase, cardPaymentId]);
 
   const handleBrickError = useCallback(() => {
+    setCardErrorTitle('Erro no formulário');
     setCardError('Não foi possível carregar o formulário do cartão. Atualize a página e tente novamente.');
     setPhase('cartao_erro');
     cardSubmittingRef.current = false;
+  }, []);
+
+  const handle3dsError = useCallback(() => {
+    setCardSyncWarning('A autenticação do banco não carregou corretamente. Mantenha esta tela aberta enquanto verificamos o pagamento.');
   }, []);
 
   const brickInit = useMemo(() => ({
@@ -260,22 +341,12 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         },
       },
     },
-    paymentMethods: { maxInstallments: 1 },
+    paymentMethods: {
+      minInstallments: 1,
+      maxInstallments: 1,
+      types: { included: ['credit_card'] },
+    },
   }), []);
-
-  const handleBrickReady = useCallback(() => {
-    if (!cpfLimpo) return;
-    const container = document.getElementById('cardPaymentBrick_container');
-    if (!container) return;
-    const docInput = container.querySelector('input[name="DOCUMENT"], select[name="DOCUMENT"]');
-    if (!docInput) return;
-    let el = docInput.parentElement;
-    while (el && el !== container) {
-      if (el.querySelector('label')) { el.style.display = 'none'; return; }
-      el = el.parentElement;
-    }
-    docInput.closest('div').style.display = 'none';
-  }, [cpfLimpo]);
 
   const tentarPixNovamente = () => {
     pixCalledRef.current = false;
@@ -286,9 +357,13 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const tentarNovamente = () => {
     cardSubmittingRef.current = false;
     setCardError(null);
+    setCardErrorTitle('Pagamento recusado');
     setCardPaymentId(null);
+    cardExpiresAtRef.current = null;
+    setThreeDsInfo(null);
+    setCardSyncWarning(null);
     setCardBrickKey(k => k + 1);
-    setPhase('cartao');
+    setPhase(unsupportedWebView ? 'navegador_incompativel' : 'cartao');
   };
 
   // ─── CPF ───────────────────────────────────────────────
@@ -314,13 +389,14 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   };
 
   const escolherCartao = () => {
+    if (unsupportedWebView) { setPhase('navegador_incompativel'); return; }
     if (!cpfLimpo) { setPhase('sem_cpf'); return; }
     setPhase('cartao');
   };
 
   // ─── Helpers ───────────────────────────────────────────
   const timerUrgente = timeLeft !== null && timeLeft < 5 * 60 * 1000;
-  const canClose = ['choose', 'pix', 'expired', 'cartao', 'cartao_erro', 'cartao_pendente', 'sem_cpf'].includes(phase);
+  const canClose = ['choose', 'pix', 'expired', 'cartao', 'cartao_erro', 'cartao_pendente', 'sem_cpf', 'navegador_incompativel'].includes(phase);
 
   const headerLabel = {
     pix: 'PIX',
@@ -514,12 +590,47 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                     key={cardBrickKey}
                     initialization={brickInit}
                     onSubmit={handleCardSubmit}
-                    onReady={handleBrickReady}
                     onError={handleBrickError}
                     customization={brickCustomization}
                   />
                 </div>
+                <p>Somente cartão de crédito, em uma parcela. No celular, digite o nome do titular manualmente caso o preenchimento automático não seja reconhecido.</p>
+                {errorMsg && <p style={{ color: '#ef4444' }}>{errorMsg}</p>}
                 <button className="pag-cancel-btn" onClick={cancelarCartao}>Cancelar pagamento</button>
+              </>
+            )}
+
+            {/* ── Cartão: envio protegido ao processador ── */}
+            {phase === 'cartao_processando' && (
+              <>
+                <div className="pag-spinner" />
+                <p className="pag-err-title">Processando com segurança</p>
+                <p>Não feche esta tela. Estamos enviando apenas o token protegido do cartão ao Mercado Pago.</p>
+              </>
+            )}
+
+            {/* ── Cartão: autenticação 3DS do banco ── */}
+            {phase === 'cartao_3ds' && cardPaymentId && threeDsInfo && (
+              <>
+                <div className="pag-card-wrap">
+                  <StatusScreen
+                    initialization={{
+                      paymentId: String(cardPaymentId),
+                      additionalInfo: {
+                        externalResourceURL: threeDsInfo.externalResourceURL,
+                        creq: threeDsInfo.creq,
+                      },
+                    }}
+                    onError={handle3dsError}
+                    customization={{
+                      visual: {
+                        hideTransactionDate: true,
+                        showExternalReference: false,
+                      },
+                    }}
+                  />
+                </div>
+                {cardSyncWarning && <p style={{ color: '#f59e0b' }}>{cardSyncWarning}</p>}
               </>
             )}
 
@@ -532,6 +643,32 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                 <p className="pag-err-title">Pagamento em Análise</p>
                 <p>Seu pagamento está sendo processado pelo banco. Esta tela atualizará automaticamente quando houver uma resposta.</p>
                 {cardPaymentId && <p style={{ fontSize: '.68rem' }}>Referência: {cardPaymentId}</p>}
+                {cardSyncWarning && <p style={{ color: '#f59e0b' }}>{cardSyncWarning}</p>}
+              </>
+            )}
+
+            {/* ── Navegador interno não suportado pelo Mercado Pago ── */}
+            {phase === 'navegador_incompativel' && (
+              <>
+                <div className="pag-icon-warn">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <p className="pag-err-title">Abra no navegador do celular</p>
+                <p>O pagamento com cartão não funciona com segurança dentro do Instagram, Facebook ou outros aplicativos. Abra este endereço no Safari ou Chrome e continue com a mesma conta.</p>
+                <button
+                  className="pag-retry-btn"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(window.location.href);
+                      setCardSyncWarning('Link copiado. Cole no Safari ou Chrome.');
+                    } catch {
+                      setCardSyncWarning('Use o menu do aplicativo e escolha “Abrir no navegador”.');
+                    }
+                  }}
+                >
+                  Copiar endereço
+                </button>
+                {cardSyncWarning && <p style={{ color: 'var(--gold)' }}>{cardSyncWarning}</p>}
               </>
             )}
 
@@ -541,7 +678,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                 <div className="pag-icon-err">
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
                 </div>
-                <p className="pag-err-title">Pagamento Recusado</p>
+                <p className="pag-err-title">{cardErrorTitle}</p>
                 <p>{cardError}</p>
               </>
             )}

@@ -6,6 +6,9 @@ const { cancelarReferenciaPendente } = require('../services/paymentReference.ser
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { normalizePaymentTimeoutMinutes } = require('../utils/paymentTimeout');
 
+let lastRefreshAt = 0;
+let refreshPromise = null;
+
 const expirePayments = async () => {
   const now = new Date();
   const expired = await PaymentModel.find({
@@ -61,10 +64,30 @@ const expirePayments = async () => {
 };
 
 const startExpireJob = () => {
-  setInterval(async () => {
+  void expirePayments().catch((e) => console.error('[jobs] Erro na limpeza inicial:', e.message));
+  const timer = setInterval(async () => {
     try { await expirePayments(); }
     catch (e) { console.error('[jobs] Erro ao expirar pagamentos:', e.message); }
   }, 60_000);
+  timer.unref?.();
 };
 
-module.exports = { startExpireJob };
+const ensurePaymentsFresh = async (req, res, next) => {
+  const now = Date.now();
+  if (now - lastRefreshAt < 15_000) return next();
+
+  if (!refreshPromise) {
+    refreshPromise = expirePayments()
+      .then(() => { lastRefreshAt = Date.now(); })
+      .finally(() => { refreshPromise = null; });
+  }
+
+  try {
+    await refreshPromise;
+  } catch (error) {
+    console.error('[jobs] Erro ao atualizar expirações durante requisição:', error.message);
+  }
+  return next();
+};
+
+module.exports = { startExpireJob, expirePayments, ensurePaymentsFresh };

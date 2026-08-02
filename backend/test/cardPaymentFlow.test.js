@@ -12,6 +12,7 @@ const state = {
   bookingUpdates: [],
   events: [],
   saveError: null,
+  userCredits: 0,
 };
 
 function paymentDocument(data) {
@@ -62,6 +63,16 @@ require.cache[paymentModelPath] = {
       state.payments.push(payment);
       return payment;
     },
+    async findOneAndUpdate(query, update) {
+      const payment = state.payments.find((item) => (
+        (!query._id || String(item._id) === String(query._id))
+        && (!Object.hasOwn(query, 'arenaCreditsRefundedAt') || !item.arenaCreditsRefundedAt)
+        && (!query.financialReviewRequired || item.financialReviewRequired)
+      ));
+      if (!payment) return null;
+      Object.assign(payment, update.$set || {});
+      return payment;
+    },
   },
 };
 
@@ -108,6 +119,25 @@ require.cache[userPath] = {
   exports: {
     findById() {
       return { select: async () => null };
+    },
+    async findByIdAndUpdate(id, update) {
+      state.userCredits += Number(update?.$inc?.creditos || 0);
+      return { _id: id, creditos: state.userCredits };
+    },
+  },
+};
+
+const mongoosePath = require.resolve('mongoose');
+require.cache[mongoosePath] = {
+  id: mongoosePath,
+  filename: mongoosePath,
+  loaded: true,
+  exports: {
+    async startSession() {
+      return {
+        async withTransaction(callback) { await callback(); },
+        async endSession() {},
+      };
     },
   },
 };
@@ -160,6 +190,14 @@ require.cache[mercadoPagoPath] = {
         return state.mpGetResult;
       }
     },
+    PaymentMethod: class PaymentMethod {
+      async get() {
+        return [
+          { id: 'master', status: 'active', payment_type_id: 'credit_card' },
+          { id: 'debmaster', status: 'active', payment_type_id: 'debit_card' },
+        ];
+      }
+    },
     Preference: class Preference {},
   },
 };
@@ -179,6 +217,7 @@ function resetState() {
   state.bookingUpdates = [];
   state.events = [];
   state.saveError = null;
+  state.userCredits = 0;
   state.booking = {
     _id: 'booking-1',
     userId: 'user-1',
@@ -199,6 +238,7 @@ function request() {
       referenciaId: 'booking-1',
       token: 'card-token',
       paymentMethodId: 'master',
+      paymentTypeId: 'credit_card',
       installments: 1,
       payerIdentification: { type: 'CPF', number: '12345678909' },
     },
@@ -267,6 +307,45 @@ test('cartão em análise mantém pagamento e reserva pendentes', async () => {
   assert.equal(res.payload.status, 'in_process');
   assert.equal(state.payments[0].status, 'pendente');
   assert.equal(state.booking.status, 'pendente_pagamento');
+});
+
+test('cartão que exige 3DS devolve imediatamente os dados do Challenge', async () => {
+  const res = await payWith({
+    id: 'mp-3ds',
+    status: 'pending',
+    status_detail: 'pending_challenge',
+    payment_type_id: 'credit_card',
+    three_ds_info: {
+      external_resource_url: 'https://bank.example.com/challenge',
+      creq: 'challenge-request',
+    },
+  });
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.payload.requiresAction, true);
+  assert.equal(res.payload.statusDetail, 'pending_challenge');
+  assert.equal(res.payload.threeDsInfo.externalResourceURL, 'https://bank.example.com/challenge');
+  assert.equal(state.payments[0].requiresAction, true);
+});
+
+test('backend recusa débito e parcelamento fora da regra antes de criar cobrança', async () => {
+  const debitReq = request();
+  debitReq.body.paymentTypeId = 'debit_card';
+  debitReq.body.paymentMethodId = 'debmaster';
+  const debitResponse = response();
+  await criarPagamentoCartao(debitReq, debitResponse);
+
+  const installmentsReq = request();
+  installmentsReq.body.installments = 2;
+  const installmentsResponse = response();
+  await criarPagamentoCartao(installmentsReq, installmentsResponse);
+
+  assert.equal(debitResponse.statusCode, 400);
+  assert.match(debitResponse.payload.message, /somente cartão de crédito/i);
+  assert.equal(installmentsResponse.statusCode, 400);
+  assert.match(installmentsResponse.payload.message, /uma parcela/i);
+  assert.equal(state.mpCreateCalls.length, 0);
+  assert.equal(state.payments.length, 0);
 });
 
 test('timeout preserva a tentativa e reutiliza a mesma idempotência no reenvio', async () => {
@@ -342,6 +421,82 @@ test('conciliação informa recusa do cartão sem cancelar a reserva', async () 
   assert.equal(res.payload.status, 'cancelado');
   assert.match(res.payload.declineMessage, /limite insuficiente/i);
   assert.equal(state.booking.status, 'pendente_pagamento');
+});
+
+test('sincronização aplica a expiração mesmo sem depender do job em memória', async () => {
+  const payment = paymentDocument({
+    userId: 'user-1',
+    tipo: 'booking',
+    referenciaId: 'booking-1',
+    metodo: 'cartao',
+    status: 'pendente',
+    mpPaymentId: 'mp-expired',
+    expiresAt: new Date(Date.now() - 1_000),
+  });
+  state.payments.push(payment);
+  state.mpGetResult = { id: 'mp-expired', status: 'pending', status_detail: 'pending_contingency' };
+  const res = response();
+
+  await syncPagamento({ query: { mpPaymentId: 'mp-expired' }, user: { _id: 'user-1' } }, res);
+
+  assert.equal(res.payload.status, 'expirado');
+  assert.equal(payment.status, 'expirado');
+});
+
+test('aprovação tardia após cancelamento credita uma única vez os Créditos Arena', async () => {
+  const payment = paymentDocument({
+    _id: 'payment-late',
+    userId: 'user-1',
+    tipo: 'booking',
+    referenciaId: 'booking-1',
+    metodo: 'cartao',
+    status: 'cancelado',
+    mpPaymentId: 'mp-late-approved',
+    valor: 100,
+    arenaCreditsRefundedAt: null,
+  });
+  state.payments.push(payment);
+  state.booking.status = 'cancelada';
+  state.mpGetResult = { id: 'mp-late-approved', status: 'approved', status_detail: 'accredited' };
+
+  const first = response();
+  await syncPagamento({ query: { mpPaymentId: 'mp-late-approved' }, user: { _id: 'user-1' } }, first);
+  const second = response();
+  await syncPagamento({ query: { mpPaymentId: 'mp-late-approved' }, user: { _id: 'user-1' } }, second);
+
+  assert.equal(payment.status, 'estornado_creditos');
+  assert.equal(state.userCredits, 100);
+  assert.equal(first.payload.status, 'estornado_creditos');
+  assert.equal(second.payload.status, 'estornado_creditos');
+});
+
+test('estorno e chargeback posteriores à aprovação viram revisão financeira', async () => {
+  const refunded = paymentDocument({
+    userId: 'user-1',
+    tipo: 'booking',
+    referenciaId: 'booking-1',
+    metodo: 'cartao',
+    status: 'aprovado',
+    mpPaymentId: 'mp-refunded',
+    valor: 100,
+  });
+  state.payments.push(refunded);
+  state.booking.status = 'confirmada';
+  state.mpGetResult = { id: 'mp-refunded', status: 'refunded', status_detail: 'refunded' };
+  const refundResponse = response();
+  await syncPagamento({ query: { mpPaymentId: 'mp-refunded' }, user: { _id: 'user-1' } }, refundResponse);
+
+  assert.equal(refunded.status, 'estornado');
+  assert.equal(refunded.financialReviewRequired, true);
+
+  refunded.mpPaymentId = 'mp-chargeback';
+  state.mpGetResult = { id: 'mp-chargeback', status: 'charged_back', status_detail: 'settled' };
+  const chargebackResponse = response();
+  await syncPagamento({ query: { mpPaymentId: 'mp-chargeback' }, user: { _id: 'user-1' } }, chargebackResponse);
+
+  assert.equal(refunded.status, 'chargeback');
+  assert.equal(refunded.financialReviewRequired, true);
+  assert.match(refunded.financialReviewReason, /chargeback/i);
 });
 
 function webhookRequest(paymentId = 'mp-webhook') {
@@ -420,6 +575,30 @@ test('webhook rejeita notificação com assinatura inválida', async () => {
   const res = response();
 
   await webhook(req, res);
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(state.mpGetCalls.length, 0);
+});
+
+test('webhook rejeita assinatura válida porém antiga para impedir replay', async () => {
+  const paymentId = 'mp-stale';
+  const ts = String(Date.now() - 10 * 60 * 1000);
+  const requestId = 'request-stale';
+  const manifest = `id:${paymentId};request-id:${requestId};ts:${ts}`;
+  const signature = crypto
+    .createHmac('sha256', process.env.MP_WEBHOOK_SECRET)
+    .update(manifest)
+    .digest('hex');
+  const res = response();
+
+  await webhook({
+    query: { 'data.id': paymentId },
+    headers: {
+      'x-request-id': requestId,
+      'x-signature': `ts=${ts},v1=${signature}`,
+    },
+    body: { type: 'payment', data: { id: paymentId } },
+  }, res);
 
   assert.equal(res.statusCode, 401);
   assert.equal(state.mpGetCalls.length, 0);

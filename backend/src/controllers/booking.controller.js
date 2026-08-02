@@ -329,8 +329,13 @@ const cancelar = async (req, res) => {
   // Créditos a devolver:
   // - reserva confirmada (paga): devolve o total completo como créditos
   // - reserva pendente com créditos aplicados: devolve só os créditos que foram debitados
+  const paymentRecord = booking.paymentId
+    ? await PaymentModel.findById(booking.paymentId).select('status')
+    : null;
+  const pagamentoExternoRevertido = ['estornado', 'chargeback', 'estornado_creditos']
+    .includes(paymentRecord?.status);
   const creditosARefundar = statusAnterior === 'confirmada'
-    ? booking.total
+    ? (pagamentoExternoRevertido ? (booking.creditosAplicados || 0) : booking.total)
     : (booking.creditosAplicados || 0);
 
   if (creditosARefundar > 0) {

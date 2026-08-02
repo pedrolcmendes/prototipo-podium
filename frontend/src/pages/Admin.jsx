@@ -746,6 +746,7 @@ export default function Admin() {
   const [temporadas, setTemporadas] = useState([]);
   const [eventos, setEventos] = useState([]);
   const [inscricoes, setInscricoes] = useState([]);
+  const [financialReviews, setFinancialReviews] = useState([]);
   const [rankings, setRankings] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -916,18 +917,20 @@ export default function Admin() {
     if (!user?.admin) return;
     setLoading(true);
     try {
-      const [u, b, e, cfg, s] = await Promise.all([
+      const [u, b, e, cfg, s, reviews] = await Promise.all([
         api.get('/users'),
         api.get('/bookings'),
         api.get('/events'),
         api.get('/settings'),
         isMaster ? api.get('/seasons') : Promise.resolve({ data: [] }),
+        isMaster ? api.get('/pagamentos/revisoes-financeiras') : Promise.resolve({ data: [] }),
       ]);
       setUsuarios(u.data);
       setReservas(sortRes(b.data));
       setEventos(e.data);
       setCfg(prev => ({ ...prev, ...cfg.data }));
       setTemporadas(s.data);
+      setFinancialReviews(reviews.data);
       setInscricoes(await fetchAllRegistrations(e.data));
       await loadRankings();
     } catch { toast('Erro ao carregar dados', 'error'); }
@@ -956,10 +959,20 @@ export default function Admin() {
     finally { setCfgSaving(false); }
   };
 
+  const resolveFinancialReview = async (paymentId) => {
+    try {
+      await api.patch(`/pagamentos/revisoes-financeiras/${paymentId}/resolver`);
+      setFinancialReviews((current) => current.filter((payment) => payment._id !== paymentId));
+      toast('Revisão financeira marcada como conferida', 'success');
+    } catch (error) {
+      toast(error.response?.data?.message || 'Erro ao concluir revisão financeira', 'error');
+    }
+  };
+
   useEffect(() => { if (!gateOpen) loadData(); }, [gateOpen]);
 
   // ── Tempo real: refaz só o fetch do que mudou, sem recarregar a página ──
-  useLive(['bookings', 'users', 'events', 'registrations', 'ranking', 'seasons'], (topic) => {
+  useLive(['bookings', 'users', 'events', 'registrations', 'ranking', 'seasons', 'payments'], (topic) => {
     if (gateOpen || !user?.admin) return;
     if (topic === 'bookings') {
       api.get('/bookings').then(r => setReservas(sortRes(r.data))).catch(() => {});
@@ -983,6 +996,8 @@ export default function Admin() {
       api.get('/seasons').then(r => setTemporadas(r.data)).catch(() => {});
     } else if (topic === 'ranking') {
       loadRankings();
+    } else if (topic === 'payments' && isMaster) {
+      api.get('/pagamentos/revisoes-financeiras').then(r => setFinancialReviews(r.data)).catch(() => {});
     }
   });
 
@@ -2964,6 +2979,39 @@ export default function Admin() {
                 <p className="finance-section-intro">Receitas de quadras e eventos em uma visão rápida e objetiva.</p>
               </div>
             </div>
+
+            {financialReviews.length > 0 && (
+              <div className="admin-card" role="alert" style={{ borderColor: 'rgba(239,68,68,.55)', marginBottom: '1rem' }}>
+                <div className="admin-card-header">
+                  <div>
+                    <h3 style={{ color: '#ef4444' }}>Revisões de pagamento</h3>
+                    <p className="finance-card-subtitle">{financialReviews.length} ocorrência{financialReviews.length === 1 ? '' : 's'} exige{financialReviews.length === 1 ? '' : 'm'} conferência do Administrador Master.</p>
+                  </div>
+                </div>
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead><tr><th>Cliente</th><th>Ocorrência</th><th>Valor</th><th>Atualização</th><th>Ação</th></tr></thead>
+                    <tbody>
+                      {financialReviews.map((payment) => (
+                        <tr key={payment._id}>
+                          <td>
+                            <div className="admin-table-name">{payment.userId?.nome || 'Cliente'}</div>
+                            <div className="admin-table-sub">{payment.userId?.email || payment.mpPaymentId}</div>
+                          </td>
+                          <td>
+                            <div className="admin-table-name">{payment.status === 'chargeback' ? 'Chargeback' : payment.status === 'em_mediacao' ? 'Mediação no Mercado Pago' : payment.status === 'estornado' ? 'Estorno no Mercado Pago' : 'Crédito Arena automático'}</div>
+                            <div className="admin-table-sub">{payment.financialReviewReason}</div>
+                          </td>
+                          <td>{fmtMoney(payment.valor)}</td>
+                          <td>{new Date(payment.updatedAt).toLocaleString('pt-BR')}</td>
+                          <td><button className="btn-admin-secondary" onClick={() => resolveFinancialReview(payment._id)}>Marcar conferido</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div className="finance-overview">
               <article className="finance-total-card">

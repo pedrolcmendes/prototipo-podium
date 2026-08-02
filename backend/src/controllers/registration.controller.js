@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const PaymentModel = require('../models/Payment');
 const Registration = require('../models/Registration');
 const Event = require('../models/Event');
 const User = require('../models/User');
@@ -203,9 +204,17 @@ const cancelar = async (req, res) => {
           ?? inscricaoCancelada.precoDupla
           ?? inscricaoCancelada.preco,
         );
+        const paymentRecord = inscricaoCancelada.paymentId
+          ? await PaymentModel.findById(inscricaoCancelada.paymentId).session(session).select('status')
+          : null;
+        const pagamentoExternoRevertido = ['estornado', 'chargeback', 'estornado_creditos']
+          .includes(paymentRecord?.status);
+        const baseEstorno = pagamentoExternoRevertido
+          ? Number(inscricaoCancelada.creditosAplicados || 0)
+          : valorPago;
         creditosEstornados = Math.max(
           0,
-          valorPago - (inscricaoCancelada.creditosEstornados || 0),
+          baseEstorno - (inscricaoCancelada.creditosEstornados || 0),
         );
 
         inscricaoCancelada.status = 'cancelada';
