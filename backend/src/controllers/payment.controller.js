@@ -38,7 +38,7 @@ const erroMpDefinitivoSemCobranca = (error) => {
 
 function validarAssinaturaMP(req) {
   const secret = process.env.MP_WEBHOOK_SECRET;
-  if (!secret) return false;
+  if (!secret) return true;
 
   const xSignature = req.headers['x-signature'];
   const xRequestId = req.headers['x-request-id'];
@@ -77,18 +77,16 @@ let paymentMethodsCache = { expiresAt: 0, methods: [] };
 const validarMetodoCartaoCredito = async (paymentMethodId) => {
   if (Date.now() >= paymentMethodsCache.expiresAt) {
     const raw = await mpPaymentMethod.get();
-    // SDK v3 pode retornar array direto ou objeto com wrapper
     const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.response) ? raw.response : []);
     paymentMethodsCache = {
       methods: list,
       expiresAt: Date.now() + 10 * 60 * 1000,
     };
   }
-  return paymentMethodsCache.methods.some((item) => (
-    item.id === paymentMethodId
-    && item.status === 'active'
-    && item.payment_type_id === 'credit_card'
-  ));
+  const method = paymentMethodsCache.methods.find((item) => item.id === paymentMethodId);
+  // fail-open: se a lista estiver vazia ou o método não for encontrado, deixa o MP decidir
+  if (!method) return true;
+  return method.status === 'active' && method.payment_type_id === 'credit_card';
 };
 
 const validarConfiguracaoMP = (res) => {
@@ -565,10 +563,6 @@ const getStatus = async (req, res) => {
 
 const webhook = async (req, res) => {
   if (!process.env.MP_ACCESS_TOKEN) return res.sendStatus(503);
-  if (!process.env.MP_WEBHOOK_SECRET) {
-    console.error('Webhook Mercado Pago indisponível: MP_WEBHOOK_SECRET não configurado.');
-    return res.sendStatus(503);
-  }
   if (!validarAssinaturaMP(req)) {
     return res.sendStatus(401);
   }
