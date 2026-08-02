@@ -1,19 +1,21 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ToastProvider } from './components/Toast';
 import Nav from './components/Nav';
 import CompletePerfilModal from './components/CompletePerfilModal';
-import Home from './pages/Home';
-import Eventos from './pages/Eventos';
-import Ranking from './pages/Ranking';
-import Reservas from './pages/Reservas';
-import Painel from './pages/Painel';
-import Admin from './pages/Admin';
-import Privacidade from './pages/Privacidade';
-import RedefinirSenha from './pages/RedefinirSenha';
-import PagamentoRetorno from './pages/PagamentoRetorno';
+
+const Home = lazy(() => import('./pages/Home'));
+const Eventos = lazy(() => import('./pages/Eventos'));
+const Ranking = lazy(() => import('./pages/Ranking'));
+const Reservas = lazy(() => import('./pages/Reservas'));
+const Painel = lazy(() => import('./pages/Painel'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Privacidade = lazy(() => import('./pages/Privacidade'));
+const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'));
+const PagamentoRetorno = lazy(() => import('./pages/PagamentoRetorno'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 /* Páginas que têm seu próprio topbar e não devem exibir o Nav global */
 const NO_NAV_PATHS = ['/painel', '/admin'];
@@ -46,17 +48,20 @@ function Layout() {
       <ScrollManager />
       {!hideNav && <Nav />}
       <CompletePerfilModal />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/eventos" element={<Eventos />} />
-        <Route path="/ranking" element={<Ranking />} />
-        <Route path="/reservas" element={<Reservas />} />
-        <Route path="/painel" element={<Painel />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/privacidade" element={<Privacidade />} />
-        <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
-        <Route path="/pagamento/retorno" element={<PagamentoRetorno />} />
-      </Routes>
+      <Suspense fallback={<div className="route-loading" role="status">Carregando</div>}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/eventos" element={<Eventos />} />
+          <Route path="/ranking" element={<Ranking />} />
+          <Route path="/reservas" element={<Reservas />} />
+          <Route path="/painel" element={<Painel />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/privacidade" element={<Privacidade />} />
+          <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
+          <Route path="/pagamento/retorno" element={<PagamentoRetorno />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }

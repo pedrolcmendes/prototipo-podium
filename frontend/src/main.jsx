@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { initMercadoPago } from '@mercadopago/sdk-react';
+import ErrorBoundary from './components/ErrorBoundary';
 
 initMercadoPago((import.meta.env.VITE_MP_PUBLIC_KEY || '').trim(), { locale: 'pt-BR' });
 
@@ -24,13 +25,16 @@ import './styles/number-input.css';
 
 /* ── Toast (único CSS novo, não sobrepõe nada) ── */
 import './styles/toast.css';
+import './styles/status-pages.css';
 
 import App from './App';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
-      <App />
-    </GoogleOAuthProvider>
+    <ErrorBoundary>
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
+        <App />
+      </GoogleOAuthProvider>
+    </ErrorBoundary>
   </StrictMode>
 );

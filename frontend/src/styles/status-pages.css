@@ -1,0 +1,122 @@
+.status-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - var(--nav-h));
+  min-height: calc(100svh - var(--nav-h));
+  padding: clamp(3rem, 9vw, 7rem) 1.25rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(8, 8, 8, .84), rgba(8, 8, 8, .96)),
+    radial-gradient(circle at 50% 20%, rgba(224, 172, 107, .16), transparent 46%);
+}
+
+.status-page__glow {
+  position: absolute;
+  z-index: -1;
+  width: min(34rem, 85vw);
+  aspect-ratio: 1;
+  border: 1px solid rgba(224, 172, 107, .12);
+  border-radius: 50%;
+  box-shadow: 0 0 8rem rgba(224, 172, 107, .09);
+}
+
+.status-card {
+  width: min(42rem, 100%);
+  padding: clamp(2rem, 6vw, 4.5rem);
+  border: 1px solid var(--border-light);
+  background: rgba(16, 16, 16, .92);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.status-card__code {
+  display: block;
+  margin-bottom: .75rem;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: clamp(5rem, 18vw, 9rem);
+  line-height: .8;
+  letter-spacing: .04em;
+  opacity: .22;
+}
+
+.status-card .section-eyebrow {
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.status-card .section-eyebrow::after {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 1px;
+  background: var(--gold);
+}
+
+.status-card h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 8vw, 4.75rem);
+  line-height: .95;
+  letter-spacing: .04em;
+}
+
+.status-card > p:not(.section-eyebrow) {
+  max-width: 33rem;
+  margin: 1.25rem auto 0;
+  color: var(--gray-light);
+}
+
+.status-card__actions {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .85rem;
+}
+
+.route-loading {
+  min-height: calc(100vh - var(--nav-h));
+  min-height: calc(100svh - var(--nav-h));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  font-family: var(--font-cond);
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+}
+
+.route-loading::before {
+  content: '';
+  width: 2rem;
+  height: 2rem;
+  margin-right: .75rem;
+  border: 2px solid var(--border-light);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: status-spin .8s linear infinite;
+}
+
+@keyframes status-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 540px) {
+  .status-card__actions {
+    flex-direction: column;
+  }
+
+  .status-card__actions .btn-gold,
+  .status-card__actions .btn-outline {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading::before { animation-duration: 1.6s; }
+}

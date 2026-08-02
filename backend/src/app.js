@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
@@ -35,11 +36,22 @@ const isAllowedOrigin = (origin) => {
 app.use(cors({
   origin(origin, callback) {
     if (isAllowedOrigin(origin)) return callback(null, true);
-    return callback(new Error('Origem não permitida pelo CORS.'));
+    const error = new Error('Origem não permitida pelo CORS.');
+    error.status = 403;
+    error.code = 'CORS_ORIGIN_DENIED';
+    return callback(error);
   },
 }));
 app.use(express.json({ limit: '12mb' })); // artes de evento vão em base64 no corpo
 
+app.get('/api/health', (req, res) => {
+  const databaseReady = mongoose.connection.readyState === 1;
+  res.status(databaseReady ? 200 : 503).json({
+    status: databaseReady ? 'ok' : 'degraded',
+    database: databaseReady ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+  });
+});
 app.get('/api/live', live.handler);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -52,9 +64,30 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/seasons', seasonRoutes);
 app.use('/api/pagamentos', paymentRoutes);
 
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    message: 'Rota da API não encontrada.',
+    code: 'API_ROUTE_NOT_FOUND',
+  });
+});
+
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({ message: err.message || 'Erro interno do servidor' });
+  if (res.headersSent) return next(err);
+
+  const invalidJson = err instanceof SyntaxError && err.status === 400 && 'body' in err;
+  const status = invalidJson ? 400 : (err.status || err.statusCode || 500);
+  const isServerError = status >= 500;
+  const message = invalidJson
+    ? 'O corpo da requisição contém JSON inválido.'
+    : (isServerError && process.env.NODE_ENV === 'production'
+      ? 'Erro interno do servidor.'
+      : (err.message || 'Erro interno do servidor.'));
+
+  if (isServerError) console.error(err.stack);
+  return res.status(status).json({
+    message,
+    code: invalidJson ? 'INVALID_JSON' : (err.code || (isServerError ? 'INTERNAL_ERROR' : 'REQUEST_ERROR')),
+  });
 });
 
 module.exports = app;
