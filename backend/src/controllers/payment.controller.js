@@ -13,18 +13,21 @@ const { MercadoPagoConfig, Payment: MpAPI, Preference } = require('mercadopago')
 
 function validarAssinaturaMP(req) {
   const secret = process.env.MP_WEBHOOK_SECRET;
-  if (!secret) return true; // sem secret configurado, pula validação
+  if (!secret) return false;
 
   const xSignature = req.headers['x-signature'];
   const xRequestId = req.headers['x-request-id'];
   if (!xSignature) return false;
 
-  const parts = Object.fromEntries(xSignature.split(',').map(p => p.split('=')));
+  const parts = Object.fromEntries(
+    xSignature.split(',').map((part) => part.trim().split('=')),
+  );
   const ts = parts.ts;
   const v1 = parts.v1;
   if (!ts || !v1) return false;
 
-  const dataId = req.body?.data?.id ?? '';
+  const rawDataId = req.query?.['data.id'] ?? req.query?.data_id ?? req.body?.data?.id ?? '';
+  const dataId = String(rawDataId).toLowerCase();
   const manifest = `id:${dataId};request-id:${xRequestId ?? ''};ts:${ts}`;
   const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
   const expectedBuffer = Buffer.from(expected);
@@ -331,13 +334,17 @@ const getStatus = async (req, res) => {
 
 const webhook = async (req, res) => {
   if (!process.env.MP_ACCESS_TOKEN) return res.sendStatus(503);
+  if (!process.env.MP_WEBHOOK_SECRET) {
+    console.error('Webhook Mercado Pago indisponível: MP_WEBHOOK_SECRET não configurado.');
+    return res.sendStatus(503);
+  }
   if (!validarAssinaturaMP(req)) {
     return res.sendStatus(401);
   }
-  res.sendStatus(200);
+
   try {
     const { type, data } = req.body;
-    if (type !== 'payment' || !data?.id) return;
+    if (type !== 'payment' || !data?.id) return res.sendStatus(200);
 
     const mpResult = await mpApi.get({ id: String(data.id) });
     // Busca pelo mpPaymentId ou, para Checkout Pro, pelo external_reference
@@ -348,21 +355,29 @@ const webhook = async (req, res) => {
       payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
     }
 
-    if (!payment || payment.status !== 'pendente') return;
+    if (!payment) {
+      console.error(`Webhook Mercado Pago sem tentativa local: ${data.id}`);
+      return res.sendStatus(200);
+    }
 
     payment.mpPaymentId = String(data.id);
+    payment.processingStartedAt = null;
     if (mpResult.status === 'approved') {
       payment.status = 'aprovado';
       payment.paidAt ||= new Date();
       await payment.save();
       await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
-    } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status)) {
+    } else if (
+      payment.status !== 'aprovado'
+      && ['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status)
+    ) {
       payment.status = 'cancelado';
       await payment.save();
-      await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
     }
+    return res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err?.message);
+    return res.sendStatus(500);
   }
 };
 
@@ -392,10 +407,71 @@ const criarPagamentoCartao = async (req, res) => {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
   const isLocalhost = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1');
   const nomes = req.user.nome.split(' ');
-  const idempotencyKey = crypto
-    .createHash('sha256')
-    .update(`card:${tipo}:${referenciaId}:${token}`)
-    .digest('hex');
+  const expiresAt = await resolvePaymentExpiration(referencia);
+
+  let payment = await PaymentModel.findOne({
+    tipo,
+    referenciaId,
+    metodo: 'cartao',
+    status: 'pendente',
+  });
+
+  if (!payment) {
+    const tentativa = await PaymentModel.countDocuments({ tipo, referenciaId, metodo: 'cartao' });
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(`card:${tipo}:${referenciaId}:${req.user._id}:${tentativa}`)
+      .digest('hex');
+
+    try {
+      payment = await PaymentModel.create({
+        userId: req.user._id,
+        tipo,
+        referenciaId,
+        valor,
+        metodo: 'cartao',
+        idempotencyKey,
+        processingStartedAt: new Date(),
+        expiresAt,
+      });
+    } catch (creationError) {
+      if (creationError?.code !== 11000) throw creationError;
+      payment = await PaymentModel.findOne({ idempotencyKey });
+    }
+
+    if (!payment) {
+      return res.status(409).json({ message: 'Já existe uma tentativa de pagamento em processamento.' });
+    }
+
+    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+  }
+
+  if (payment.mpPaymentId) {
+    try {
+      const existingResult = await mpApi.get({ id: payment.mpPaymentId });
+      const existingApproved = existingResult.status === 'approved';
+      const existingRejected = ['rejected', 'cancelled', 'refunded', 'charged_back'].includes(existingResult.status);
+
+      payment.status = existingApproved ? 'aprovado' : existingRejected ? 'cancelado' : 'pendente';
+      payment.processingStartedAt = null;
+      if (existingApproved) payment.paidAt ||= new Date();
+      await payment.save();
+      if (existingApproved) await confirmarReferencia(tipo, referenciaId, req.user._id);
+
+      return res.status(200).json({
+        status: existingResult.status,
+        statusDetail: existingResult.status_detail,
+        mpPaymentId: String(existingResult.id),
+        declineMessage: existingRejected
+          ? (DECLINE_MESSAGES[existingResult.status_detail] || 'Pagamento recusado. Verifique os dados ou tente outro cartão.')
+          : null,
+      });
+    } catch (lookupError) {
+      console.error('MP Card lookup error:', lookupError?.message);
+      return res.status(503).json({ message: 'Não foi possível consultar a tentativa em andamento. Tente novamente em instantes.' });
+    }
+  }
 
   const mpBody = {
     transaction_amount: Number(valor),
@@ -420,38 +496,23 @@ const criarPagamentoCartao = async (req, res) => {
   };
 
   try {
+    payment.processingStartedAt = new Date();
+    await payment.save();
+
     const mpResult = await mpApi.create({
       body: mpBody,
-      requestOptions: { idempotencyKey },
+      requestOptions: { idempotencyKey: payment.idempotencyKey },
     });
 
     const mpStatus = mpResult.status;
     const approved = mpStatus === 'approved';
     const rejected = mpStatus === 'rejected';
 
-    const payment = await PaymentModel.findOneAndUpdate(
-      { idempotencyKey },
-      {
-        $setOnInsert: {
-          userId: req.user._id,
-          tipo,
-          referenciaId,
-          valor,
-          metodo: 'cartao',
-          idempotencyKey,
-          expiresAt: await resolvePaymentExpiration(referencia),
-        },
-        $set: {
-          mpPaymentId: String(mpResult.id),
-          status: approved ? 'aprovado' : rejected ? 'cancelado' : 'pendente',
-          ...(approved ? { paidAt: new Date() } : {}),
-        },
-      },
-      { upsert: true, new: true, runValidators: true },
-    );
-
-    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+    payment.mpPaymentId = String(mpResult.id);
+    payment.status = approved ? 'aprovado' : rejected ? 'cancelado' : 'pendente';
+    payment.processingStartedAt = null;
+    if (approved) payment.paidAt ||= new Date();
+    await payment.save();
 
     if (approved) {
       await confirmarReferencia(tipo, referenciaId, req.user._id);
@@ -468,8 +529,7 @@ const criarPagamentoCartao = async (req, res) => {
       declineMessage: declineMsg,
     });
   } catch (err) {
-    const errDetail = err?.cause ?? err;
-    console.error('MP Card error:', JSON.stringify(errDetail, null, 2));
+    console.error('MP Card error:', err?.message || 'falha desconhecida');
     return res.status(502).json({ message: 'Erro ao processar o cartão. Sua reserva continua pendente; tente novamente.' });
   }
 };
@@ -480,33 +540,40 @@ const syncPagamento = async (req, res) => {
   if (!mpPaymentId) return res.status(400).json({ message: 'mpPaymentId obrigatório' });
 
   try {
-    const mpResult = await mpApi.get({ id: String(mpPaymentId) });
-
     let payment = await PaymentModel.findOne({ mpPaymentId: String(mpPaymentId) });
-
-    if (!payment && mpResult.external_reference) {
-      const [tipo, referenciaId] = mpResult.external_reference.split(':');
-      payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
-    }
-
     if (!payment) return res.json({ status: 'not_found' });
     if (payment.userId.toString() !== req.user._id.toString() && !req.user.admin) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
 
+    const mpResult = await mpApi.get({ id: String(mpPaymentId) });
+
     if (mpResult.status === 'approved' && payment.status === 'pendente') {
       payment.mpPaymentId = String(mpPaymentId);
       payment.status = 'aprovado';
+      payment.processingStartedAt = null;
       payment.paidAt ||= new Date();
       await payment.save();
       await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
     } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status) && payment.status === 'pendente') {
       payment.status = 'cancelado';
+      payment.processingStartedAt = null;
       await payment.save();
-      await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
+      if (payment.metodo !== 'cartao') {
+        await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
+      }
     }
 
-    return res.json({ status: payment.status });
+    const declineMessage = mpResult.status === 'rejected'
+      ? (DECLINE_MESSAGES[mpResult.status_detail] || 'Pagamento recusado pelo banco. Tente outro cartão ou fale com a instituição emissora.')
+      : null;
+
+    return res.json({
+      status: payment.status,
+      mpStatus: mpResult.status,
+      statusDetail: mpResult.status_detail,
+      declineMessage,
+    });
   } catch (err) {
     console.error('Sync error:', err?.message);
     return res.status(500).json({ message: 'Erro ao sincronizar pagamento' });

@@ -70,6 +70,20 @@ test('cancela localmente pagamento que ainda não foi enviado ao Mercado Pago', 
   assert.equal(state.updateCalls.length, 1);
 });
 
+test('não cancela enquanto uma cobrança de cartão está em processamento', async () => {
+  state.payments = [{
+    _id: 'card-processing',
+    mpPaymentId: null,
+    processingStartedAt: new Date(),
+  }];
+
+  await assert.rejects(
+    cancelarPagamentosPendentes('booking', 'booking-1'),
+    (error) => error.status === 409 && /processado/i.test(error.message),
+  );
+  assert.equal(state.updateCalls.length, 0);
+});
+
 test('cancela a cobrança no Mercado Pago antes de alterar o banco local', async () => {
   state.payments = [{ _id: 'pix', mpPaymentId: 'mp-123' }];
 

@@ -12,6 +12,7 @@ const paymentSchema = new mongoose.Schema({
   checkoutUrl: { type: String, default: null },
   sandboxUrl: { type: String, default: null },
   idempotencyKey: { type: String, default: null },
+  processingStartedAt: { type: Date, default: null },
   expiresAt: { type: Date, required: true },
   paidAt: { type: Date, default: null },
 }, { timestamps: true });

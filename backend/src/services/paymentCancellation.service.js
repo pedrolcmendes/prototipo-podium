@@ -2,6 +2,7 @@ const PaymentModel = require('../models/Payment');
 const { MercadoPagoConfig, Payment: MpAPI } = require('mercadopago');
 
 const TERMINAL_NAO_APROVADO = new Set(['cancelled', 'rejected', 'refunded', 'charged_back']);
+const PROCESSING_LOCK_MS = 2 * 60 * 1000;
 
 function getMpApi() {
   if (!process.env.MP_ACCESS_TOKEN) {
@@ -29,6 +30,16 @@ async function cancelarPagamentosPendentes(tipo, referenciaId) {
     referenciaId,
     status: 'pendente',
   });
+
+  const pagamentoEmProcessamento = payments.find((payment) => (
+    payment.processingStartedAt
+    && Date.now() - new Date(payment.processingStartedAt).getTime() < PROCESSING_LOCK_MS
+  ));
+  if (pagamentoEmProcessamento) {
+    const error = new Error('O pagamento está sendo processado. Aguarde a confirmação antes de cancelar.');
+    error.status = 409;
+    throw error;
+  }
 
   const pagamentosMercadoPago = payments.filter((payment) => payment.mpPaymentId);
   if (pagamentosMercadoPago.length > 0) {

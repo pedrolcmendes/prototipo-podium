@@ -34,6 +34,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(null);
   const pollRef = useRef(null);
+  const cardPollRef = useRef(null);
   const timerRef = useRef(null);
   const pixCalledRef = useRef(false);
   const cardSubmittingRef = useRef(false);
@@ -45,6 +46,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   // Card state
   const [cardError, setCardError] = useState(null);
   const [cardBrickKey, setCardBrickKey] = useState(0); // remonta o brick ao tentar novamente
+  const [cardPaymentId, setCardPaymentId] = useState(null);
 
   // CPF state
   const [cpfInput, setCpfInput] = useState('');
@@ -174,6 +176,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       if (data.status === 'approved') {
         window.location.href = `/pagamento/retorno?collection_id=${data.mpPaymentId}&collection_status=approved`;
       } else if (['in_process', 'pending', 'authorized'].includes(data.status)) {
+        setCardPaymentId(data.mpPaymentId);
         setPhase('cartao_pendente');
       } else {
         setCardError(data.declineMessage || 'Pagamento recusado. Verifique os dados ou tente outro cartão.');
@@ -189,6 +192,43 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       cardSubmittingRef.current = false;
     }
   }, [tipo, referenciaId]);
+
+  useEffect(() => {
+    if (phase !== 'cartao_pendente' || !cardPaymentId) return undefined;
+
+    let active = true;
+    const sincronizarCartao = async () => {
+      try {
+        const { data } = await api.get(`/pagamentos/sync?mpPaymentId=${cardPaymentId}`);
+        if (!active) return;
+
+        if (data.status === 'aprovado') {
+          clearInterval(cardPollRef.current);
+          window.location.href = `/pagamento/retorno?collection_id=${cardPaymentId}&collection_status=approved`;
+        } else if (['cancelado', 'expirado'].includes(data.status)) {
+          clearInterval(cardPollRef.current);
+          setCardError(data.declineMessage || 'Pagamento recusado pelo banco. Tente outro cartão ou fale com a instituição emissora.');
+          setPhase('cartao_erro');
+          cardSubmittingRef.current = false;
+        }
+      } catch {
+        // O webhook continua conciliando no backend; a próxima consulta tenta novamente.
+      }
+    };
+
+    void sincronizarCartao();
+    cardPollRef.current = setInterval(sincronizarCartao, 3000);
+    return () => {
+      active = false;
+      clearInterval(cardPollRef.current);
+    };
+  }, [phase, cardPaymentId]);
+
+  const handleBrickError = useCallback(() => {
+    setCardError('Não foi possível carregar o formulário do cartão. Atualize a página e tente novamente.');
+    setPhase('cartao_erro');
+    cardSubmittingRef.current = false;
+  }, []);
 
   const brickInit = useMemo(() => ({
     amount: Number(valor),
@@ -246,6 +286,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const tentarNovamente = () => {
     cardSubmittingRef.current = false;
     setCardError(null);
+    setCardPaymentId(null);
     setCardBrickKey(k => k + 1);
     setPhase('cartao');
   };
@@ -474,6 +515,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                     initialization={brickInit}
                     onSubmit={handleCardSubmit}
                     onReady={handleBrickReady}
+                    onError={handleBrickError}
                     customization={brickCustomization}
                   />
                 </div>
@@ -488,7 +530,8 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
                 <p className="pag-err-title">Pagamento em Análise</p>
-                <p>Seu pagamento está sendo processado pelo banco. Você receberá confirmação por e-mail em breve.</p>
+                <p>Seu pagamento está sendo processado pelo banco. Esta tela atualizará automaticamente quando houver uma resposta.</p>
+                {cardPaymentId && <p style={{ fontSize: '.68rem' }}>Referência: {cardPaymentId}</p>}
               </>
             )}
 
