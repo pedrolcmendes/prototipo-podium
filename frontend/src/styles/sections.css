@@ -34,6 +34,8 @@
   position: relative;
   z-index: 20; /* garante acima dos efeitos */
   text-align: center;
+  width: 100%;
+  min-width: 0;
   max-width: 1000px;
 }
 

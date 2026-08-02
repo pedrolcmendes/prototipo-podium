@@ -10,7 +10,8 @@ const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('
 const { broadcast } = require('../utils/live');
 const { isMasterAdmin, sanitizeBookingForAdmin } = require('../utils/adminPermissions');
 const { arenaDateTimeParts, bookingScheduleStatus } = require('../utils/arenaDateTime');
-const { paymentExpirationDate } = require('../utils/paymentTimeout');
+const { reservationKeysFor, isReservationKeyConflict } = require('../utils/bookingSlots');
+const { initialBookingPaymentState } = require('../utils/bookingPolicy');
 
 const COURT_TYPE_BY_ID = {
   'coberta-1': 'coberta',
@@ -124,6 +125,7 @@ const listar = async (req, res) => {
 const criar = async (req, res) => {
   const { modalidade, quadra, quadraId, date, slots, dayUse, payment, userId: bodyUserId } = req.body;
   const isDayUse = Boolean(dayUse);
+  const isAdminBooking = Boolean(req.user.admin && bodyUserId);
   const normalizedSlots = Array.isArray(slots)
     ? [...new Set(slots.map(Number).filter((slot) => Number.isInteger(slot) && slot >= 0 && slot <= 23))]
     : [];
@@ -185,9 +187,7 @@ const criar = async (req, res) => {
     payment,
     total: serverTotal,
     creditosAplicados: 0,
-    paymentExpiresAt: paymentExpirationDate(settings),
-    foiPago: false,
-    status: 'pendente_pagamento',
+    ...initialBookingPaymentState({ isAdminBooking, settings }),
   };
 
   let booking;
@@ -201,7 +201,15 @@ const criar = async (req, res) => {
         const freshUser = await User.findById(targetUserId).select('creditos').session(session);
         if (!freshUser) throw new Error('Cliente não encontrado');
 
-        creditosAplicados = Math.min(freshUser.creditos || 0, serverTotal);
+        if (isAdminBooking && Number(freshUser.creditos || 0) < serverTotal) {
+          const insufficientCredits = new Error('Saldo de Créditos Arena insuficiente para confirmar esta reserva');
+          insufficientCredits.code = 'INSUFFICIENT_CREDITS';
+          throw insufficientCredits;
+        }
+
+        creditosAplicados = isAdminBooking
+          ? serverTotal
+          : Math.min(freshUser.creditos || 0, serverTotal);
         pagoComCreditos = creditosAplicados === serverTotal;
 
         if (creditosAplicados > 0) {
@@ -216,16 +224,20 @@ const criar = async (req, res) => {
         [booking] = await Booking.create([{
           ...bookingData,
           creditosAplicados,
-          paymentExpiresAt: pagoComCreditos ? null : bookingData.paymentExpiresAt,
-          foiPago: pagoComCreditos,
-          status: pagoComCreditos ? 'confirmada' : 'pendente_pagamento',
+          paymentExpiresAt: (isAdminBooking || pagoComCreditos) ? null : bookingData.paymentExpiresAt,
+          foiPago: isAdminBooking || pagoComCreditos,
+          status: (isAdminBooking || pagoComCreditos) ? 'confirmada' : 'pendente_pagamento',
         }], { session });
       });
     } catch (error) {
       console.error('Erro ao aplicar créditos Arena:', error.message);
       const conflitoSaldo = error.message.includes('Saldo de créditos alterado');
-      return res.status(conflitoSaldo ? 409 : 500).json({
-        message: conflitoSaldo
+      const horarioOcupado = isReservationKeyConflict(error);
+      const saldoInsuficiente = error.code === 'INSUFFICIENT_CREDITS';
+      return res.status((conflitoSaldo || horarioOcupado || saldoInsuficiente) ? 409 : 500).json({
+        message: horarioOcupado
+          ? 'Horário já reservado ou bloqueado'
+          : (conflitoSaldo || saldoInsuficiente)
           ? error.message
           : 'Não foi possível aplicar os créditos Arena. Nenhum crédito foi descontado.',
       });
@@ -234,11 +246,18 @@ const criar = async (req, res) => {
     }
     if (creditosAplicados > 0) broadcast('users');
   } else {
-    booking = await Booking.create(bookingData);
+    try {
+      booking = await Booking.create(bookingData);
+    } catch (error) {
+      if (isReservationKeyConflict(error)) {
+        return res.status(409).json({ message: 'Horário já reservado ou bloqueado' });
+      }
+      throw error;
+    }
   }
 
-  // Enviar e-mail para reservas confirmadas na hora (créditos totais)
-  if (pagoComCreditos && settings?.notifEmailConfirm !== false) {
+  // Enviar e-mail para reservas confirmadas na hora (créditos totais ou painel admin)
+  if (booking.status === 'confirmada' && settings?.notifEmailConfirm !== false) {
     User.findById(targetUserId).select('nome email')
       .then((u) => u && enviarEmailReservaConfirmada({ destinatario: u.email, nome: u.nome, reserva: booking }))
       .catch((e) => console.warn('Falha no e-mail de confirmação:', e.message));
@@ -380,7 +399,10 @@ const importar = async (req, res) => {
     return res.status(400).json({ message: 'Envie um array de agendamentos' });
   }
 
-  const docs = lista.map(({ _id, __v, createdAt, updatedAt, ...rest }) => rest);
+  const docs = lista.map(({ _id, __v, createdAt, updatedAt, ...rest }) => ({
+    ...rest,
+    reservationKeys: reservationKeysFor(rest),
+  }));
 
   const result = await Booking.insertMany(docs, { ordered: false }).catch((err) => {
     if (err.insertedDocs) return { insertedCount: err.insertedDocs.length };

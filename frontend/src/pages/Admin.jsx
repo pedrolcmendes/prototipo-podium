@@ -1336,7 +1336,7 @@ export default function Admin() {
     try {
       const { data } = await api.post('/bookings', payload);
       setReservas(prev => [data, ...prev]);
-      toast('Reserva criada', 'success');
+      toast(data.status === 'confirmada' ? 'Reserva criada e confirmada' : 'Reserva criada', 'success');
       setNovaResModal(false);
       setNovaResForm({ ...NEW_BOOKING_FORM });
     } catch (ex) {

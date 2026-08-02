@@ -9,6 +9,7 @@
 }
 .ranking-hero-inner {
   max-width: var(--max-w);
+  min-width: 0;
   margin: 0 auto;
 }
 .ranking-hero-title {
@@ -33,6 +34,7 @@
 /* ─── Page wrap ─── */
 .ranking-page-wrap {
   max-width: var(--max-w);
+  min-width: 0;
   margin: 0 auto;
   padding: 2.5rem 2rem 5rem;
 }
@@ -80,7 +82,7 @@
 .ranking-summary { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; padding:0 0 1rem; color:var(--gray); font-size:.85rem; }
 .ranking-summary strong { color:var(--white); font-family:var(--font-cond); letter-spacing:1px; text-transform:uppercase; }
 .ranking-encerrado-badge { font-family:var(--font-cond); font-size:.58rem; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; color:var(--gray); border:1px solid var(--border); padding:.2rem .55rem; white-space:nowrap; margin-left:auto; }
-.ranking-table-scroll { overflow-x:auto; }
+.ranking-table-scroll { max-width: 100%; overflow-x:auto; -webkit-overflow-scrolling: touch; }
 .ranking-stages-table { min-width:520px; }
 
 /* ─── Gender toggle ─── */
@@ -425,8 +427,9 @@
 /* Mobile: esconde PJ também, mostra só pos | dupla | pts */
 @media(max-width: 580px) {
   .ranking-hero { padding: calc(var(--nav-h) + 1rem) 1.2rem 1.5rem; }
-  .ranking-hero-title { font-size: clamp(1.8rem, 10vw, 2.6rem); }
-  .ranking-hero-sub { font-size: .85rem; }
+  .ranking-hero-title { max-width: 100%; font-size: clamp(1.8rem, 9vw, 2.45rem); overflow-wrap: anywhere; }
+  .ranking-hero-sub { max-width: 100%; font-size: .85rem; overflow-wrap: anywhere; }
+  .ranking-hero .section-eyebrow { max-width: 100%; letter-spacing: 3px; overflow-wrap: anywhere; }
   .ranking-page-wrap { padding: 1.5rem 1rem 4rem; }
 
   .ranking-tabs-nav { margin-bottom: 1.5rem; }

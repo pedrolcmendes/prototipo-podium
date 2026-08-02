@@ -3,6 +3,8 @@
   --sl-yellow: #ffd400;
   --sl-orange: #ff7a00;
   position: relative;
+  width: 100%;
+  min-width: 0;
   max-width: var(--max-w);
   margin: 0 auto 4rem;
   padding: 0 2rem;
@@ -22,6 +24,8 @@
 
 .sl-hero {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: minmax(260px, 420px) minmax(0, 1fr);
   overflow: hidden;
   border: 2px solid #111;

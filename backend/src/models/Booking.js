@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { reservationKeysFor } = require('../utils/bookingSlots');
 
 const bookingSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -36,6 +37,18 @@ const bookingSchema = new mongoose.Schema({
   paymentExpiresAt: { type: Date, default: null },
   foiPago: { type: Boolean, default: false },
   reminderSent: { type: Boolean, default: false }, // lembrete de 2h antes já enviado
+  // Uma chave por quadra/data/hora. O índice único fecha a janela de corrida
+  // entre a consulta de disponibilidade e a criação da reserva.
+  reservationKeys: { type: [String], default: undefined, select: false },
 }, { timestamps: true });
+
+bookingSchema.pre('validate', function keepReservationKeysInSync() {
+  this.reservationKeys = reservationKeysFor(this);
+});
+
+bookingSchema.index(
+  { reservationKeys: 1 },
+  { unique: true, sparse: true, name: 'unique_active_booking_slots' },
+);
 
 module.exports = mongoose.model('Booking', bookingSchema);

@@ -265,7 +265,10 @@ const cancel = async (req, res) => {
 
     await Booking.updateMany(
       { seasonId: season._id, status: { $ne: 'cancelada' } },
-      { $set: { status: 'cancelada' } },
+      {
+        $set: { status: 'cancelada' },
+        $unset: { reservationKeys: '' },
+      },
     );
     if (creditTotal > 0) {
       await User.findByIdAndUpdate(season.userId, { $inc: { creditos: creditTotal } });

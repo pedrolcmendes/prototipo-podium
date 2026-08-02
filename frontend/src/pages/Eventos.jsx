@@ -254,6 +254,8 @@ export default function Eventos() {
         }
         @media(max-width:480px){
           .page-hero{padding:2rem 1rem 1.5rem}
+          .page-hero h1{font-size:clamp(1.8rem,9vw,2.25rem);overflow-wrap:anywhere}
+          .page-hero p{font-size:.9rem;overflow-wrap:anywhere}
           .events-wrap{padding:1rem 1rem 3rem}
           .evt-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1.1rem}
           .evt-overlay{padding:.9rem}

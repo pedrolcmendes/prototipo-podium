@@ -12,14 +12,15 @@ const {
   listarRevisoesFinanceiras,
   resolverRevisaoFinanceira,
 } = require('../controllers/payment.controller');
+const asyncHandler = require('../utils/asyncHandler');
 
-router.post('/webhook', webhook);
-router.post('/pix', protect, criarPagamentoPix);
-router.post('/preferencia', protect, criarPreferencia);
-router.post('/cartao', protect, cardPaymentRateLimit, criarPagamentoCartao);
-router.get('/sync', protect, syncPagamento);
-router.get('/revisoes-financeiras', protect, masterOnly, listarRevisoesFinanceiras);
-router.patch('/revisoes-financeiras/:id/resolver', protect, masterOnly, resolverRevisaoFinanceira);
-router.get('/:id/status', protect, getStatus);
+router.post('/webhook', asyncHandler(webhook));
+router.post('/pix', protect, asyncHandler(criarPagamentoPix));
+router.post('/preferencia', protect, asyncHandler(criarPreferencia));
+router.post('/cartao', protect, cardPaymentRateLimit, asyncHandler(criarPagamentoCartao));
+router.get('/sync', protect, asyncHandler(syncPagamento));
+router.get('/revisoes-financeiras', protect, masterOnly, asyncHandler(listarRevisoesFinanceiras));
+router.patch('/revisoes-financeiras/:id/resolver', protect, masterOnly, asyncHandler(resolverRevisaoFinanceira));
+router.get('/:id/status', protect, asyncHandler(getStatus));
 
 module.exports = router;
