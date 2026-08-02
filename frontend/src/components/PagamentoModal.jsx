@@ -4,6 +4,13 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const fmtReal = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+const fmtCPF = (v) => {
+  const n = v.replace(/\D/g, '').slice(0, 11);
+  if (n.length <= 3) return n;
+  if (n.length <= 6) return `${n.slice(0,3)}.${n.slice(3)}`;
+  if (n.length <= 9) return `${n.slice(0,3)}.${n.slice(3,6)}.${n.slice(6)}`;
+  return `${n.slice(0,3)}.${n.slice(3,6)}.${n.slice(6,9)}-${n.slice(9)}`;
+};
 
 function formatTime(ms) {
   if (ms === null) return '--:--';
@@ -17,8 +24,9 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const { user, updateUser } = useAuth();
   const isCreditos = metodo === 'creditos';
   const isCard = CARD_METHODS.has(metodo);
+  const cpfLimpo = user?.cpf ? user.cpf.replace(/\D/g, '') : '';
 
-  const initialPhase = isCreditos ? 'choose' : isCard ? 'cartao' : 'loading';
+  const initialPhase = isCreditos ? 'choose' : isCard ? (cpfLimpo ? 'cartao' : 'sem_cpf') : 'loading';
   const [phase, setPhase] = useState(initialPhase);
 
   // PIX state
@@ -31,9 +39,17 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const cardSubmittingRef = useRef(false);
   const cancellationCalledRef = useRef(false);
 
+  // PIX cancel confirm state
+  const [confirmCancelPix, setConfirmCancelPix] = useState(false);
+
   // Card state
   const [cardError, setCardError] = useState(null);
   const [cardBrickKey, setCardBrickKey] = useState(0); // remonta o brick ao tentar novamente
+
+  // CPF state
+  const [cpfInput, setCpfInput] = useState('');
+  const [cpfSaving, setCpfSaving] = useState(false);
+  const [cpfErr, setCpfErr] = useState('');
 
   // Generic error
   const [errorMsg, setErrorMsg] = useState(null);
@@ -66,7 +82,10 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         }, 3000);
       })
       .catch(err => {
-        setErrorMsg(err.response?.data?.message || 'Erro ao gerar PIX. Tente novamente.');
+        const msg = err.code === 'ECONNABORTED'
+          ? 'O servidor demorou para responder. Verifique sua conexão e tente novamente.'
+          : err.response?.data?.message || 'Erro ao gerar PIX. Tente novamente.';
+        setErrorMsg(msg);
         setPhase('error');
       });
   }, [tipo, referenciaId]);
@@ -129,6 +148,14 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
     onClose();
   };
 
+  const confirmarCancelPix = () => setConfirmCancelPix(true);
+  const voltarPix = () => setConfirmCancelPix(false);
+
+  const cancelarCartao = async () => {
+    await cancelarReferencia();
+    onClose();
+  };
+
   // ─── CARTÃO ────────────────────────────────────────────
   const handleCardSubmit = useCallback(async (formData) => {
     if (cardSubmittingRef.current) return;
@@ -154,13 +181,15 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         cardSubmittingRef.current = false;
       }
     } catch (err) {
-      setCardError(err.response?.data?.message || 'Erro ao processar o pagamento. Tente novamente.');
+      const msg = err.code === 'ECONNABORTED'
+        ? 'O servidor demorou para responder. Verifique sua conexão e tente novamente.'
+        : err.response?.data?.message || 'Erro ao processar o pagamento. Tente novamente.';
+      setCardError(msg);
       setPhase('cartao_erro');
       cardSubmittingRef.current = false;
     }
   }, [tipo, referenciaId]);
 
-  const cpfLimpo = user?.cpf ? user.cpf.replace(/\D/g, '') : '';
   const brickInit = useMemo(() => ({
     amount: Number(valor),
     payer: {
@@ -221,18 +250,36 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
     setPhase('cartao');
   };
 
+  // ─── CPF ───────────────────────────────────────────────
+  const salvarCpf = async () => {
+    const raw = cpfInput.replace(/\D/g, '');
+    if (raw.length !== 11) { setCpfErr('CPF inválido. Digite os 11 dígitos.'); return; }
+    setCpfSaving(true);
+    setCpfErr('');
+    try {
+      const { data } = await api.put('/users/me', { cpf: raw });
+      updateUser(data);
+      setPhase('cartao');
+    } catch (err) {
+      setCpfErr(err.response?.data?.message || 'Erro ao salvar. Tente novamente.');
+    } finally {
+      setCpfSaving(false);
+    }
+  };
+
   // ─── Choose (creditos parcial) ──────────────────────────
   const escolherPix = () => {
     iniciarPix();
   };
 
   const escolherCartao = () => {
+    if (!cpfLimpo) { setPhase('sem_cpf'); return; }
     setPhase('cartao');
   };
 
   // ─── Helpers ───────────────────────────────────────────
   const timerUrgente = timeLeft !== null && timeLeft < 5 * 60 * 1000;
-  const canClose = ['choose', 'pix', 'expired', 'cartao', 'cartao_erro', 'cartao_pendente'].includes(phase);
+  const canClose = ['choose', 'pix', 'expired', 'cartao', 'cartao_erro', 'cartao_pendente', 'sem_cpf'].includes(phase);
 
   const headerLabel = {
     pix: 'PIX',
@@ -295,7 +342,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         .pag-choose-btn-sub{font-size:.68rem;color:var(--gray);letter-spacing:.5px}
         .pag-card-wrap{width:100%;padding:0 .5rem}
         .pag-card-wrap #cardPaymentBrick_container > div{background:transparent!important}
-        .pag-refund-notice{margin:0 1.5rem 1rem;padding:.75rem .9rem;border:1px solid rgba(224,172,107,.35);background:rgba(224,172,107,.08);color:var(--gray);font-size:.72rem;line-height:1.45}
+        .pag-refund-notice{margin:1rem 1.5rem 0;padding:.75rem .9rem;border:1px solid rgba(224,172,107,.35);background:rgba(224,172,107,.08);color:var(--gray);font-size:.72rem;line-height:1.45}
         .pag-refund-notice strong{color:var(--gold)}
       `}</style>
 
@@ -328,7 +375,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
           </div>
 
           <div className="pag-refund-notice" role="note">
-            <strong>Política de cancelamento:</strong> quando houver devolução, o valor retorna exclusivamente como Créditos Arena. Não há estorno na conta bancária nem na fatura do cartão.
+            <strong>Política de cancelamento:</strong> em caso de cancelamento, o valor pago é convertido em <strong>Créditos Arena</strong> para uso futuro na Podium Arena.
           </div>
 
           {/* BODY */}
@@ -404,21 +451,34 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                 <div className={`pag-pix-timer${timerUrgente ? ' urgente' : ''}`}>
                   Expira em <strong>{formatTime(timeLeft)}</strong>
                 </div>
-                <button className="pag-cancel-btn" onClick={cancelarPix}>Cancelar pagamento</button>
+                {confirmCancelPix ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem', width: '100%' }}>
+                    <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.8rem', color: 'var(--white)', letterSpacing: '.5px', margin: 0 }}>Tem certeza que deseja cancelar?</p>
+                    <div style={{ display: 'flex', gap: '.6rem' }}>
+                      <button className="pag-cancel-btn" onClick={cancelarPix}>Sim, cancelar</button>
+                      <button className="pag-retry-btn" onClick={voltarPix}>Voltar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="pag-cancel-btn" onClick={confirmarCancelPix}>Cancelar pagamento</button>
+                )}
               </>
             )}
 
             {/* ── Cartão: Brick ── */}
             {phase === 'cartao' && (
-              <div className="pag-card-wrap">
-                <CardPayment
-                  key={cardBrickKey}
-                  initialization={brickInit}
-                  onSubmit={handleCardSubmit}
-                  onReady={handleBrickReady}
-                  customization={brickCustomization}
-                />
-              </div>
+              <>
+                <div className="pag-card-wrap">
+                  <CardPayment
+                    key={cardBrickKey}
+                    initialization={brickInit}
+                    onSubmit={handleCardSubmit}
+                    onReady={handleBrickReady}
+                    customization={brickCustomization}
+                  />
+                </div>
+                <button className="pag-cancel-btn" onClick={cancelarCartao}>Cancelar pagamento</button>
+              </>
             )}
 
             {/* ── Cartão: pagamento em análise ── */}
@@ -451,6 +511,36 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
                 </div>
                 <p className="pag-err-title">PIX Expirado</p>
                 <p>O tempo para pagamento encerrou. Sua reserva será cancelada em breve.</p>
+              </>
+            )}
+
+            {/* ── Sem CPF ── */}
+            {phase === 'sem_cpf' && (
+              <>
+                <div className="pag-icon-warn">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <p className="pag-err-title">CPF necessário</p>
+                <p>Informe seu CPF para pagar com cartão de crédito.</p>
+                <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                  <input
+                    type="text"
+                    placeholder="000.000.000-00"
+                    value={cpfInput}
+                    onChange={e => { setCpfErr(''); setCpfInput(fmtCPF(e.target.value)); }}
+                    onKeyDown={e => e.key === 'Enter' && salvarCpf()}
+                    style={{ background: 'rgba(255,255,255,.05)', border: `1px solid ${cpfErr ? '#ef4444' : 'var(--border)'}`, padding: '.65rem .9rem', color: 'var(--white)', fontSize: '.9rem', fontFamily: 'var(--font-cond)', outline: 'none', width: '100%', boxSizing: 'border-box', letterSpacing: '1px' }}
+                  />
+                  {cpfErr && <span style={{ color: '#ef4444', fontSize: '.72rem', letterSpacing: '.5px' }}>{cpfErr}</span>}
+                  <button
+                    className="pag-retry-btn"
+                    onClick={salvarCpf}
+                    disabled={cpfSaving}
+                    style={{ width: '100%', padding: '.65rem', opacity: cpfSaving ? .7 : 1, cursor: cpfSaving ? 'not-allowed' : 'pointer' }}
+                  >
+                    {cpfSaving ? 'Salvando…' : 'Salvar e continuar'}
+                  </button>
+                </div>
               </>
             )}
 
