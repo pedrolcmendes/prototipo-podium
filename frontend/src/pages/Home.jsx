@@ -270,8 +270,8 @@ export default function Home() {
             { n: '02', nome: 'Futevôlei', img: '/img/futvolei-podium.jpg', desc: 'A combinação explosiva entre futebol e vôlei. Quadras na areia prontas para grupos, ligas e campeonatos regulares.', link: '/reservas', cta: 'Reservar horário' },
             { n: '03', nome: 'Vôlei de Praia', img: '/img/volei-podium.png', desc: 'Estrutura olímpica para treinos e competições. Ideal para atletas que buscam evolução técnica e física na areia.', link: '/reservas', cta: 'Reservar horário' },
             { n: '04', nome: 'Pickleball', img: '/img/beach1-podium.jpg', desc: 'O esporte que mais cresce no Brasil. A Podium Arena traz a experiência completa de Pickleball para Telêmaco Borba.', link: '/reservas', cta: 'Reservar horário' },
-            { n: '05', nome: 'Academia', img: '/img/garagefit-podium.png', desc: 'Academia completa de musculação e treinamento funcional para complementar sua performance esportiva na arena.', link: '#contato', cta: 'Saiba mais' },
-            { n: '06', nome: 'Taekwondo', img: '/img/taekwondo-podium.png', desc: 'Academia de Taekwondo com professores qualificados. Turmas para todas as idades e níveis, do iniciante ao competidor.', link: '#contato', cta: 'Saiba mais' },
+            { n: '05', nome: 'GARAGE FIT', img: '/img/garagefit-podium.png', desc: 'Academia completa de musculação e treinamento funcional para complementar sua performance esportiva na arena.', link: 'https://www.instagram.com/garage.fitt/', cta: 'Saiba mais' },
+            { n: '06', nome: 'CT Taekwondo Claudio Lima', img: '/img/taekwondo-podium.png', desc: 'Taekwondo com professores qualificados. Turmas para todas as idades e níveis, do iniciante ao competidor.', link: 'https://www.instagram.com/ct_claudiolima_taekwondo/', cta: 'Saiba mais' },
             { n: '07', nome: 'Kutz Studio', img: '/img/kutz-studio-podium.jpg', desc: 'Barbearia premium dentro da arena. Cortes, barba e cuidados masculinos para você chegar ou sair impecável de qualquer partida.', link: '#contato', cta: 'Saiba mais' },
             { n: '08', nome: 'Hermanos Chopp', img: '/img/hermanos-chopp-podium.jpg', desc: 'Bar e chopperia para curtir com a turma depois do jogo. Ambiente descontraído com chopp gelado e petiscos.', link: '#contato', cta: 'Saiba mais' },
           ].map((m, i) => (
@@ -286,7 +286,13 @@ export default function Home() {
                 {m.link.startsWith('/') ? (
                   <Link to={m.link} className="mod-link">{m.cta}</Link>
                 ) : (
-                  <a href={m.link} className="mod-link">{m.cta}</a>
+                  <a
+                    href={m.link}
+                    className="mod-link"
+                    {...(m.link.startsWith('http') ? { target: '_blank', rel: 'noreferrer' } : {})}
+                  >
+                    {m.cta}
+                  </a>
                 )}
               </div>
             </div>
