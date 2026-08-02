@@ -70,10 +70,11 @@ const validarMetodoCartaoCredito = async (paymentMethodId) => {
       expiresAt: Date.now() + 10 * 60 * 1000,
     };
   }
-  const method = paymentMethodsCache.methods.find((item) => item.id === paymentMethodId);
-  // Se não encontrado na lista (ex: lista vazia), permite — a API do MP valida
-  if (!method) return true;
-  return method.status === 'active' && method.payment_type_id === 'credit_card';
+  return paymentMethodsCache.methods.some((item) => (
+    item.id === paymentMethodId
+    && item.status === 'active'
+    && item.payment_type_id === 'credit_card'
+  ));
 };
 
 const validarConfiguracaoMP = (res) => {

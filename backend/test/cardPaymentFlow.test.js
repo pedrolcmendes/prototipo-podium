@@ -193,6 +193,7 @@ require.cache[mercadoPagoPath] = {
     PaymentMethod: class PaymentMethod {
       async get() {
         return [
+          { id: 'master', status: 'active', payment_type_id: 'prepaid_card' },
           { id: 'master', status: 'active', payment_type_id: 'credit_card' },
           { id: 'debmaster', status: 'active', payment_type_id: 'debit_card' },
         ];

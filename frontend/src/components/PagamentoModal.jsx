@@ -177,7 +177,8 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   // ─── CARTÃO ────────────────────────────────────────────
   const handleCardSubmit = useCallback(async (formData, additionalData = {}) => {
     if (cardSubmittingRef.current) return;
-    if (additionalData.paymentTypeId && additionalData.paymentTypeId !== 'credit_card') {
+    const paymentTypeId = formData.payment_type_id || additionalData.paymentTypeId;
+    if (paymentTypeId && paymentTypeId !== 'credit_card') {
       setCardErrorTitle('Forma de pagamento não aceita');
       setCardError('A Podium Arena aceita somente cartão de crédito.');
       setPhase('cartao_erro');
@@ -194,7 +195,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         referenciaId,
         token: formData.token,
         paymentMethodId: formData.payment_method_id,
-        paymentTypeId: additionalData.paymentTypeId || 'credit_card',
+        paymentTypeId: paymentTypeId || 'credit_card',
         installments: formData.installments,
         issuerId: formData.issuer_id,
         cardLastFour: additionalData.lastFourDigits,
