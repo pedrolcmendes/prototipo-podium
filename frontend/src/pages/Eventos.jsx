@@ -57,8 +57,10 @@ export default function Eventos() {
   const [authOpen, setAuthOpen] = useState(false);
   const [inscLoading, setInscLoading] = useState(false);
   const [userRegs, setUserRegs] = useState([]);
+  const [pendingRegsByEvent, setPendingRegsByEvent] = useState({});
   const [posterZoom, setPosterZoom] = useState(false);
   const [inscStep, setInscStep] = useState('btn'); // 'btn' | 'details'
+  const [isContinuando, setIsContinuando] = useState(false);
   const [parceiro, setParceiro] = useState('');
   const [nivel, setNivel] = useState('');
   const [payMetodo, setPayMetodo] = useState('pix');
@@ -68,18 +70,28 @@ export default function Eventos() {
 
   useBodyScrollLock(!!selectedEvt);
 
+  const processRegs = (regs) => {
+    setUserRegs(regs.filter(x => x.status === 'confirmada').map(x => x.eventId?._id || x.eventId));
+    const pending = {};
+    regs.filter(x => x.status === 'pendente_pagamento').forEach(x => {
+      const evId = x.eventId?._id || x.eventId;
+      if (evId) pending[evId] = x;
+    });
+    setPendingRegsByEvent(pending);
+  };
+
   useEffect(() => {
     api.get('/events').then(r => setEventos(r.data.data || r.data || [])).catch(() => {}).finally(() => setLoading(false));
     if (user) {
-      api.get('/registrations/me').then(r => setUserRegs((r.data.data || r.data || []).map(x => x.eventId?._id || x.eventId))).catch(() => {});
+      api.get('/registrations/me').then(r => processRegs(r.data.data || r.data || [])).catch(() => {});
     }
-  }, [user]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // tempo real: vagas e novos eventos atualizam sem recarregar
   useLive(['events', 'registrations'], () => {
     api.get('/events').then(r => setEventos(r.data.data || r.data || [])).catch(() => {});
     if (user) {
-      api.get('/registrations/me').then(r => setUserRegs((r.data.data || r.data || []).map(x => x.eventId?._id || x.eventId))).catch(() => {});
+      api.get('/registrations/me').then(r => processRegs(r.data.data || r.data || [])).catch(() => {});
     }
   });
 
@@ -93,7 +105,24 @@ export default function Eventos() {
     setParceiro('');
     setNivel('');
     setPayMetodo('pix');
+    setIsContinuando(false);
     setInscStep('details');
+  };
+
+  const iniciarContinuarPagamento = () => {
+    setPayMetodo('pix');
+    setIsContinuando(true);
+    setInscStep('details');
+  };
+
+  const handleContinuarComMetodo = () => {
+    const reg = pendingRegsByEvent[selectedEvt._id];
+    setPendingReg(reg);
+    setPendingEvt(selectedEvt);
+    setSelectedEvt(null);
+    setInscStep('btn');
+    setIsContinuando(false);
+    setPagOpen(true);
   };
 
   const handleRegistrationContinue = async () => {
@@ -116,6 +145,7 @@ export default function Eventos() {
       if (reg.status === 'confirmada') {
         toast('Inscrição confirmada com Créditos Arena! Bora jogar!', 'success');
         setUserRegs(prev => [...prev, selectedEvt._id]);
+        setPendingRegsByEvent(prev => { const n = { ...prev }; delete n[selectedEvt._id]; return n; });
         setEventos(prev => prev.map(e => e._id === selectedEvt._id ? { ...e, inscritos: (e.inscritos || 0) + 1 } : e));
         setSelectedEvt(null);
         setInscStep('btn');
@@ -133,18 +163,9 @@ export default function Eventos() {
     }
   };
 
-  const handlePaymentSuccess = () => {
-    setPagOpen(false);
-    toast('Inscrição confirmada! Bora jogar!', 'success');
-    if (pendingEvt) {
-      setUserRegs(prev => [...prev, pendingEvt._id]);
-      setEventos(prev => prev.map(e => e._id === pendingEvt._id ? { ...e, inscritos: (e.inscritos || 0) + 1 } : e));
-    }
-    setPendingReg(null);
-    setPendingEvt(null);
-  };
 
   const isInscrito = selectedEvt && userRegs.includes(selectedEvt._id);
+  const pendingRegForEvt = selectedEvt ? pendingRegsByEvent[selectedEvt._id] : null;
   const inscritosDe = (ev) => ev.inscritos ?? ev.vagasOcupadas ?? 0;
   const superligaRegistration = eventos.find((ev) => (
     ev.status === 'aberto' && ev.nome?.toLocaleLowerCase('pt-BR').includes('superliga')
@@ -192,7 +213,13 @@ export default function Eventos() {
         /* ── Modal com pôster + informações ── */
         .evt-overlay{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.88);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto}
         .evt-modal{background:var(--card);border:1px solid var(--border);max-width:920px;width:100%;position:relative;margin:auto;display:grid;grid-template-columns:minmax(300px,380px) 1fr}
-        .evt-modal .modal-close{z-index:5}
+        .evt-modal .modal-close{display:none}
+        .evt-modal-header{display:grid;grid-template-columns:1fr 56px;border-bottom:1px solid var(--border);margin:-2.2rem -2.4rem 1.4rem;align-items:stretch}
+        .evt-modal-header .evt-modal-cat{padding:1rem 1.2rem;margin:0;align-self:center}
+        .evt-close-btn{display:flex;align-items:center;justify-content:center;background:none;border:none;border-left:1px solid var(--border);color:var(--gray);cursor:pointer;transition:all .2s}
+        .evt-close-btn:hover{color:var(--gold);background:var(--gold-faint)}
+        .evt-close-btn svg{width:15px;height:15px}
+        @media(max-width:820px){.evt-modal-header{margin:-1.6rem -1.4rem 1.2rem}}
         .evt-modal-poster{position:relative;background:var(--dark);border-right:1px solid var(--border);min-height:100%}
         .evt-modal-poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;cursor:zoom-in}
         .evt-modal-poster .evt-poster-fallback{position:absolute}
@@ -318,9 +345,8 @@ export default function Eventos() {
         const inscritos = inscritosDe(selectedEvt);
         const restantes = selectedEvt.vagasRestantes ?? (selectedEvt.vagas > 0 ? selectedEvt.vagas - inscritos : null);
         return (
-          <div className="evt-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setSelectedEvt(null); setInscStep('btn'); } }}>
+          <div className="evt-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setSelectedEvt(null); setInscStep('btn'); setIsContinuando(false); } }}>
             <div className="evt-modal">
-              <button className="modal-close" onClick={() => { setSelectedEvt(null); setInscStep('btn'); }} style={{ top: '1rem', right: '1rem' }}>&#x2715;</button>
 
               <div className="evt-modal-poster">
                 <div className="evt-poster-fallback">{catIcon(selectedEvt.categoria)}<span>{catLabel(selectedEvt.categoria)}</span></div>
@@ -328,7 +354,14 @@ export default function Eventos() {
               </div>
 
               <div className="evt-modal-info">
-                <div className="evt-modal-cat">{catLabel(selectedEvt.categoria)}</div>
+                <div className="evt-modal-header">
+                  <div className="evt-modal-cat">{catLabel(selectedEvt.categoria)}</div>
+                  <button className="evt-close-btn" onClick={() => { setSelectedEvt(null); setInscStep('btn'); setIsContinuando(false); }} aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
                 <div className="evt-modal-title">{selectedEvt.nome}</div>
 
                 <div className="evt-highlights">
@@ -360,7 +393,7 @@ export default function Eventos() {
                 <div className="evt-modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                   {inscStep === 'details' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
-                      {!isDupla(selectedEvt) ? (
+                      {!isContinuando && (!isDupla(selectedEvt) ? (
                         <>
                           <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Escolha seu nível</p>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.6rem' }}>
@@ -379,12 +412,12 @@ export default function Eventos() {
                           <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Inscrição em dupla</p>
                           <input type="text" placeholder="Nome do(a) parceiro(a)" value={parceiro} onChange={e => setParceiro(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleRegistrationContinue()} autoFocus style={{ background: 'var(--dark)', border: '1px solid var(--border)', color: 'var(--white)', padding: '.7rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.9rem', outline: 'none' }} />
                         </>
-                      )}
+                      ))}
                       <div className="evt-payment-methods">
                         {[
                           { id: 'pix', label: 'PIX' },
-                          { id: 'credito', label: 'Crédito' },
-                          { id: 'creditos', label: `Créditos Arena (saldo: ${fmtBRL(user?.creditos)})` },
+                          { id: 'credito', label: 'Cartão de Crédito' },
+                          ...(!isContinuando ? [{ id: 'creditos', label: `Créditos Arena (saldo: ${fmtBRL(user?.creditos)})` }] : []),
                         ].map(m => (
                           <button key={m.id} type="button" onClick={() => setPayMetodo(m.id)} style={{ flex: 1, padding: '.5rem', fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', border: payMetodo === m.id ? '1px solid var(--gold)' : '1px solid var(--border)', background: payMetodo === m.id ? 'var(--gold-faint)' : 'var(--dark)', color: payMetodo === m.id ? 'var(--gold)' : 'var(--gray)', transition: 'all var(--trans-fast)' }}>
                             {m.label}
@@ -395,9 +428,9 @@ export default function Eventos() {
                         Total da inscrição: <strong style={{ color: 'var(--gold)' }}>{fmtBRL(registrationTotal(selectedEvt))}</strong>
                       </p>
                       <div style={{ display: 'flex', gap: '.7rem' }}>
-                        <button className="btn-ghost" onClick={() => setInscStep('btn')} style={{ flex: 1 }}>Voltar</button>
-                        <button className="btn-gold" disabled={inscLoading} onClick={handleRegistrationContinue} style={{ flex: 2 }}>
-                          {inscLoading ? 'Aguarde…' : `Ir para pagamento`}
+                        <button className="btn-ghost" onClick={() => { setInscStep('btn'); setIsContinuando(false); }} style={{ flex: 1 }}>Voltar</button>
+                        <button className="btn-gold" disabled={inscLoading} onClick={isContinuando ? handleContinuarComMetodo : handleRegistrationContinue} style={{ flex: 2 }}>
+                          {inscLoading ? 'Aguarde…' : 'Ir para pagamento'}
                         </button>
                       </div>
                     </div>
@@ -406,6 +439,8 @@ export default function Eventos() {
                       <span className={statusClass(selectedEvt.status)}>{statusLabel(selectedEvt.status)}</span>
                       {isInscrito ? (
                         <button className="btn-outline" disabled style={{ opacity: .6 }}>Já inscrito ✓</button>
+                      ) : pendingRegForEvt ? (
+                        <button className="btn-gold" onClick={iniciarContinuarPagamento}>Continuar pagamento</button>
                       ) : (
                         <button className="btn-gold" disabled={selectedEvt.status !== 'aberto' || inscLoading} onClick={handleInscrever}>
                           {inscLoading ? 'Inscrevendo…' : 'Inscrever-se'}
