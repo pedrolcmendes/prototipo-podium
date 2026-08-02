@@ -62,14 +62,18 @@ let paymentMethodsCache = { expiresAt: 0, methods: [] };
 
 const validarMetodoCartaoCredito = async (paymentMethodId) => {
   if (Date.now() >= paymentMethodsCache.expiresAt) {
-    const methods = await mpPaymentMethod.get();
+    const raw = await mpPaymentMethod.get();
+    // SDK v3 pode retornar array direto ou objeto com wrapper
+    const list = Array.isArray(raw) ? raw : (Array.isArray(raw?.response) ? raw.response : []);
     paymentMethodsCache = {
-      methods: Array.isArray(methods) ? methods : [],
+      methods: list,
       expiresAt: Date.now() + 10 * 60 * 1000,
     };
   }
   const method = paymentMethodsCache.methods.find((item) => item.id === paymentMethodId);
-  return method?.status === 'active' && method?.payment_type_id === 'credit_card';
+  // Se não encontrado na lista (ex: lista vazia), permite — a API do MP valida
+  if (!method) return true;
+  return method.status === 'active' && method.payment_type_id === 'credit_card';
 };
 
 const validarConfiguracaoMP = (res) => {
@@ -683,7 +687,33 @@ const criarPagamentoCartao = async (req, res) => {
     try {
       const existingResult = await mpApi.get({ id: payment.mpPaymentId });
       payment = await reconciliarResultadoMp(payment, existingResult);
-      return res.status(200).json(respostaPagamentoCartao(payment, existingResult));
+
+      // Pagamento travado em desafio 3DS sem info para completar — cancela e cria nova tentativa
+      const travadoSem3ds = existingResult.status === 'pending'
+        && existingResult.status_detail === 'pending_challenge'
+        && !payment.requiresAction;
+
+      if (!travadoSem3ds) {
+        return res.status(200).json(respostaPagamentoCartao(payment, existingResult));
+      }
+
+      try { await mpApi.cancel({ id: String(existingResult.id) }); } catch (_) {}
+      payment.status = 'cancelado';
+      await payment.save();
+
+      const tentativaRetry = await PaymentModel.countDocuments({ tipo, referenciaId, metodo: 'cartao' });
+      const retryKey = crypto
+        .createHash('sha256')
+        .update(`card:${tipo}:${referenciaId}:${req.user._id}:${tentativaRetry}`)
+        .digest('hex');
+      payment = await PaymentModel.create({
+        userId: req.user._id, tipo, referenciaId, valor, metodo: 'cartao',
+        idempotencyKey: retryKey, processingStartedAt: new Date(),
+        paymentTypeId: 'credit_card', cardBrand: paymentMethodId,
+        cardLastFour: cardLastFour || null, expiresAt,
+      });
+      if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+      else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
     } catch (lookupError) {
       console.error('MP Card lookup error:', lookupError?.message);
       return res.status(503).json({ message: 'Não foi possível consultar a tentativa em andamento. Tente novamente em instantes.' });
@@ -697,7 +727,7 @@ const criarPagamentoCartao = async (req, res) => {
     installments: 1,
     payment_method_id: paymentMethodId,
     ...(issuerId ? { issuer_id: issuerId } : {}),
-    three_d_secure_mode: 'optional',
+    three_d_secure_mode: isLocalhost ? 'not_supported' : 'optional',
     external_reference: `${tipo}:${referenciaId}`,
     ...(!isLocalhost ? { notification_url: `${backendUrl}/api/pagamentos/webhook` } : {}),
     payer: {
