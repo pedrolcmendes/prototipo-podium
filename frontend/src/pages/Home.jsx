@@ -243,14 +243,14 @@ export default function Home() {
             <div className="section-divider" />
             <div className="about-text">
               <p>A Podium Arena é o espaço esportivo premium de Telêmaco Borba, criada para quem vive a competição com paixão. Localizada na Rua Manaus, 321, oferecemos quadras de areia profissional, estrutura de alto nível e uma comunidade que respira esporte.</p>
-              <p>Aqui você encontra Beach Tennis, Futevôlei, Vôlei de Praia, Pickleball, Academia de Musculação, Taekwondo e um Espaço Gastronômico completo — tudo em um único lugar.</p>
+              <p>Aqui você encontra Beach Tennis, Futevôlei, Vôlei de Praia, Pickleball, Academia de Musculação, Taekwondo, gastronomia e barbearia — tudo em um único lugar.</p>
             </div>
             <ul className="feature-list">
               <li>Quadras de areia com iluminação LED profissional</li>
               <li>Estrutura completa para torneios e eventos</li>
               <li>Academia de musculação e funcional</li>
               <li>Taekwondo com professores especializados</li>
-              <li>Espaço gastronômico integrado à arena</li>
+              <li>Hermanos Quiosque, Hermanos Chopp e Kutz Studio integrados à arena</li>
               <li>Estacionamento amplo e gratuito</li>
             </ul>
           </div>
@@ -272,12 +272,20 @@ export default function Home() {
             { n: '04', nome: 'Pickleball', img: '/img/beach1-podium.jpg', desc: 'O esporte que mais cresce no Brasil. A Podium Arena traz a experiência completa de Pickleball para Telêmaco Borba.', link: '/reservas', cta: 'Reservar horário' },
             { n: '05', nome: 'GARAGE FIT', img: '/img/garagefit-podium.png', desc: 'Academia completa de musculação e treinamento funcional para complementar sua performance esportiva na arena.', link: 'https://www.instagram.com/garage.fitt/', cta: 'Saiba mais' },
             { n: '06', nome: 'CT Taekwondo Claudio Lima', img: '/img/taekwondo-podium.png', desc: 'Taekwondo com professores qualificados. Turmas para todas as idades e níveis, do iniciante ao competidor.', link: 'https://www.instagram.com/ct_claudiolima_taekwondo/', cta: 'Saiba mais' },
-            { n: '07', nome: 'Kutz Studio', img: '/img/kutz-studio-podium.jpg', desc: 'Barbearia premium dentro da arena. Cortes, barba e cuidados masculinos para você chegar ou sair impecável de qualquer partida.', link: '#contato', cta: 'Saiba mais' },
-            { n: '08', nome: 'Hermanos Chopp', img: '/img/hermanos-chopp-podium.jpg', desc: 'Bar e chopperia para curtir com a turma depois do jogo. Ambiente descontraído com chopp gelado e petiscos.', link: '#contato', cta: 'Saiba mais' },
+            { n: '07', nome: 'Hermanos Quiosque', img: '/img/hermanos-quiosque-podium.jpeg', position: 'center 44%', desc: 'Café, lanches e conveniência dentro da arena para acompanhar seus treinos, jogos e momentos de confraternização.', link: '#contato', cta: 'Conhecer o quiosque' },
+            { n: '08', nome: 'Hermanos Chopp', img: '/img/hermanos-chopp-podium.png', position: 'center 45%', desc: 'Bar e choperia para curtir com a turma depois do jogo, em um ambiente descontraído com chope gelado e bons momentos.', link: '#contato', cta: 'Conhecer o espaço' },
+            { n: '09', nome: 'Kutz Studio', img: '/img/kutz-studio-podium.png', position: 'center 42%', desc: 'Barbearia dentro da arena, com cortes, barba e cuidados masculinos para você chegar ou sair impecável de qualquer partida.', link: '#contato', cta: 'Conhecer a barbearia' },
           ].map((m, i) => (
             <div key={m.n} className={`mod-card reveal${i % 3 === 1 ? ' reveal-delay-1' : i % 3 === 2 ? ' reveal-delay-2' : ''}`}>
               <div className="mod-img-wrap">
-                <img className="mod-img" src={m.img} alt={`${m.nome} — Podium Arena`} />
+                <img
+                  className="mod-img"
+                  src={m.img}
+                  alt={`${m.nome} — Podium Arena`}
+                  loading="lazy"
+                  decoding="async"
+                  style={m.position ? { objectPosition: m.position } : undefined}
+                />
               </div>
               <div className="mod-body">
                 <div className="mod-num">{m.n}</div>
@@ -298,19 +306,6 @@ export default function Home() {
             </div>
           ))}
 
-          <div className="mod-card reveal mod-span">
-            <div className="mod-span-inner">
-              <div className="mod-img-wrap">
-                <img className="mod-img" src="/img/restaurante-podium.png" alt="Espaço Gastronômico — Podium Arena" />
-              </div>
-              <div className="mod-body">
-                <div className="mod-num">09</div>
-                <div className="mod-name">Espaço Gastronômico</div>
-                <p className="mod-desc">Restaurante e lanchonete integrados à arena para você recarregar as energias antes ou depois dos treinos. O espaço ideal para confraternizações e eventos.</p>
-                <a href="#contato" className="mod-link">Reservar espaço</a>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
