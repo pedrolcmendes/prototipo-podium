@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const mongoose = require('mongoose');
 const PaymentModel = require('../models/Payment');
 const Booking = require('../models/Booking');
 const Registration = require('../models/Registration');
@@ -10,31 +9,7 @@ const { enviarEmailReservaConfirmada } = require('../utils/email');
 const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { paymentExpirationDate } = require('../utils/paymentTimeout');
-const {
-  MercadoPagoConfig,
-  Payment: MpAPI,
-  PaymentMethod: MpPaymentMethod,
-  Preference,
-} = require('mercadopago');
-
-const MP_REJECTED_STATUSES = new Set(['cancelled', 'rejected']);
-const MP_REFUNDED_STATUSES = new Set(['refunded']);
-const MP_CHARGEBACK_STATUSES = new Set(['charged_back']);
-const WEBHOOK_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
-
-const detalhesSegurosErroMp = (error) => ({
-  status: Number(error?.status || error?.api_response?.status) || null,
-  error: typeof error?.error === 'string' ? error.error : null,
-  message: typeof error?.message === 'string' ? error.message : null,
-  causes: Array.isArray(error?.cause)
-    ? error.cause.map((cause) => cause?.code || cause?.description).filter(Boolean)
-    : [],
-});
-
-const erroMpDefinitivoSemCobranca = (error) => {
-  const status = detalhesSegurosErroMp(error).status;
-  return status >= 400 && status < 500 && ![408, 409].includes(status);
-};
+const { MercadoPagoConfig, Payment: MpAPI, PaymentMethod: MpPaymentMethod } = require('mercadopago');
 
 function validarAssinaturaMP(req) {
   const secret = process.env.MP_WEBHOOK_SECRET;
@@ -44,22 +19,12 @@ function validarAssinaturaMP(req) {
   const xRequestId = req.headers['x-request-id'];
   if (!xSignature) return false;
 
-  const parts = Object.fromEntries(
-    xSignature.split(',').map((part) => part.trim().split('=')),
-  );
+  const parts = Object.fromEntries(xSignature.split(',').map(p => p.split('=')));
   const ts = parts.ts;
   const v1 = parts.v1;
-  if (!ts || !v1 || !xRequestId) return false;
+  if (!ts || !v1) return false;
 
-  const timestampNumber = Number(ts);
-  if (!Number.isFinite(timestampNumber)) return false;
-  const timestampSeconds = timestampNumber > 1e12 ? timestampNumber / 1000 : timestampNumber;
-  if (Math.abs(Date.now() / 1000 - timestampSeconds) > WEBHOOK_SIGNATURE_TOLERANCE_SECONDS) {
-    return false;
-  }
-
-  const rawDataId = req.query?.['data.id'] ?? req.query?.data_id ?? req.body?.data?.id ?? '';
-  const dataId = String(rawDataId).toLowerCase();
+  const dataId = req.body?.data?.id ?? '';
   const manifest = `id:${dataId};request-id:${xRequestId ?? ''};ts:${ts}`;
   const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
   const expectedBuffer = Buffer.from(expected);
@@ -71,7 +36,6 @@ function validarAssinaturaMP(req) {
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 const mpApi = new MpAPI(mpClient);
 const mpPaymentMethod = new MpPaymentMethod(mpClient);
-const mpPreference = new Preference(mpClient);
 let paymentMethodsCache = { expiresAt: 0, methods: [] };
 
 const validarMetodoCartaoCredito = async (paymentMethodId) => {
@@ -141,7 +105,6 @@ const confirmarReferencia = async (tipo, referenciaId, userId) => {
           .catch(e => console.warn('Email confirm error:', e.message));
       }
     }
-    return booking;
   } else {
     const registration = await Registration.findOneAndUpdate(
       { _id: referenciaId, status: 'pendente_pagamento' },
@@ -149,191 +112,7 @@ const confirmarReferencia = async (tipo, referenciaId, userId) => {
       { new: true },
     );
     if (registration) broadcast('registrations');
-    return registration;
   }
-};
-
-const limparDesafio3ds = (payment) => {
-  payment.requiresAction = false;
-  payment.threeDsInfo = { externalResourceURL: null, creq: null };
-};
-
-const atualizarMetadadosMp = (payment, mpResult) => {
-  payment.mpPaymentId = String(mpResult.id ?? payment.mpPaymentId);
-  payment.mpStatus = mpResult.status || null;
-  payment.statusDetail = mpResult.status_detail || null;
-  payment.lastSyncedAt = new Date();
-  payment.processingStartedAt = null;
-  payment.paymentTypeId = mpResult.payment_type_id || payment.paymentTypeId || null;
-  payment.cardBrand = mpResult.payment_method_id || payment.cardBrand || null;
-  payment.cardLastFour = mpResult.card?.last_four_digits || payment.cardLastFour || null;
-
-  const pendingChallenge = mpResult.status === 'pending'
-    && mpResult.status_detail === 'pending_challenge';
-  const challengeInfo = mpResult.three_ds_info?.external_resource_url
-    && mpResult.three_ds_info?.creq
-    ? {
-      externalResourceURL: mpResult.three_ds_info.external_resource_url,
-      creq: mpResult.three_ds_info.creq,
-    }
-    : payment.threeDsInfo?.externalResourceURL && payment.threeDsInfo?.creq
-      ? payment.threeDsInfo
-      : null;
-  const requiresAction = pendingChallenge && challengeInfo;
-
-  if (requiresAction) {
-    payment.requiresAction = true;
-    payment.threeDsInfo = challengeInfo;
-  } else {
-    limparDesafio3ds(payment);
-  }
-};
-
-const creditarAprovacaoTardia = async (payment) => {
-  const session = await mongoose.startSession();
-  let compensado = null;
-
-  try {
-    await session.withTransaction(async () => {
-      compensado = await PaymentModel.findOneAndUpdate(
-        { _id: payment._id, arenaCreditsRefundedAt: null },
-        {
-          $set: {
-            status: 'estornado_creditos',
-            paidAt: payment.paidAt || new Date(),
-            arenaCreditsRefundedAt: new Date(),
-            arenaCreditsRefundedValue: Number(payment.valor),
-            financialReviewRequired: true,
-            financialReviewReason: 'Pagamento aprovado após a reserva ou inscrição ter sido cancelada.',
-            processingStartedAt: null,
-            requiresAction: false,
-            mpPaymentId: payment.mpPaymentId,
-            mpStatus: payment.mpStatus,
-            statusDetail: payment.statusDetail,
-            lastSyncedAt: payment.lastSyncedAt,
-            paymentTypeId: payment.paymentTypeId,
-            cardBrand: payment.cardBrand,
-            cardLastFour: payment.cardLastFour,
-          },
-        },
-        { new: true, session },
-      );
-
-      if (!compensado) return;
-      await User.findByIdAndUpdate(
-        payment.userId,
-        { $inc: { creditos: Number(payment.valor) } },
-        { session },
-      );
-    });
-  } finally {
-    await session.endSession();
-  }
-
-  if (compensado) {
-    broadcast('users');
-    broadcast('payments');
-  }
-  return compensado;
-};
-
-const reconciliarResultadoMp = async (payment, mpResult) => {
-  atualizarMetadadosMp(payment, mpResult);
-
-  if (mpResult.status === 'approved') {
-    payment.paidAt ||= new Date();
-    if (payment.status === 'aprovado') {
-      await payment.save();
-      return payment;
-    }
-
-    const referenciaConfirmada = await confirmarReferencia(
-      payment.tipo,
-      payment.referenciaId,
-      payment.userId,
-    );
-
-    if (!referenciaConfirmada) {
-      const ReferenceModel = payment.tipo === 'booking' ? Booking : Registration;
-      const referenciaAtual = await ReferenceModel.findById(payment.referenciaId);
-      if (referenciaAtual?.status === 'confirmada') {
-        payment.status = 'aprovado';
-        await payment.save();
-        return payment;
-      }
-      const compensado = await creditarAprovacaoTardia(payment);
-      return compensado || payment;
-    }
-
-    payment.status = 'aprovado';
-    payment.financialReviewRequired = false;
-    payment.financialReviewReason = null;
-    await payment.save();
-    return payment;
-  }
-
-  if (MP_REFUNDED_STATUSES.has(mpResult.status)) {
-    payment.status = 'estornado';
-    payment.refundedAt ||= new Date();
-    payment.financialReviewRequired = true;
-    payment.financialReviewReason = 'Pagamento estornado no Mercado Pago. Conferir a reserva e os Créditos Arena.';
-    await payment.save();
-    broadcast('payments');
-    return payment;
-  }
-
-  if (mpResult.status === 'in_mediation') {
-    payment.status = 'em_mediacao';
-    payment.financialReviewRequired = true;
-    payment.financialReviewReason = 'Pagamento entrou em mediação no Mercado Pago. Acompanhar a contestação.';
-    await payment.save();
-    broadcast('payments');
-    return payment;
-  }
-
-  if (MP_CHARGEBACK_STATUSES.has(mpResult.status)) {
-    payment.status = 'chargeback';
-    payment.chargedBackAt ||= new Date();
-    payment.financialReviewRequired = true;
-    payment.financialReviewReason = 'Chargeback recebido do Mercado Pago. Revisão financeira obrigatória.';
-    await payment.save();
-    broadcast('payments');
-    return payment;
-  }
-
-  if (MP_REJECTED_STATUSES.has(mpResult.status)) {
-    if (!['aprovado', 'estornado_creditos'].includes(payment.status)) {
-      payment.status = 'cancelado';
-    }
-    await payment.save();
-    return payment;
-  }
-
-  payment.status = 'pendente';
-  await payment.save();
-  return payment;
-};
-
-const respostaPagamentoCartao = (payment, mpResult) => {
-  const rejected = MP_REJECTED_STATUSES.has(mpResult.status);
-  return {
-    status: mpResult.status,
-    localStatus: payment.status,
-    statusDetail: mpResult.status_detail,
-    mpPaymentId: String(mpResult.id),
-    expiresAt: payment.expiresAt,
-    requiresAction: Boolean(payment.requiresAction),
-    threeDsInfo: payment.requiresAction ? payment.threeDsInfo : null,
-    declineMessage: rejected
-      ? (DECLINE_MESSAGES[mpResult.status_detail]
-        || 'Pagamento recusado. Verifique os dados ou tente outro cartão de crédito.')
-      : null,
-  };
-};
-
-const PAYMENT_METHOD_FILTERS = {
-  pix:     { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'prepaid_card' }, { id: 'atm' }] },
-  credito: { excluded_payment_types: [{ id: 'bank_transfer' }, { id: 'debit_card' }, { id: 'prepaid_card' }, { id: 'ticket' }, { id: 'atm' }] },
 };
 
 const criarPagamentoPix = async (req, res) => {
@@ -356,7 +135,6 @@ const criarPagamentoPix = async (req, res) => {
     try {
       const mpResult = await mpApi.get({ id: pagamentoPendente.mpPaymentId });
       if (mpResult.status === 'pending' && new Date() <= pagamentoPendente.expiresAt) {
-        // PIX ainda válido — devolve QR code existente para o usuário continuar
         const txData = mpResult.point_of_interaction?.transaction_data;
         return res.json({
           paymentId: pagamentoPendente._id,
@@ -469,71 +247,195 @@ const criarPagamentoPix = async (req, res) => {
   }
 };
 
-const criarPreferencia = async (req, res) => {
+const DECLINE_MESSAGES = {
+  cc_rejected_bad_filled_card_number: 'Verifique o número do cartão.',
+  cc_rejected_bad_filled_date: 'Verifique a data de validade.',
+  cc_rejected_bad_filled_security_code: 'Verifique o código de segurança (CVV).',
+  cc_rejected_bad_filled_other: 'Verifique os dados do cartão.',
+  cc_rejected_blacklist: 'Cartão com restrição. Entre em contato com seu banco.',
+  cc_rejected_call_for_authorize: 'Ligue para o banco para autorizar este pagamento.',
+  cc_rejected_card_disabled: 'Cartão bloqueado ou desabilitado.',
+  cc_rejected_duplicated_payment: 'Pagamento duplicado detectado.',
+  cc_rejected_high_risk: 'Transação recusada por segurança.',
+  cc_rejected_insufficient_amount: 'Saldo ou limite insuficiente.',
+  cc_rejected_invalid_installments: 'Número de parcelas inválido.',
+  cc_rejected_max_attempts: 'Limite de tentativas atingido. Tente novamente mais tarde.',
+};
+
+const declineMessage = (statusDetail) =>
+  DECLINE_MESSAGES[statusDetail] || 'Pagamento recusado. Verifique os dados ou tente outro cartão.';
+
+const criarPagamentoCartao = async (req, res) => {
   if (!validarConfiguracaoMP(res)) return;
-  const { tipo, referenciaId, metodo } = req.body;
+  const { tipo, referenciaId, token, paymentMethodId, paymentTypeId, installments, issuerId, cardLastFour } = req.body;
   if (!['booking', 'registration'].includes(tipo)) {
     return res.status(400).json({ message: 'Tipo inválido' });
+  }
+  if (!token || !paymentMethodId) {
+    return res.status(400).json({ message: 'Dados do cartão inválidos' });
+  }
+  if (Number(installments) !== 1) {
+    return res.status(400).json({ message: 'O pagamento com cartão deve ser feito em uma parcela.' });
+  }
+  if (paymentTypeId && paymentTypeId !== 'credit_card') {
+    return res.status(400).json({ message: 'A Podium Arena aceita somente cartão de crédito.' });
+  }
+  if (!req.user.cpf) {
+    return res.status(400).json({ message: 'Cadastre seu CPF no perfil antes de pagar com cartão.' });
+  }
+
+  try {
+    if (!await validarMetodoCartaoCredito(paymentMethodId)) {
+      return res.status(400).json({ message: 'A Podium Arena aceita somente cartão de crédito.' });
+    }
+  } catch (methodError) {
+    console.error('MP payment methods error:', methodError?.message);
+    return res.status(503).json({ message: 'Não foi possível validar o cartão agora. Tente novamente em instantes.' });
   }
 
   const { error, referencia, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
   if (error) return res.status(error.status).json({ message: error.message });
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  let pagamentoPendente = await PaymentModel.findOne({
+    tipo,
+    referenciaId,
+    metodo: 'cartao',
+    status: 'pendente',
+  });
+  if (pagamentoPendente?.mpPaymentId) {
+    try {
+      const mpResult = await mpApi.get({ id: pagamentoPendente.mpPaymentId });
+      if (mpResult.status === 'approved') {
+        pagamentoPendente.status = 'aprovado';
+        pagamentoPendente.paidAt ||= new Date();
+        await pagamentoPendente.save();
+        await confirmarReferencia(tipo, referenciaId, req.user._id);
+        return res.json({
+          paymentId: pagamentoPendente._id,
+          mpPaymentId: pagamentoPendente.mpPaymentId,
+          status: 'approved',
+        });
+      }
+      if (['pending', 'in_process', 'authorized'].includes(mpResult.status) && new Date() <= pagamentoPendente.expiresAt) {
+        return res.status(409).json({ message: 'Já existe um pagamento em processamento para esta reserva.' });
+      }
+      // recusado, cancelado ou expirado — encerra a tentativa e permite uma nova
+      pagamentoPendente.status = new Date() > pagamentoPendente.expiresAt ? 'expirado' : 'cancelado';
+      pagamentoPendente.mpStatus = mpResult.status;
+      pagamentoPendente.statusDetail = mpResult.status_detail || null;
+      await pagamentoPendente.save();
+      pagamentoPendente = null;
+    } catch (e) {
+      console.warn('Erro ao verificar cartão existente no MP:', e.message);
+      return res.status(503).json({ message: 'Não foi possível consultar a tentativa anterior. Tente novamente em instantes.' });
+    }
+  }
+
   const expiresAt = await resolvePaymentExpiration(referencia);
-  const paymentMethods = PAYMENT_METHOD_FILTERS[metodo] || {};
+  // chave derivada do token do cartão: cada tokenização do Brick gera uma nova tentativa
+  const idempotencyKey = crypto
+    .createHash('sha256')
+    .update(`card:${tipo}:${referenciaId}:${token}`)
+    .digest('hex');
 
   try {
-    const pref = await mpPreference.create({
+    if (pagamentoPendente) {
+      // registro de tentativa anterior que não chegou ao MP — reaproveita com a nova chave
+      pagamentoPendente.idempotencyKey = idempotencyKey;
+      pagamentoPendente.valor = valor;
+      pagamentoPendente.expiresAt = expiresAt;
+      pagamentoPendente.processingStartedAt = new Date();
+      await pagamentoPendente.save();
+    } else {
+      try {
+        pagamentoPendente = await PaymentModel.create({
+          userId: req.user._id,
+          tipo,
+          referenciaId,
+          valor,
+          metodo: 'cartao',
+          idempotencyKey,
+          paymentTypeId: 'credit_card',
+          cardBrand: paymentMethodId,
+          cardLastFour: cardLastFour || null,
+          processingStartedAt: new Date(),
+          expiresAt,
+        });
+      } catch (errorCriacao) {
+        if (errorCriacao?.code !== 11000) throw errorCriacao;
+        pagamentoPendente = await PaymentModel.findOne({ idempotencyKey });
+      }
+    }
+
+    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: pagamentoPendente._id });
+    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: pagamentoPendente._id });
+
+    const nomes = req.user.nome.split(' ');
+    const mpResult = await mpApi.create({
       body: {
-        items: [{
-          title: descricao,
-          quantity: 1,
-          unit_price: Number(valor),
-          currency_id: 'BRL',
-        }],
-        payer: {
-          name: req.user.nome,
-          email: req.user.email,
-        },
-        back_urls: {
-          success: `${frontendUrl}/pagamento/retorno`,
-          failure: `${frontendUrl}/pagamento/retorno`,
-          pending: `${frontendUrl}/pagamento/retorno`,
-        },
-        ...(frontendUrl.startsWith('https') ? { auto_return: 'approved' } : {}),
+        transaction_amount: Number(valor),
+        token,
+        installments: 1,
+        payment_method_id: paymentMethodId,
+        ...(issuerId ? { issuer_id: issuerId } : {}),
+        description: descricao,
         external_reference: `${tipo}:${referenciaId}`,
-        notification_url: `${backendUrl}/api/pagamentos/webhook`,
-        expires: true,
-        expiration_date_to: expiresAt.toISOString(),
-        ...(Object.keys(paymentMethods).length ? { payment_methods: paymentMethods } : {}),
+        payer: {
+          email: req.user.email,
+          first_name: nomes[0],
+          last_name: nomes.slice(1).join(' ') || 'Usuário',
+          identification: { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') },
+        },
       },
+      requestOptions: { idempotencyKey },
     });
 
-    const payment = await PaymentModel.create({
-      userId: req.user._id,
-      tipo,
-      referenciaId,
-      valor,
-      metodo: 'checkout_pro',
-      mpPreferenceId: pref.id,
-      checkoutUrl: pref.init_point,
-      sandboxUrl: pref.sandbox_init_point,
-      expiresAt,
-    });
+    pagamentoPendente.mpPaymentId = String(mpResult.id);
+    pagamentoPendente.mpStatus = mpResult.status;
+    pagamentoPendente.statusDetail = mpResult.status_detail || null;
+    pagamentoPendente.cardBrand = mpResult.payment_method_id || paymentMethodId;
+    pagamentoPendente.cardLastFour = mpResult.card?.last_four_digits || cardLastFour || null;
+    pagamentoPendente.lastSyncedAt = new Date();
 
-    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
+    if (mpResult.status === 'approved') {
+      pagamentoPendente.status = 'aprovado';
+      pagamentoPendente.paidAt ||= new Date();
+      await pagamentoPendente.save();
+      await confirmarReferencia(tipo, referenciaId, req.user._id);
+      return res.status(201).json({
+        paymentId: pagamentoPendente._id,
+        mpPaymentId: pagamentoPendente.mpPaymentId,
+        status: 'approved',
+      });
+    }
 
+    if (['rejected', 'cancelled'].includes(mpResult.status)) {
+      pagamentoPendente.status = 'cancelado';
+      await pagamentoPendente.save();
+      return res.status(201).json({
+        paymentId: pagamentoPendente._id,
+        mpPaymentId: pagamentoPendente.mpPaymentId,
+        status: 'rejected',
+        declineMessage: declineMessage(mpResult.status_detail),
+      });
+    }
+
+    // pending / in_process — segue pendente; o modal acompanha via /sync
+    await pagamentoPendente.save();
     return res.status(201).json({
-      paymentId: payment._id,
-      checkoutUrl: pref.init_point,
-      sandboxUrl: pref.sandbox_init_point,
+      paymentId: pagamentoPendente._id,
+      mpPaymentId: pagamentoPendente.mpPaymentId,
+      status: mpResult.status,
+      expiresAt: expiresAt.toISOString(),
     });
   } catch (err) {
-    console.error('MP Preference error:', JSON.stringify(err?.cause ?? err, null, 2));
-    return res.status(502).json({ message: 'Erro ao iniciar pagamento. Sua reserva continua pendente.' });
+    console.error('MP Card error:', JSON.stringify(err?.cause ?? err, null, 2));
+    const httpStatus = Number(err?.status || err?.api_response?.status);
+    if ([401, 403].includes(httpStatus)) {
+      // credenciais inválidas/bloqueadas pelo MP (ex.: PA_UNAUTHORIZED_RESULT_FROM_POLICIES)
+      return res.status(422).json({ message: 'O Mercado Pago rejeitou a integração (credenciais bloqueadas ou inválidas). Verifique o MP_ACCESS_TOKEN e a public key do ambiente.' });
+    }
+    return res.status(502).json({ message: 'Erro ao processar o pagamento. Sua reserva continua pendente; tente novamente.' });
   }
 };
 
@@ -566,13 +468,12 @@ const webhook = async (req, res) => {
   if (!validarAssinaturaMP(req)) {
     return res.sendStatus(401);
   }
-
+  res.sendStatus(200);
   try {
     const { type, data } = req.body;
-    if (type !== 'payment' || !data?.id) return res.sendStatus(200);
+    if (type !== 'payment' || !data?.id) return;
 
     const mpResult = await mpApi.get({ id: String(data.id) });
-    // Busca pelo mpPaymentId ou, para Checkout Pro, pelo external_reference
     let payment = await PaymentModel.findOne({ mpPaymentId: String(data.id) });
 
     if (!payment && mpResult.external_reference) {
@@ -580,204 +481,21 @@ const webhook = async (req, res) => {
       payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
     }
 
-    if (!payment) {
-      console.error(`Webhook Mercado Pago sem tentativa local: ${data.id}`);
-      return res.sendStatus(200);
-    }
+    if (!payment || payment.status !== 'pendente') return;
 
-    await reconciliarResultadoMp(payment, mpResult);
-    return res.sendStatus(200);
+    payment.mpPaymentId = String(data.id);
+    if (mpResult.status === 'approved') {
+      payment.status = 'aprovado';
+      payment.paidAt ||= new Date();
+      await payment.save();
+      await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
+    } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status)) {
+      payment.status = 'cancelado';
+      await payment.save();
+      await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
+    }
   } catch (err) {
     console.error('Webhook error:', err?.message);
-    return res.sendStatus(500);
-  }
-};
-
-const DECLINE_MESSAGES = {
-  cc_rejected_bad_filled_card_number: 'Verifique o número do cartão.',
-  cc_rejected_bad_filled_date: 'Verifique a data de validade.',
-  cc_rejected_bad_filled_security_code: 'Verifique o código de segurança (CVV).',
-  cc_rejected_blacklist: 'Cartão com restrição. Entre em contato com seu banco.',
-  cc_rejected_call_for_authorize: 'Ligue para o banco para autorizar este pagamento.',
-  cc_rejected_card_disabled: 'Cartão bloqueado ou desabilitado.',
-  cc_rejected_duplicated_payment: 'Pagamento duplicado detectado.',
-  cc_rejected_high_risk: 'Transação recusada por segurança.',
-  cc_rejected_insufficient_amount: 'Saldo ou limite insuficiente.',
-  cc_rejected_invalid_installments: 'Número de parcelas inválido.',
-  cc_rejected_max_attempts: 'Limite de tentativas atingido. Tente novamente amanhã.',
-};
-
-const criarPagamentoCartao = async (req, res) => {
-  if (!validarConfiguracaoMP(res)) return;
-  const {
-    tipo,
-    referenciaId,
-    token,
-    paymentMethodId,
-    paymentTypeId,
-    installments,
-    issuerId,
-    cardLastFour,
-  } = req.body;
-  if (!['booking', 'registration'].includes(tipo)) return res.status(400).json({ message: 'Tipo inválido' });
-  if (!token || !paymentMethodId) return res.status(400).json({ message: 'Dados do cartão inválidos' });
-  if (!req.user.cpf || req.user.cpf.replace(/\D/g, '').length !== 11) {
-    return res.status(400).json({ message: 'Cadastre um CPF válido no perfil antes de pagar com cartão.' });
-  }
-  if (Number(installments) !== 1) {
-    return res.status(400).json({ message: 'O pagamento com cartão deve ser feito em uma parcela.' });
-  }
-  if (paymentTypeId && paymentTypeId !== 'credit_card') {
-    return res.status(400).json({ message: 'A Podium Arena aceita somente cartão de crédito.' });
-  }
-  if (cardLastFour && !/^\d{4}$/.test(String(cardLastFour))) {
-    return res.status(400).json({ message: 'Identificação do cartão inválida.' });
-  }
-
-  try {
-    if (!await validarMetodoCartaoCredito(paymentMethodId)) {
-      return res.status(400).json({ message: 'A Podium Arena aceita somente cartão de crédito.' });
-    }
-  } catch (methodError) {
-    console.error('MP payment methods error:', methodError?.message);
-    return res.status(503).json({ message: 'Não foi possível validar o cartão agora. Tente novamente em instantes.' });
-  }
-
-  const { error, referencia, valor, descricao } = await getReferenciaAndValor(tipo, referenciaId, req.user._id);
-  if (error) return res.status(error.status).json({ message: error.message });
-
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
-  const isLocalhost = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1');
-  const nomes = req.user.nome.split(' ');
-  const expiresAt = await resolvePaymentExpiration(referencia);
-
-  let payment = await PaymentModel.findOne({
-    tipo,
-    referenciaId,
-    metodo: 'cartao',
-    status: 'pendente',
-  });
-
-  if (!payment) {
-    const tentativa = await PaymentModel.countDocuments({ tipo, referenciaId, metodo: 'cartao' });
-    const idempotencyKey = crypto
-      .createHash('sha256')
-      .update(`card:${tipo}:${referenciaId}:${req.user._id}:${tentativa}`)
-      .digest('hex');
-
-    try {
-      payment = await PaymentModel.create({
-        userId: req.user._id,
-        tipo,
-        referenciaId,
-        valor,
-        metodo: 'cartao',
-        idempotencyKey,
-        processingStartedAt: new Date(),
-        paymentTypeId: 'credit_card',
-        cardBrand: paymentMethodId,
-        cardLastFour: cardLastFour || null,
-        expiresAt,
-      });
-    } catch (creationError) {
-      if (creationError?.code !== 11000) throw creationError;
-      payment = await PaymentModel.findOne({ idempotencyKey });
-    }
-
-    if (!payment) {
-      return res.status(409).json({ message: 'Já existe uma tentativa de pagamento em processamento.' });
-    }
-
-    if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-    else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-  }
-
-  if (payment.mpPaymentId) {
-    try {
-      const existingResult = await mpApi.get({ id: payment.mpPaymentId });
-      payment = await reconciliarResultadoMp(payment, existingResult);
-
-      // Pagamento travado em desafio 3DS sem info para completar — cancela e cria nova tentativa
-      const travadoSem3ds = existingResult.status === 'pending'
-        && existingResult.status_detail === 'pending_challenge'
-        && !payment.requiresAction;
-
-      if (!travadoSem3ds) {
-        return res.status(200).json(respostaPagamentoCartao(payment, existingResult));
-      }
-
-      try { await mpApi.cancel({ id: String(existingResult.id) }); } catch (_) {}
-      payment.status = 'cancelado';
-      await payment.save();
-
-      const tentativaRetry = await PaymentModel.countDocuments({ tipo, referenciaId, metodo: 'cartao' });
-      const retryKey = crypto
-        .createHash('sha256')
-        .update(`card:${tipo}:${referenciaId}:${req.user._id}:${tentativaRetry}`)
-        .digest('hex');
-      payment = await PaymentModel.create({
-        userId: req.user._id, tipo, referenciaId, valor, metodo: 'cartao',
-        idempotencyKey: retryKey, processingStartedAt: new Date(),
-        paymentTypeId: 'credit_card', cardBrand: paymentMethodId,
-        cardLastFour: cardLastFour || null, expiresAt,
-      });
-      if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-      else await Registration.findByIdAndUpdate(referenciaId, { paymentId: payment._id });
-    } catch (lookupError) {
-      console.error('MP Card lookup error:', lookupError?.message);
-      return res.status(503).json({ message: 'Não foi possível consultar a tentativa em andamento. Tente novamente em instantes.' });
-    }
-  }
-
-  const mpBody = {
-    transaction_amount: Number(valor),
-    token,
-    description: descricao,
-    installments: 1,
-    payment_method_id: paymentMethodId,
-    ...(issuerId ? { issuer_id: issuerId } : {}),
-    three_d_secure_mode: isLocalhost ? 'not_supported' : 'optional',
-    external_reference: `${tipo}:${referenciaId}`,
-    ...(!isLocalhost ? { notification_url: `${backendUrl}/api/pagamentos/webhook` } : {}),
-    payer: {
-      email: req.user.email,
-      first_name: nomes[0],
-      last_name: nomes.slice(1).join(' ') || 'Usuário',
-      identification: { type: 'CPF', number: req.user.cpf.replace(/\D/g, '') },
-    },
-  };
-
-  try {
-    payment.processingStartedAt = new Date();
-    await payment.save();
-
-    const mpResult = await mpApi.create({
-      body: mpBody,
-      requestOptions: { idempotencyKey: payment.idempotencyKey },
-    });
-
-    payment = await reconciliarResultadoMp(payment, mpResult);
-    return res.status(201).json(respostaPagamentoCartao(payment, mpResult));
-  } catch (err) {
-    const mpError = detalhesSegurosErroMp(err);
-    console.error('MP Card error:', JSON.stringify(mpError));
-
-    if (erroMpDefinitivoSemCobranca(err)) {
-      payment.status = 'cancelado';
-      payment.processingStartedAt = null;
-      payment.statusDetail = mpError.error || mpError.causes[0] || 'provider_rejected_request';
-      await payment.save();
-
-      const policyBlocked = [401, 403].includes(mpError.status)
-        || mpError.error === 'blocked_by'
-        || mpError.causes.includes('pa_unauthorized_result_from_policies');
-      const message = policyBlocked
-        ? 'O Mercado Pago bloqueou esta tentativa por uma política de segurança. Não tente novamente agora; aguarde e use os dados reais do titular do cartão.'
-        : 'O Mercado Pago recusou os dados desta tentativa antes de criar a cobrança. Revise os dados e tente novamente mais tarde.';
-      return res.status(mpError.status === 429 ? 429 : 422).json({ message });
-    }
-
-    return res.status(502).json({ message: 'Não foi possível confirmar se o Mercado Pago recebeu a tentativa. Sua reserva continua pendente; aguarde antes de tentar novamente.' });
   }
 };
 
@@ -787,45 +505,33 @@ const syncPagamento = async (req, res) => {
   if (!mpPaymentId) return res.status(400).json({ message: 'mpPaymentId obrigatório' });
 
   try {
+    const mpResult = await mpApi.get({ id: String(mpPaymentId) });
+
     let payment = await PaymentModel.findOne({ mpPaymentId: String(mpPaymentId) });
+
+    if (!payment && mpResult.external_reference) {
+      const [tipo, referenciaId] = mpResult.external_reference.split(':');
+      payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
+    }
+
     if (!payment) return res.json({ status: 'not_found' });
     if (payment.userId.toString() !== req.user._id.toString() && !req.user.admin) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
 
-    const mpResult = await mpApi.get({ id: String(mpPaymentId) });
-
-    const expirou = payment.status === 'pendente'
-      && new Date() > new Date(payment.expiresAt)
-      && !['approved', 'refunded', 'charged_back'].includes(mpResult.status);
-
-    if (expirou) {
-      await cancelarPagamentosPendentes(payment.tipo, payment.referenciaId);
-      atualizarMetadadosMp(payment, mpResult);
-      payment.status = 'expirado';
+    if (mpResult.status === 'approved' && payment.status === 'pendente') {
+      payment.mpPaymentId = String(mpPaymentId);
+      payment.status = 'aprovado';
+      payment.paidAt ||= new Date();
+      await payment.save();
+      await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
+    } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status) && payment.status === 'pendente') {
+      payment.status = 'cancelado';
       await payment.save();
       await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
-    } else {
-      payment = await reconciliarResultadoMp(payment, mpResult);
-      if (MP_REJECTED_STATUSES.has(mpResult.status) && payment.metodo !== 'cartao') {
-        await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
-      }
     }
 
-    const declineMessage = MP_REJECTED_STATUSES.has(mpResult.status)
-      ? (DECLINE_MESSAGES[mpResult.status_detail] || 'Pagamento recusado pelo banco. Tente outro cartão de crédito ou fale com a instituição emissora.')
-      : null;
-
-    return res.json({
-      status: payment.status,
-      mpStatus: mpResult.status,
-      statusDetail: mpResult.status_detail,
-      expiresAt: payment.expiresAt,
-      requiresAction: Boolean(payment.requiresAction),
-      threeDsInfo: payment.requiresAction ? payment.threeDsInfo : null,
-      financialReviewRequired: Boolean(payment.financialReviewRequired),
-      declineMessage,
-    });
+    return res.json({ status: payment.status });
   } catch (err) {
     console.error('Sync error:', err?.message);
     return res.status(500).json({ message: 'Erro ao sincronizar pagamento' });
@@ -837,20 +543,13 @@ const listarRevisoesFinanceiras = async (req, res) => {
     .sort({ updatedAt: -1 })
     .limit(100)
     .populate('userId', 'nome email');
-
   return res.json(payments);
 };
 
 const resolverRevisaoFinanceira = async (req, res) => {
   const payment = await PaymentModel.findOneAndUpdate(
     { _id: req.params.id, financialReviewRequired: true },
-    {
-      $set: {
-        financialReviewRequired: false,
-        financialReviewedAt: new Date(),
-        financialReviewedBy: req.user._id,
-      },
-    },
+    { $set: { financialReviewRequired: false, financialReviewedAt: new Date(), financialReviewedBy: req.user._id } },
     { new: true },
   );
   if (!payment) return res.status(404).json({ message: 'Revisão financeira não encontrada.' });
@@ -858,13 +557,4 @@ const resolverRevisaoFinanceira = async (req, res) => {
   return res.json(payment);
 };
 
-module.exports = {
-  criarPagamentoPix,
-  criarPreferencia,
-  criarPagamentoCartao,
-  getStatus,
-  syncPagamento,
-  webhook,
-  listarRevisoesFinanceiras,
-  resolverRevisaoFinanceira,
-};
+module.exports = { criarPagamentoPix, criarPagamentoCartao, getStatus, syncPagamento, webhook, listarRevisoesFinanceiras, resolverRevisaoFinanceira };

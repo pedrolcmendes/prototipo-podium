@@ -1,16 +1,9 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { CardPayment, StatusScreen } from '@mercadopago/sdk-react';
+import { CardPayment } from '@mercadopago/sdk-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const fmtReal = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-const fmtCPF = (v) => {
-  const n = v.replace(/\D/g, '').slice(0, 11);
-  if (n.length <= 3) return n;
-  if (n.length <= 6) return `${n.slice(0,3)}.${n.slice(3)}`;
-  if (n.length <= 9) return `${n.slice(0,3)}.${n.slice(3,6)}.${n.slice(6)}`;
-  return `${n.slice(0,3)}.${n.slice(3,6)}.${n.slice(6,9)}-${n.slice(9)}`;
-};
 
 function formatTime(ms) {
   if (ms === null) return '--:--';
@@ -18,54 +11,31 @@ function formatTime(ms) {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
-const CARD_METHODS = new Set(['credito', 'cartao']);
-const isUnsupportedPaymentWebView = () => {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  return /Instagram|FBAN|FBAV|FB_IAB|Line\/|; wv\)|\bwv\b/i.test(ua);
-};
-
 export default function PagamentoModal({ tipo, referenciaId, metodo, valor, creditosAplicados = 0, onClose }) {
   const { user, updateUser } = useAuth();
-  const isCreditos = metodo === 'creditos';
-  const isCard = CARD_METHODS.has(metodo);
-  const cpfLimpo = user?.cpf ? user.cpf.replace(/\D/g, '') : '';
-  const unsupportedWebView = isUnsupportedPaymentWebView();
 
-  const initialPhase = isCreditos
-    ? 'choose'
-    : isCard
-      ? (unsupportedWebView ? 'navegador_incompativel' : (cpfLimpo ? 'cartao' : 'sem_cpf'))
-      : 'loading';
-  const [phase, setPhase] = useState(initialPhase);
+  const isCartao = metodo === 'credito' || metodo === 'cartao';
+  const [phase, setPhase] = useState(isCartao ? 'cartao' : 'loading');
 
   // PIX state
   const [pixData, setPixData] = useState(null);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(null);
   const pollRef = useRef(null);
-  const cardPollRef = useRef(null);
   const timerRef = useRef(null);
   const pixCalledRef = useRef(false);
-  const cardSubmittingRef = useRef(false);
   const cancellationCalledRef = useRef(false);
 
   // PIX cancel confirm state
   const [confirmCancelPix, setConfirmCancelPix] = useState(false);
 
-  // Card state
+  // Cartão state
   const [cardError, setCardError] = useState(null);
   const [cardErrorTitle, setCardErrorTitle] = useState('Pagamento recusado');
   const [cardBrickKey, setCardBrickKey] = useState(0); // remonta o brick ao tentar novamente
   const [cardPaymentId, setCardPaymentId] = useState(null);
-  const [threeDsInfo, setThreeDsInfo] = useState(null);
-  const [cardSyncWarning, setCardSyncWarning] = useState(null);
-  const cardExpiresAtRef = useRef(null);
-
-  // CPF state
-  const [cpfInput, setCpfInput] = useState('');
-  const [cpfSaving, setCpfSaving] = useState(false);
-  const [cpfErr, setCpfErr] = useState('');
+  const cardSubmittingRef = useRef(false);
+  const cardPollRef = useRef(null);
 
   // Generic error
   const [errorMsg, setErrorMsg] = useState(null);
@@ -106,13 +76,10 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
       });
   }, [tipo, referenciaId]);
 
-  // Inicia PIX diretamente se metodo === 'pix'
   useEffect(() => {
-    if (!isCreditos && !isCard) {
-      iniciarPix();
-    }
-    return () => { clearInterval(pollRef.current); clearInterval(timerRef.current); };
-  }, [isCreditos, isCard, iniciarPix]);
+    if (!isCartao) iniciarPix();
+    return () => { clearInterval(pollRef.current); clearInterval(timerRef.current); clearInterval(cardPollRef.current); };
+  }, [iniciarPix, isCartao]);
 
   const cancelarReferencia = useCallback(async () => {
     if (cancellationCalledRef.current) return false;
@@ -169,9 +136,10 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
   const confirmarCancelPix = () => setConfirmCancelPix(true);
   const voltarPix = () => setConfirmCancelPix(false);
 
-  const cancelarCartao = async () => {
-    setCardError(null);
-    if (await cancelarReferencia()) onClose();
+  const tentarPixNovamente = () => {
+    pixCalledRef.current = false;
+    setErrorMsg(null);
+    iniciarPix();
   };
 
   // ─── CARTÃO ────────────────────────────────────────────
@@ -187,7 +155,6 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
 
     cardSubmittingRef.current = true;
     setCardError(null);
-    setCardSyncWarning(null);
     setPhase('cartao_processando');
     try {
       const { data } = await api.post('/pagamentos/cartao', {
@@ -203,14 +170,8 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
 
       if (data.status === 'approved') {
         window.location.href = `/pagamento/retorno?collection_id=${data.mpPaymentId}&collection_status=approved`;
-      } else if (data.requiresAction && data.statusDetail === 'pending_challenge' && data.threeDsInfo) {
+      } else if (['pending', 'in_process', 'authorized'].includes(data.status)) {
         setCardPaymentId(data.mpPaymentId);
-        cardExpiresAtRef.current = data.expiresAt || null;
-        setThreeDsInfo(data.threeDsInfo);
-        setPhase('cartao_3ds');
-      } else if (['in_process', 'pending', 'authorized'].includes(data.status)) {
-        setCardPaymentId(data.mpPaymentId);
-        cardExpiresAtRef.current = data.expiresAt || null;
         setPhase('cartao_pendente');
       } else {
         setCardErrorTitle('Pagamento recusado');
@@ -229,96 +190,49 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
     }
   }, [tipo, referenciaId]);
 
+  // Polling do cartão pendente — mesmo mecanismo do PIX
   useEffect(() => {
-    if (!['cartao_pendente', 'cartao_3ds'].includes(phase) || !cardPaymentId) return undefined;
-
-    let active = true;
-    let attempts = 0;
-    let consecutiveErrors = 0;
-    let currentExpiresAt = cardExpiresAtRef.current;
-    const sincronizarCartao = async () => {
-      if (!active) return;
+    if (phase !== 'cartao_pendente' || !cardPaymentId) return undefined;
+    cardPollRef.current = setInterval(async () => {
       try {
-        const { data } = await api.get(`/pagamentos/sync?mpPaymentId=${cardPaymentId}`);
-        if (!active) return;
-        consecutiveErrors = 0;
-        setCardSyncWarning(null);
-        if (data.expiresAt) {
-          currentExpiresAt = data.expiresAt;
-          cardExpiresAtRef.current = data.expiresAt;
-        }
-
-        if (data.status === 'aprovado') {
-          clearTimeout(cardPollRef.current);
+        const { data: sync } = await api.get(`/pagamentos/sync?mpPaymentId=${cardPaymentId}`);
+        if (sync.status === 'aprovado') {
+          clearInterval(cardPollRef.current);
           window.location.href = `/pagamento/retorno?collection_id=${cardPaymentId}&collection_status=approved`;
-          return;
-        } else if (data.status === 'estornado_creditos') {
-          clearTimeout(cardPollRef.current);
-          setCardErrorTitle('Valor devolvido em Créditos Arena');
-          setCardError('O pagamento foi aprovado após o cancelamento. O valor foi devolvido em Créditos Arena.');
+        } else if (['cancelado', 'expirado'].includes(sync.status)) {
+          clearInterval(cardPollRef.current);
+          setCardErrorTitle(sync.status === 'expirado' ? 'Tentativa expirada' : 'Pagamento recusado');
+          setCardError('O pagamento não foi aprovado. Tente outro cartão ou fale com a instituição emissora.');
           setPhase('cartao_erro');
           cardSubmittingRef.current = false;
-          return;
-        } else if (['estornado', 'chargeback', 'em_mediacao'].includes(data.status)) {
-          clearTimeout(cardPollRef.current);
-          setCardErrorTitle('Pagamento em revisão');
-          setCardError('O pagamento foi revertido pelo Mercado Pago e foi encaminhado para conferência financeira. Fale com a Podium Arena se precisar de ajuda.');
-          setPhase('cartao_erro');
-          cardSubmittingRef.current = false;
-          return;
-        } else if (['cancelado', 'expirado'].includes(data.status)) {
-          clearTimeout(cardPollRef.current);
-          setCardErrorTitle(data.status === 'expirado' ? 'Tentativa expirada' : 'Pagamento recusado');
-          setCardError(data.declineMessage || 'Pagamento recusado pelo banco. Tente outro cartão ou fale com a instituição emissora.');
-          setPhase('cartao_erro');
-          cardSubmittingRef.current = false;
-          return;
-        } else if (data.requiresAction && data.threeDsInfo && phase !== 'cartao_3ds') {
-          setThreeDsInfo(data.threeDsInfo);
-          setPhase('cartao_3ds');
-          return;
         }
-      } catch (error) {
-        consecutiveErrors += 1;
-        if (consecutiveErrors >= 3) {
-          setCardSyncWarning('Conexão instável. O pagamento continua sendo conciliado com segurança.');
-        }
-      }
-
-      attempts += 1;
-      const expired = currentExpiresAt && Date.now() >= new Date(currentExpiresAt).getTime();
-      if (expired) {
-        setCardError('O prazo desta tentativa terminou. Aguarde a conciliação final ou tente novamente.');
-      }
-      const delay = Math.min(3_000 * (2 ** Math.floor(attempts / 5)), 15_000);
-      cardPollRef.current = setTimeout(sincronizarCartao, delay);
-    };
-
-    cardPollRef.current = setTimeout(sincronizarCartao, phase === 'cartao_3ds' ? 2_000 : 0);
-    return () => {
-      active = false;
-      clearTimeout(cardPollRef.current);
-    };
+      } catch { /* ignora */ }
+    }, 3000);
+    return () => clearInterval(cardPollRef.current);
   }, [phase, cardPaymentId]);
 
-  const handleBrickError = useCallback(() => {
+  const handleBrickError = useCallback((error) => {
+    // O Brick chama onError também para erros não-críticos (ex.: invalid_bin
+    // enquanto o número ainda está sendo digitado) — não derrubam o formulário
+    if (error?.type === 'non_critical') {
+      console.warn('CardPayment Brick (não-crítico):', error?.cause || error?.message);
+      return;
+    }
+    console.error('CardPayment Brick (crítico):', error?.cause || error?.message, error);
     setCardErrorTitle('Erro no formulário');
     setCardError('Não foi possível carregar o formulário do cartão. Atualize a página e tente novamente.');
     setPhase('cartao_erro');
     cardSubmittingRef.current = false;
   }, []);
 
-  const handle3dsError = useCallback(() => {
-    setCardSyncWarning('A autenticação do banco não carregou corretamente. Mantenha esta tela aberta enquanto verificamos o pagamento.');
-  }, []);
-
   const brickInit = useMemo(() => ({
     amount: Number(valor),
     payer: {
       email: user?.email || '',
-      identification: { type: 'CPF', number: cpfLimpo },
+      identification: { type: 'CPF', number: (user?.cpf || '').replace(/\D/g, '') },
     },
-  }), [valor, cpfLimpo, user?.email]);
+  }), [valor, user?.email, user?.cpf]);
+
   const brickCustomization = useMemo(() => ({
     visual: {
       style: {
@@ -349,62 +263,24 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
     },
   }), []);
 
-  const tentarPixNovamente = () => {
-    pixCalledRef.current = false;
-    setErrorMsg(null);
-    iniciarPix();
-  };
-
-  const tentarNovamente = () => {
+  const tentarCartaoNovamente = () => {
     cardSubmittingRef.current = false;
     setCardError(null);
     setCardErrorTitle('Pagamento recusado');
     setCardPaymentId(null);
-    cardExpiresAtRef.current = null;
-    setThreeDsInfo(null);
-    setCardSyncWarning(null);
     setCardBrickKey(k => k + 1);
-    setPhase(unsupportedWebView ? 'navegador_incompativel' : 'cartao');
-  };
-
-  // ─── CPF ───────────────────────────────────────────────
-  const salvarCpf = async () => {
-    const raw = cpfInput.replace(/\D/g, '');
-    if (raw.length !== 11) { setCpfErr('CPF inválido. Digite os 11 dígitos.'); return; }
-    setCpfSaving(true);
-    setCpfErr('');
-    try {
-      const { data } = await api.put('/users/me', { cpf: raw });
-      updateUser(data);
-      setPhase('cartao');
-    } catch (err) {
-      setCpfErr(err.response?.data?.message || 'Erro ao salvar. Tente novamente.');
-    } finally {
-      setCpfSaving(false);
-    }
-  };
-
-  // ─── Choose (creditos parcial) ──────────────────────────
-  const escolherPix = () => {
-    iniciarPix();
-  };
-
-  const escolherCartao = () => {
-    if (unsupportedWebView) { setPhase('navegador_incompativel'); return; }
-    if (!cpfLimpo) { setPhase('sem_cpf'); return; }
     setPhase('cartao');
   };
 
-  // ─── Helpers ───────────────────────────────────────────
-  const timerUrgente = timeLeft !== null && timeLeft < 5 * 60 * 1000;
-  const canClose = ['choose', 'pix', 'expired', 'cartao', 'cartao_erro', 'cartao_pendente', 'sem_cpf', 'navegador_incompativel'].includes(phase);
+  const cancelarCartao = async () => {
+    clearInterval(cardPollRef.current);
+    if (await cancelarReferencia()) onClose();
+  };
 
-  const headerLabel = {
-    pix: 'PIX',
-    credito: 'Cartão de Crédito',
-    cartao: 'Cartão de Crédito',
-    creditos: 'Créditos Arena',
-  }[metodo] || 'Pagamento';
+  const timerUrgente = timeLeft !== null && timeLeft < 5 * 60 * 1000;
+  const canClose = ['pix', 'expired', 'error', 'cartao', 'cartao_erro'].includes(phase);
+
+  const headerLabel = metodo === 'creditos' ? 'Créditos Arena' : isCartao ? 'Cartão de Crédito' : 'PIX';
 
   return (
     <>
@@ -429,8 +305,6 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         .pag-icon-err svg{stroke:#ef4444}
         .pag-icon-warn{width:56px;height:56px;border-radius:50%;background:rgba(245,158,11,.08);border:1.5px solid rgba(245,158,11,.3);display:flex;align-items:center;justify-content:center}
         .pag-icon-warn svg{stroke:#f59e0b}
-        .pag-icon-ok{width:56px;height:56px;border-radius:50%;background:rgba(34,197,94,.08);border:1.5px solid rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center}
-        .pag-icon-ok svg{stroke:#22c55e}
         .pag-err-title{font-family:var(--font-cond);font-size:1.1rem;letter-spacing:1px;color:var(--white)}
         .pag-footer{padding:1rem 2rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.6rem}
         .pag-cancel-btn{background:none;border:1px solid var(--border);color:var(--gray);padding:.45rem .9rem;font-family:var(--font-cond);font-size:.72rem;font-weight:700;letter-spacing:1.5px;cursor:pointer;transition:all var(--trans-fast)}
@@ -447,19 +321,11 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         .pag-pix-timer{font-family:var(--font-cond);font-size:.78rem;letter-spacing:.5px;color:var(--muted)}
         .pag-pix-timer.urgente{color:#f59e0b}
         .pag-pix-timer strong{font-size:.95rem}
+        .pag-card-wrap{width:100%;padding:0 .5rem}
+        .pag-card-wrap #cardPaymentBrick_container > div{background:transparent!important}
         .pag-credits-info{background:rgba(224,172,107,.06);border:1px solid rgba(224,172,107,.2);padding:.75rem 1.1rem;width:100%;max-width:400px;display:flex;flex-direction:column;gap:.35rem}
         .pag-credits-row{display:flex;justify-content:space-between;font-family:var(--font-cond);font-size:.75rem;letter-spacing:.5px;color:var(--gray)}
         .pag-credits-row span:last-child{color:var(--gold)}
-        .pag-choose-label{font-family:var(--font-cond);font-size:.72rem;letter-spacing:3px;text-transform:uppercase;color:var(--gray)}
-        .pag-choose-methods{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;width:100%;max-width:400px}
-        .pag-choose-btn{display:flex;flex-direction:column;align-items:center;gap:.6rem;border:1px solid var(--border);background:var(--dark);padding:1.2rem 1rem;cursor:pointer;transition:all var(--trans-fast);font-family:var(--font-cond)}
-        .pag-choose-btn:hover{border-color:var(--gold);background:var(--gold-faint)}
-        .pag-choose-btn svg{stroke:var(--gray);transition:stroke var(--trans-fast)}
-        .pag-choose-btn:hover svg{stroke:var(--gold)}
-        .pag-choose-btn-name{font-size:.88rem;font-weight:700;letter-spacing:.5px;color:var(--white)}
-        .pag-choose-btn-sub{font-size:.68rem;color:var(--gray);letter-spacing:.5px}
-        .pag-card-wrap{width:100%;padding:0 .5rem}
-        .pag-card-wrap #cardPaymentBrick_container > div{background:transparent!important}
         .pag-refund-notice{margin:1rem 1.5rem 0;padding:.75rem .9rem;border:1px solid rgba(224,172,107,.35);background:rgba(224,172,107,.08);color:var(--gray);font-size:.72rem;line-height:1.45}
         .pag-refund-notice strong{color:var(--gold)}
       `}</style>
@@ -499,47 +365,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
           {/* BODY */}
           <div className="pag-body">
 
-            {/* ── Choose: PIX ou Cartão (créditos parcial) ── */}
-            {phase === 'choose' && (
-              <>
-                {creditosAplicados > 0 && (
-                  <div className="pag-credits-info">
-                    <div className="pag-credits-row">
-                      <span>Créditos Arena aplicados</span>
-                      <span>— {fmtReal(creditosAplicados)}</span>
-                    </div>
-                    <div className="pag-credits-row">
-                      <span>Restante a pagar</span>
-                      <span style={{ color: 'var(--white)' }}>{fmtReal(valor)}</span>
-                    </div>
-                  </div>
-                )}
-                <p className="pag-choose-label">Como pagar o restante?</p>
-                <div className="pag-choose-methods">
-                  <button className="pag-choose-btn" onClick={escolherPix}>
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-                      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/>
-                      <rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/>
-                      <path d="M14 14h3v3"/><path d="M17 17h3v3"/><path d="M14 20h1"/>
-                    </svg>
-                    <div className="pag-choose-btn-name">PIX</div>
-                    <div className="pag-choose-btn-sub">QR Code na hora</div>
-                  </button>
-                  <button className="pag-choose-btn" onClick={escolherCartao}>
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="5" width="20" height="14" rx="2"/>
-                      <line x1="2" y1="10" x2="22" y2="10"/>
-                      <line x1="6" y1="15" x2="9" y2="15"/>
-                    </svg>
-                    <div className="pag-choose-btn-name">Cartão de Crédito</div>
-                    <div className="pag-choose-btn-sub">Preencha na próxima tela</div>
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* ── Loading (gerando PIX) ── */}
+            {/* ── Loading ── */}
             {phase === 'loading' && (
               <>
                 <div className="pag-spinner" />
@@ -554,6 +380,18 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
             {/* ── PIX ── */}
             {phase === 'pix' && pixData && (
               <>
+                {creditosAplicados > 0 && (
+                  <div className="pag-credits-info">
+                    <div className="pag-credits-row">
+                      <span>Créditos Arena aplicados</span>
+                      <span>— {fmtReal(creditosAplicados)}</span>
+                    </div>
+                    <div className="pag-credits-row">
+                      <span>Restante a pagar</span>
+                      <span style={{ color: 'var(--white)' }}>{fmtReal(valor)}</span>
+                    </div>
+                  </div>
+                )}
                 {pixData.qrCodeBase64 && (
                   <img className="pag-pix-qr" src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" />
                 )}
@@ -583,107 +421,6 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
               </>
             )}
 
-            {/* ── Cartão: Brick ── */}
-            {phase === 'cartao' && (
-              <>
-                <div className="pag-card-wrap">
-                  <CardPayment
-                    key={cardBrickKey}
-                    initialization={brickInit}
-                    onSubmit={handleCardSubmit}
-                    onError={handleBrickError}
-                    customization={brickCustomization}
-                  />
-                </div>
-                <p>Somente cartão de crédito, em uma parcela. No celular, digite o nome do titular manualmente caso o preenchimento automático não seja reconhecido.</p>
-                {errorMsg && <p style={{ color: '#ef4444' }}>{errorMsg}</p>}
-                <button className="pag-cancel-btn" onClick={cancelarCartao}>Cancelar pagamento</button>
-              </>
-            )}
-
-            {/* ── Cartão: envio protegido ao processador ── */}
-            {phase === 'cartao_processando' && (
-              <>
-                <div className="pag-spinner" />
-                <p className="pag-err-title">Processando com segurança</p>
-                <p>Não feche esta tela. Estamos enviando apenas o token protegido do cartão ao Mercado Pago.</p>
-              </>
-            )}
-
-            {/* ── Cartão: autenticação 3DS do banco ── */}
-            {phase === 'cartao_3ds' && cardPaymentId && threeDsInfo && (
-              <>
-                <div className="pag-card-wrap">
-                  <StatusScreen
-                    initialization={{
-                      paymentId: String(cardPaymentId),
-                      additionalInfo: {
-                        externalResourceURL: threeDsInfo.externalResourceURL,
-                        creq: threeDsInfo.creq,
-                      },
-                    }}
-                    onError={handle3dsError}
-                    customization={{
-                      visual: {
-                        hideTransactionDate: true,
-                        showExternalReference: false,
-                      },
-                    }}
-                  />
-                </div>
-                {cardSyncWarning && <p style={{ color: '#f59e0b' }}>{cardSyncWarning}</p>}
-              </>
-            )}
-
-            {/* ── Cartão: pagamento em análise ── */}
-            {phase === 'cartao_pendente' && (
-              <>
-                <div className="pag-icon-warn">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                </div>
-                <p className="pag-err-title">Pagamento em Análise</p>
-                <p>Seu pagamento está sendo processado pelo banco. Esta tela atualizará automaticamente quando houver uma resposta.</p>
-                {cardPaymentId && <p style={{ fontSize: '.68rem' }}>Referência: {cardPaymentId}</p>}
-                {cardSyncWarning && <p style={{ color: '#f59e0b' }}>{cardSyncWarning}</p>}
-              </>
-            )}
-
-            {/* ── Navegador interno não suportado pelo Mercado Pago ── */}
-            {phase === 'navegador_incompativel' && (
-              <>
-                <div className="pag-icon-warn">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                </div>
-                <p className="pag-err-title">Abra no navegador do celular</p>
-                <p>O pagamento com cartão não funciona com segurança dentro do Instagram, Facebook ou outros aplicativos. Abra este endereço no Safari ou Chrome e continue com a mesma conta.</p>
-                <button
-                  className="pag-retry-btn"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(window.location.href);
-                      setCardSyncWarning('Link copiado. Cole no Safari ou Chrome.');
-                    } catch {
-                      setCardSyncWarning('Use o menu do aplicativo e escolha “Abrir no navegador”.');
-                    }
-                  }}
-                >
-                  Copiar endereço
-                </button>
-                {cardSyncWarning && <p style={{ color: 'var(--gold)' }}>{cardSyncWarning}</p>}
-              </>
-            )}
-
-            {/* ── Cartão: recusado ── */}
-            {phase === 'cartao_erro' && (
-              <>
-                <div className="pag-icon-err">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
-                </div>
-                <p className="pag-err-title">{cardErrorTitle}</p>
-                <p>{cardError}</p>
-              </>
-            )}
-
             {/* ── PIX expirado ── */}
             {phase === 'expired' && (
               <>
@@ -695,33 +432,77 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
               </>
             )}
 
-            {/* ── Sem CPF ── */}
-            {phase === 'sem_cpf' && (
+            {/* ── Cartão: formulário (Brick) ── */}
+            {phase === 'cartao' && (
               <>
-                <div className="pag-icon-warn">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                </div>
-                <p className="pag-err-title">CPF necessário</p>
-                <p>Informe seu CPF para pagar com cartão de crédito.</p>
-                <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                  <input
-                    type="text"
-                    placeholder="000.000.000-00"
-                    value={cpfInput}
-                    onChange={e => { setCpfErr(''); setCpfInput(fmtCPF(e.target.value)); }}
-                    onKeyDown={e => e.key === 'Enter' && salvarCpf()}
-                    style={{ background: 'rgba(255,255,255,.05)', border: `1px solid ${cpfErr ? '#ef4444' : 'var(--border)'}`, padding: '.65rem .9rem', color: 'var(--white)', fontSize: '.9rem', fontFamily: 'var(--font-cond)', outline: 'none', width: '100%', boxSizing: 'border-box', letterSpacing: '1px' }}
+                {creditosAplicados > 0 && (
+                  <div className="pag-credits-info">
+                    <div className="pag-credits-row">
+                      <span>Créditos Arena aplicados</span>
+                      <span>— {fmtReal(creditosAplicados)}</span>
+                    </div>
+                    <div className="pag-credits-row">
+                      <span>Restante a pagar</span>
+                      <span style={{ color: 'var(--white)' }}>{fmtReal(valor)}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="pag-card-wrap">
+                  <CardPayment
+                    key={cardBrickKey}
+                    initialization={brickInit}
+                    onSubmit={handleCardSubmit}
+                    onError={handleBrickError}
+                    customization={brickCustomization}
                   />
-                  {cpfErr && <span style={{ color: '#ef4444', fontSize: '.72rem', letterSpacing: '.5px' }}>{cpfErr}</span>}
-                  <button
-                    className="pag-retry-btn"
-                    onClick={salvarCpf}
-                    disabled={cpfSaving}
-                    style={{ width: '100%', padding: '.65rem', opacity: cpfSaving ? .7 : 1, cursor: cpfSaving ? 'not-allowed' : 'pointer' }}
-                  >
-                    {cpfSaving ? 'Salvando…' : 'Salvar e continuar'}
-                  </button>
                 </div>
+                <p>Somente cartão de crédito, em uma parcela (1x).</p>
+                {confirmCancelPix ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem', width: '100%' }}>
+                    <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.8rem', color: 'var(--white)', letterSpacing: '.5px', margin: 0 }}>Tem certeza que deseja cancelar?</p>
+                    <div style={{ display: 'flex', gap: '.6rem' }}>
+                      <button className="pag-cancel-btn" onClick={cancelarCartao}>Sim, cancelar</button>
+                      <button className="pag-retry-btn" onClick={voltarPix}>Voltar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="pag-cancel-btn" onClick={confirmarCancelPix}>Cancelar pagamento</button>
+                )}
+              </>
+            )}
+
+            {/* ── Cartão: processando ── */}
+            {phase === 'cartao_processando' && (
+              <>
+                <div className="pag-spinner" />
+                <p>Processando pagamento…</p>
+                <span className="pag-mp-logo">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  Pagamento seguro · SSL
+                </span>
+              </>
+            )}
+
+            {/* ── Cartão: em análise ── */}
+            {phase === 'cartao_pendente' && (
+              <>
+                <div className="pag-spinner" />
+                <p>Pagamento em análise pelo Mercado Pago…</p>
+                <div className="pag-pix-waiting">
+                  <div className="pag-spinner pag-spinner-sm" />
+                  Aguardando confirmação — atualização automática
+                </div>
+              </>
+            )}
+
+            {/* ── Cartão: recusado / erro ── */}
+            {phase === 'cartao_erro' && (
+              <>
+                <div className="pag-icon-err">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                </div>
+                <p className="pag-err-title">{cardErrorTitle}</p>
+                <p>{cardError}</p>
               </>
             )}
 
@@ -739,7 +520,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
           </div>
 
           {/* FOOTER */}
-          {(phase === 'expired' || phase === 'cartao_pendente') && (
+          {phase === 'expired' && (
             <div className="pag-footer">
               <button className="pag-cancel-btn" onClick={onClose}>Fechar</button>
             </div>
@@ -752,8 +533,8 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
           )}
           {phase === 'cartao_erro' && (
             <div className="pag-footer">
-              <button className="pag-cancel-btn" onClick={onClose}>Cancelar</button>
-              <button className="pag-retry-btn" onClick={tentarNovamente}>Tentar novamente</button>
+              <button className="pag-cancel-btn" onClick={onClose}>Fechar</button>
+              <button className="pag-retry-btn" onClick={tentarCartaoNovamente}>Tentar novamente</button>
             </div>
           )}
 

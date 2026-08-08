@@ -4,7 +4,6 @@ const { protect, masterOnly } = require('../middleware/auth');
 const { cardPaymentRateLimit } = require('../middleware/paymentRateLimit');
 const {
   criarPagamentoPix,
-  criarPreferencia,
   criarPagamentoCartao,
   getStatus,
   syncPagamento,
@@ -15,7 +14,6 @@ const {
 
 router.post('/webhook', webhook);
 router.post('/pix', protect, criarPagamentoPix);
-router.post('/preferencia', protect, criarPreferencia);
 router.post('/cartao', protect, cardPaymentRateLimit, criarPagamentoCartao);
 router.get('/sync', protect, syncPagamento);
 router.get('/revisoes-financeiras', protect, masterOnly, listarRevisoesFinanceiras);
