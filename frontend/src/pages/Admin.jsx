@@ -121,6 +121,39 @@ const NEW_BOOKING_FORM = {
 };
 const MOD_COLOR = { 'beach-tennis': '#e0ac6b', 'futevolei': '#60a5fa', 'volei': '#34d399', 'pickleball': '#f472b6' };
 
+const ADMIN_THEME_STORAGE_KEY = 'podium-admin-theme';
+const getInitialAdminTheme = () => {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const savedTheme = window.localStorage.getItem(ADMIN_THEME_STORAGE_KEY);
+    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
+  } catch {
+    // O painel continua funcional quando o navegador bloqueia o armazenamento local.
+  }
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+};
+
+function AdminThemeToggle({ theme, onToggle, className = '' }) {
+  const nextThemeLabel = theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro';
+  return (
+    <button
+      type="button"
+      className={`admin-topbar-theme${className ? ` ${className}` : ''}`}
+      onClick={onToggle}
+      aria-label={nextThemeLabel}
+      title={nextThemeLabel}
+    >
+      <svg className="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
+      </svg>
+      <svg className="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41" />
+      </svg>
+    </button>
+  );
+}
+
 // ── Grade de Ocupação constants ───────────────────────────────
 const COURTS_GRADE = [
   { id: 'coberta-1', label: 'Quadra 1', tipo: 'coberta',    tag: 'Coberta'    },
@@ -166,7 +199,7 @@ function weekRangeStart(dateStr) {
 }
 
 // ── Gate ────────────────────────────────────────────────────
-function AdminGate({ onSuccess }) {
+function AdminGate({ onSuccess, theme, onToggleTheme }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -190,6 +223,7 @@ function AdminGate({ onSuccess }) {
   return (
     <div className="admin-gate" id="adminGate">
       <div className="admin-gate-card">
+        <AdminThemeToggle theme={theme} onToggle={onToggleTheme} className="admin-gate-theme" />
         <div className="admin-gate-logo"><img src="/img/logo.png" alt="Podium Arena" /></div>
         <p className="admin-gate-eyebrow">Painel Administrativo</p>
         <h1 className="admin-gate-title">ACESSO RESTRITO</h1>
@@ -685,7 +719,7 @@ function UserSearchInput({ nome, userId, placeholder, usuarios, onChange, genero
               key={u._id}
               onMouseDown={() => handleSelect(u)}
               style={{ display: 'flex', flexDirection: 'column', padding: '6px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: '.8rem' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.05)'}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-soft)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               <span style={{ color: 'var(--white)', fontWeight: 600 }}>{u.nome}</span>
@@ -738,6 +772,10 @@ export default function Admin() {
   const [tab, setTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [gateOpen, setGateOpen] = useState(!user?.admin);
+  const [theme, setTheme] = useState(getInitialAdminTheme);
+  const toggleTheme = useCallback(() => {
+    setTheme(currentTheme => currentTheme === 'dark' ? 'light' : 'dark');
+  }, []);
 
   // Data
   const sortRes = (arr) => [...arr].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -839,9 +877,24 @@ export default function Admin() {
     document.body.classList.add('admin-page');
     return () => {
       document.body.classList.remove('admin-page');
+      document.body.classList.remove('theme-light');
       document.body.classList.remove('gate-active');
+      document.body.removeAttribute('data-admin-theme');
+      document.body.style.colorScheme = '';
     };
   }, []);
+
+  useEffect(() => {
+    const body = document.body;
+    body.classList.toggle('theme-light', theme === 'light');
+    body.dataset.adminTheme = theme;
+    body.style.colorScheme = theme;
+    try {
+      window.localStorage.setItem(ADMIN_THEME_STORAGE_KEY, theme);
+    } catch {
+      // A preferência permanece válida durante a sessão atual.
+    }
+  }, [theme]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1616,7 +1669,7 @@ export default function Admin() {
     <>
 
       {/* ── GATE ── */}
-      <AdminGate onSuccess={() => setGateOpen(false)} />
+      <AdminGate onSuccess={() => setGateOpen(false)} theme={theme} onToggleTheme={toggleTheme} />
 
       {/* ── MODAIS ── */}
 
@@ -1764,7 +1817,7 @@ export default function Admin() {
                   {[{ v: 'masculino', l: '♂ Masculino' }, { v: 'feminino', l: '♀ Feminino' }, { v: '', l: 'Prefiro não dizer' }].map(({ v, l }) => {
                     const active = editUserForm.genero === v;
                     return (
-                      <button key={v} type="button" onClick={() => setEditUserForm({ ...editUserForm, genero: v })} style={{ flex: 1, padding: '.5rem', background: active ? 'rgba(197,160,40,.12)' : 'rgba(255,255,255,.03)', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 8, color: active ? 'var(--gold)' : 'var(--gray)', fontFamily: 'var(--font-cond)', fontSize: '.75rem', letterSpacing: '1px', cursor: 'pointer', transition: 'all .18s' }}>
+                      <button key={v} type="button" onClick={() => setEditUserForm({ ...editUserForm, genero: v })} style={{ flex: 1, padding: '.5rem', background: active ? 'rgba(197,160,40,.12)' : 'var(--surface-soft)', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 8, color: active ? 'var(--gold)' : 'var(--gray)', fontFamily: 'var(--font-cond)', fontSize: '.75rem', letterSpacing: '1px', cursor: 'pointer', transition: 'all .18s' }}>
                         {l}
                       </button>
                     );
@@ -1819,7 +1872,7 @@ export default function Admin() {
               {STATUS_OPTS.map(({ v, label, color }) => {
                 const active = editUserForm.status === v;
                 return (
-                  <button key={v} type="button" onClick={() => setEditUserForm({ ...editUserForm, status: v })} style={{ flex: 1, padding: '.6rem', background: active ? `${color}18` : 'rgba(255,255,255,.03)', border: `1px solid ${active ? color : 'var(--border)'}`, borderRadius: 8, color: active ? color : 'var(--gray)', fontFamily: 'var(--font-cond)', fontSize: '.78rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', transition: 'all .18s', textTransform: 'uppercase' }}>
+                  <button key={v} type="button" onClick={() => setEditUserForm({ ...editUserForm, status: v })} style={{ flex: 1, padding: '.6rem', background: active ? `${color}18` : 'var(--surface-soft)', border: `1px solid ${active ? color : 'var(--border)'}`, borderRadius: 8, color: active ? color : 'var(--gray)', fontFamily: 'var(--font-cond)', fontSize: '.78rem', fontWeight: 700, letterSpacing: '1.5px', cursor: 'pointer', transition: 'all .18s', textTransform: 'uppercase' }}>
                     {label}
                   </button>
                 );
@@ -1932,7 +1985,7 @@ export default function Admin() {
           <div className="admin-field" style={{ gridColumn: '1/-1' }}>
             <label>Imagem do Evento</label>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '.6rem', background: 'rgba(255,255,255,.03)', border: '1px dashed var(--border)', borderRadius: 8, padding: '.75rem 1rem', cursor: 'pointer', color: 'var(--gray)', fontSize: '.83rem', transition: 'border-color .18s' }}
+              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '.6rem', background: 'var(--surface-soft)', border: '1px dashed var(--border)', borderRadius: 8, padding: '.75rem 1rem', cursor: 'pointer', color: 'var(--gray)', fontSize: '.83rem', transition: 'border-color .18s' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
@@ -2342,6 +2395,7 @@ export default function Admin() {
           <div className="admin-topbar-logo-text"><strong>PODIUM ARENA</strong><span>{isMaster ? 'Administração Master' : 'Administração Operacional'}</span></div>
         </Link>
         <div className="admin-topbar-right">
+          <AdminThemeToggle theme={theme} onToggle={toggleTheme} />
           <div className="admin-topbar-user">
             <div className="admin-topbar-avatar">{getInitials(user?.nome)}</div>
             <span className="admin-topbar-name">{user?.nome?.split(' ')[0] || 'Admin'}</span>
@@ -3423,7 +3477,7 @@ export default function Admin() {
                       <tr style={{ background: 'var(--border)' }}>
                         {['nome', 'email', 'cpf', 'tel', 'nasc', 'genero'].map(f => (
                           <th key={f} style={{ padding: '.4rem .6rem', textAlign: 'left', color: 'var(--gray)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            {f} {importMapping[f] ? <span style={{ color: 'var(--gold)', fontWeight: 400 }}>← {importMapping[f]}</span> : <span style={{ color: 'rgba(255,255,255,.2)' }}>—</span>}
+                            {f} {importMapping[f] ? <span style={{ color: 'var(--gold)', fontWeight: 400 }}>← {importMapping[f]}</span> : <span style={{ color: 'var(--muted)' }}>—</span>}
                           </th>
                         ))}
                       </tr>
@@ -3432,7 +3486,7 @@ export default function Admin() {
                       {importUsersData.rows.slice(0, 3).map((row, i) => (
                         <tr key={i} style={{ borderTop: '1px solid var(--border)' }}>
                           {['nome', 'email', 'cpf', 'tel', 'nasc', 'genero'].map(f => (
-                            <td key={f} style={{ padding: '.4rem .6rem', color: importMapping[f] ? 'var(--text)' : 'rgba(255,255,255,.2)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <td key={f} style={{ padding: '.4rem .6rem', color: importMapping[f] ? 'var(--white)' : 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {importMapping[f] ? String(row[importMapping[f]] ?? '—') : '—'}
                             </td>
                           ))}
