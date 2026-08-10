@@ -17,7 +17,7 @@ const listar = async (req, res) => {
 const atualizar = async (req, res) => {
   const { esporte, genero, nivel, ano, semestre, etapas = [], entries } = req.body;
   if (!esporte || !genero || !nivel || !ano || !semestre || !Array.isArray(entries)) {
-    return res.status(400).json({ message: 'Informe modalidade, categoria, nível, ano, semestre e atletas.' });
+    return res.status(400).json({ message: 'Informe modalidade, gênero, categoria, ano, semestre e atletas.' });
   }
 
   const etapasLimpas = etapas.map(String).map(etapa => etapa.trim()).filter(Boolean);

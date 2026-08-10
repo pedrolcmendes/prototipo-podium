@@ -173,6 +173,14 @@ const EVENT_CATEGORY_LABELS = {
   taekwondo: 'Taekwondo',
   geral: 'Geral',
 };
+const RANKING_CATEGORIES = {
+  beachtennis: ['A', 'B', 'C', 'D'],
+  futevolei: ['Ouro', 'Prata'],
+};
+const RANKING_GENDERS = {
+  beachtennis: ['masculino', 'feminino', 'misto'],
+  futevolei: ['masculino'],
+};
 const eventCategoryLabel = (category) => EVENT_CATEGORY_LABELS[category] || category || 'Geral';
 const WEEKDAYS_S = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const WEEKDAYS_L = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
@@ -936,7 +944,7 @@ export default function Admin() {
   useBodyScrollLock(sidebarOpen);
 
   const loadRankings = async () => {
-    const combos = ['beachtennis', 'futevolei'].flatMap(esporte => ['masculino', 'feminino', 'misto'].flatMap(genero => ['A', 'B', 'C', 'D'].map(nivel => [esporte, genero, nivel])));
+    const combos = ['beachtennis', 'futevolei'].flatMap(esporte => RANKING_GENDERS[esporte].flatMap(genero => RANKING_CATEGORIES[esporte].map(nivel => [esporte, genero, nivel])));
     const results = {};
     await Promise.all(combos.map(async ([esporte, genero, nivel]) => {
       try {
@@ -2254,26 +2262,26 @@ export default function Admin() {
                   <label>Modalidade</label>
                   <PodiumSelect value={rankForm.modalidade} onChange={e => {
                     const mod = e.target.value;
-                    setRankForm(prev => ({ ...prev, modalidade: mod, entries: [] }));
-                    loadRanking(mod, rankForm.categoria);
+                    const nivel = RANKING_CATEGORIES[mod][0];
+                    const categoria = RANKING_GENDERS[mod][0];
+                    setRankForm(prev => ({ ...prev, modalidade: mod, categoria, nivel, entries: [] }));
+                    loadRanking(mod, categoria, nivel);
                   }}>
                     <option value="beachtennis">Beach Tennis</option>
                     <option value="futevolei">Futevôlei</option>
                   </PodiumSelect>
                 </div>
                 <div className="admin-field" style={{ margin: 0 }}>
-                  <label>Categoria</label>
+                  <label>Gênero</label>
                   <PodiumSelect value={rankForm.categoria} onChange={e => {
                     const cat = e.target.value;
                     setRankForm(prev => ({ ...prev, categoria: cat, entries: [] }));
                     loadRanking(rankForm.modalidade, cat);
                   }}>
-                    <option value="masculino">Masculino</option>
-                    <option value="feminino">Feminino</option>
-                    <option value="misto">Misto</option>
+                    {RANKING_GENDERS[rankForm.modalidade].map(item => <option key={item} value={item}>{item === 'masculino' ? 'Masculino' : item === 'feminino' ? 'Feminino' : 'Misto'}</option>)}
                   </PodiumSelect>
                 </div>
-                <div className="admin-field" style={{ margin: 0 }}><label>Nível</label><PodiumSelect value={rankForm.nivel} onChange={e => { const nivel = e.target.value; setRankForm(prev => ({ ...prev, nivel, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, nivel); }}><option>A</option><option>B</option><option>C</option><option>D</option></PodiumSelect></div>
+                <div className="admin-field" style={{ margin: 0 }}><label>Categoria</label><PodiumSelect value={rankForm.nivel} onChange={e => { const nivel = e.target.value; setRankForm(prev => ({ ...prev, nivel, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, nivel); }}>{RANKING_CATEGORIES[rankForm.modalidade].map(item => <option key={item}>{item}</option>)}</PodiumSelect></div>
                 <div className="admin-field" style={{ margin: 0 }}><label>Ano</label><PodiumSelect value={rankForm.ano} onChange={e => { const ano = Number(e.target.value); setRankForm(prev => ({ ...prev, ano, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, ano); }}><option value={2026}>2026</option><option value={2027}>2027</option></PodiumSelect></div>
                 <div className="admin-field" style={{ margin: 0 }}><label>Semestre</label><PodiumSelect value={rankForm.semestre} onChange={e => { const semestre = Number(e.target.value); setRankForm(prev => ({ ...prev, semestre, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, rankForm.ano, semestre); }}><option value={1}>1º semestre</option><option value={2}>2º semestre</option></PodiumSelect></div>
               </div>
@@ -3281,15 +3289,15 @@ export default function Admin() {
               </button>
             </div>
             <div className="admin-rank-grid">
-              {['beachtennis', 'futevolei'].flatMap(mod => ['masculino', 'feminino', 'misto'].flatMap(cat => ['A', 'B', 'C', 'D'].map(nivel => [mod, cat, nivel]))).map(([mod, cat, nivel]) => {
+              {['beachtennis', 'futevolei'].flatMap(mod => RANKING_GENDERS[mod].flatMap(cat => RANKING_CATEGORIES[mod].map(nivel => [mod, cat, nivel]))).map(([mod, cat, nivel]) => {
                 const rankingData = rankings[`${mod}_${cat}_${nivel}`] || { entries: [] };
                 const entries = rankingData.entries || [];
                 const key = `${mod}_${cat}_${nivel}`;
                 const expanded = !!rankExpand[key];
                 return (
-                  <div key={`${mod}-${cat}`} className={`admin-card${expanded ? ' rank-expanded' : ''}`}>
+                  <div key={`${mod}-${cat}-${nivel}`} className={`admin-card${expanded ? ' rank-expanded' : ''}`}>
                     <div className="rank-admin-card-header">
-                      <h3>{mod === 'beachtennis' ? 'Beach Tennis' : 'Futevôlei'} — {cat === 'masculino' ? 'Masculino' : cat === 'feminino' ? 'Feminino' : 'Misto'} · Nível {nivel}</h3>
+                      <h3>{mod === 'beachtennis' ? 'Beach Tennis' : 'Futevôlei'} — {cat === 'masculino' ? 'Masculino' : cat === 'feminino' ? 'Feminino' : 'Misto'} · Categoria {nivel}</h3>
                       <button className="btn-rank-edit" onClick={() => { setRankForm({ modalidade: mod, categoria: cat, nivel, ano: 2026, semestre: 1, etapas: RANKING_ETAPAS, entries: [] }); setRankEtapaAtual(0); setRankingModal(true); loadRanking(mod, cat, nivel, 2026, 1); }}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                         Editar
