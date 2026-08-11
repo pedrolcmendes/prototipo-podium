@@ -11,9 +11,9 @@ const GENEROS_POR_ESPORTE = {
   beachtennis: GENEROS,
   futevolei: GENEROS.filter(item => item.id === 'masculino'),
 };
-const CATEGORIAS_POR_ESPORTE = {
-  beachtennis: ['A', 'B', 'C', 'D'],
-  futevolei: ['Ouro', 'Prata'],
+const NIVEIS_BY_SPORT = {
+  beachtennis: [{ value: 'A', label: 'Categoria A' }, { value: 'B', label: 'Categoria B' }, { value: 'C', label: 'Categoria C' }, { value: 'D', label: 'Categoria D' }],
+  futevolei: [{ value: 'A', label: 'Ouro' }, { value: 'B', label: 'Prata' }],
 };
 const anos = [2026, 2027, 2028];
 
@@ -55,23 +55,24 @@ export default function Ranking() {
 
   const entries = ranking?.entries || [];
   const etapas = ranking?.etapas || [];
-  const categorias = CATEGORIAS_POR_ESPORTE[sport];
   const generos = GENEROS_POR_ESPORTE[sport];
+  const niveisList = NIVEIS_BY_SPORT[sport];
+  const nivelLabel = niveisList.find(n => n.value === nivel)?.label || nivel;
   return <>
     <div className="ranking-hero"><div className="ranking-hero-inner">
       <p className="section-eyebrow">Podium Arena · Telêmaco Borba</p><h1 className="ranking-hero-title">RANKING <span className="ranking-hero-accent">OFICIAL</span></h1>
       <p className="ranking-hero-sub">Ranking individual: os pontos de cada etapa formam o total do semestre.</p>
     </div></div>
     <main className="ranking-page-wrap">
-      <div className="ranking-tabs-nav">{SPORTS.map(item => <button key={item.id} className={`ranking-tab${sport === item.id ? ' active' : ''}`} onClick={() => { setSport(item.id); setCategoria(GENEROS_POR_ESPORTE[item.id][0].id); setNivel(CATEGORIAS_POR_ESPORTE[item.id][0]); }}>{item.label}</button>)}</div>
+      <div className="ranking-tabs-nav">{SPORTS.map(item => <button key={item.id} className={`ranking-tab${sport === item.id ? ' active' : ''}`} onClick={() => { setSport(item.id); setCategoria(GENEROS_POR_ESPORTE[item.id][0].id); setNivel(NIVEIS_BY_SPORT[item.id][0].value); }}>{item.label}</button>)}</div>
       <div className="ranking-filters">
         <PodiumSelect value={categoria} onChange={e => setCategoria(e.target.value)} aria-label="Gênero">{generos.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</PodiumSelect>
-        <PodiumSelect value={nivel} onChange={e => setNivel(e.target.value)} aria-label="Categoria">{categorias.map(item => <option key={item} value={item}>Categoria {item}</option>)}</PodiumSelect>
+        <PodiumSelect value={nivel} onChange={e => setNivel(e.target.value)} aria-label="Nível">{niveisList.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</PodiumSelect>
         <PodiumSelect value={ano} onChange={e => setAno(Number(e.target.value))} aria-label="Ano">{anos.map(item => <option key={item}>{item}</option>)}</PodiumSelect>
         <PodiumSelect value={semestre} onChange={e => setSemestre(Number(e.target.value))} aria-label="Semestre"><option value={1}>1º semestre</option><option value={2}>2º semestre</option></PodiumSelect>
       </div>
       {loading ? <div className="ranking-loading">Carregando ranking…</div> : !entries.length ? <div className="ranking-empty"><p>Nenhum ranking disponível para estes filtros.</p><span>O ranking será publicado após as etapas.</span></div> : <>
-        <div className="ranking-summary"><strong>{GENEROS.find(c => c.id === categoria)?.label} · Categoria {nivel}</strong><span>{semestre}º semestre de {ano} · {entries.length} atleta{entries.length !== 1 ? 's' : ''}</span>{ranking?.encerrado && <span className="ranking-encerrado-badge">ENCERRADO</span>}</div>
+        <div className="ranking-summary"><strong>{GENEROS.find(c => c.id === categoria)?.label} · {nivelLabel}</strong><span>{semestre}º semestre de {ano} · {entries.length} atleta{entries.length !== 1 ? 's' : ''}</span>{ranking?.encerrado && <span className="ranking-encerrado-badge">ENCERRADO</span>}</div>
         <div className="ranking-table-scroll"><div className="ranking-table-section ranking-stages-table">
           <div className="ranking-header-bar" style={{ gridTemplateColumns: `56px minmax(190px, 1fr) repeat(${etapas.length}, 90px) 90px` }}><div className="r-pos">Pos</div><div>Atleta</div>{etapas.map((etapa, i) => <div className="r-stat" key={i}>{etapa}</div>)}<div className="r-stat">Total</div></div>
           {entries.map((entry, index) => <div className={`ranking-row ${index < 3 ? `top-${index + 1}` : ''}`} key={entry._id || entry.userId || index} style={{ gridTemplateColumns: `56px minmax(190px, 1fr) repeat(${etapas.length}, 90px) 90px` }}>

@@ -87,7 +87,7 @@ function Calendar({ year, month, onPrev, onNext, selectedDate, onSelect, busyDat
       </div>
       <div className="cal-legend">
         <div className="legend-item"><div className="legend-dot today" /> Hoje</div>
-        <div className="legend-item"><div className="legend-dot event" style={{ background: 'var(--amber)' }} /> Evento</div>
+        <div className="legend-item"><div className="legend-dot event" style={{ background: 'var(--amber)' }} /> Campeonato</div>
         <div className="legend-item"><div className="legend-dot" style={{ background: 'var(--gold)' }} /> Selecionado</div>
       </div>
     </div>

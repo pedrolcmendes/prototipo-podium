@@ -13,7 +13,7 @@ const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov'
 const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_FULL = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const CAT_LABEL = { beachtennis: 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball', taekwondo: 'Taekwondo', geral: 'Geral' };
-const catLabel = (c) => CAT_LABEL[c] || c || 'Evento';
+const catLabel = (c) => CAT_LABEL[c] || c || 'Campeonato';
 const isDupla = (event) => event?.tipoInscricao === 'dupla';
 const registrationTotal = (event) => Number(event?.preco || 0) * (isDupla(event) ? 2 : 1);
 const fmtBRL = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -67,6 +67,8 @@ export default function Eventos() {
   const [pagOpen, setPagOpen] = useState(false);
   const [pendingReg, setPendingReg] = useState(null);
   const [pendingEvt, setPendingEvt] = useState(null);
+  const [inscritosModal, setInscritosModal] = useState(null); // { nome, list }
+  const [inscritosLoading, setInscritosLoading] = useState(false);
 
   useBodyScrollLock(!!selectedEvt);
 
@@ -164,6 +166,19 @@ export default function Eventos() {
   };
 
 
+  const abrirInscritos = async (ev) => {
+    setInscritosLoading(true);
+    setInscritosModal({ nome: ev.nome, list: [] });
+    try {
+      const { data } = await api.get(`/registrations/evento/${ev._id}/publico`);
+      setInscritosModal({ nome: ev.nome, list: data });
+    } catch {
+      setInscritosModal({ nome: ev.nome, list: [] });
+    } finally {
+      setInscritosLoading(false);
+    }
+  };
+
   const isInscrito = selectedEvt && userRegs.includes(selectedEvt._id);
   const pendingRegForEvt = selectedEvt ? pendingRegsByEvent[selectedEvt._id] : null;
   const inscritosDe = (ev) => ev.inscritos ?? ev.vagasOcupadas ?? 0;
@@ -240,6 +255,32 @@ export default function Eventos() {
         .evt-payment-methods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem}
         .evt-payment-methods button{min-width:0;line-height:1.35;overflow-wrap:anywhere}
 
+        /* botão ver inscritos */
+        .evt-ver-inscritos{display:inline-flex;align-items:center;gap:.5rem;background:var(--gold-faint);border:1px solid rgba(197,160,40,.45);color:var(--gold);font-family:var(--font-cond);font-size:.74rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:.65rem 1.2rem;cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s;white-space:nowrap;border-radius:2px}
+        .evt-ver-inscritos:hover{background:rgba(197,160,40,.18);border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,160,40,.1)}
+        .evt-ver-inscritos svg{flex-shrink:0;stroke:var(--gold)}
+
+        /* modal lista de inscritos */
+        .insc-list-overlay{position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.92);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:1.5rem}
+        .insc-list-modal{background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.5)}
+        .insc-list-header{display:flex;align-items:center;justify-content:space-between;padding:1.2rem 1.5rem;border-bottom:1px solid var(--border);gap:1rem}
+        .insc-list-header h3{font-family:var(--font-cond);font-size:1.1rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .insc-list-header .insc-count-badge{font-family:var(--font-cond);font-size:.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--gold);background:var(--gold-faint);border:1px solid rgba(197,160,40,.3);padding:.25rem .65rem;white-space:nowrap;flex-shrink:0}
+        .insc-list-body{overflow-y:auto;flex:1;padding:.5rem 0}
+        .insc-list-row{display:flex;align-items:center;gap:.9rem;padding:.75rem 1.5rem;border-bottom:1px solid rgba(255,255,255,.04)}
+        .insc-list-row:last-child{border-bottom:none}
+        .insc-list-num{font-family:var(--font-cond);font-size:.9rem;font-weight:700;color:var(--gray);min-width:24px;text-align:right;flex-shrink:0}
+        .insc-list-avatar{width:36px;height:36px;border-radius:50%;background:var(--dark);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-cond);font-size:.78rem;font-weight:700;color:var(--gold);flex-shrink:0}
+        .insc-list-info{flex:1;min-width:0}
+        .insc-list-name{font-family:var(--font-cond);font-size:.95rem;font-weight:700;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .insc-list-sub{font-family:var(--font-body);font-size:.75rem;color:var(--gray);margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .insc-list-empty{padding:3rem 1.5rem;text-align:center;color:var(--gray);font-family:var(--font-cond);font-size:.8rem;letter-spacing:2px;text-transform:uppercase}
+        .insc-list-footer{padding:.9rem 1.5rem;border-top:1px solid var(--border)}
+        @media(max-width:480px){
+          .insc-list-overlay{padding:.75rem}
+          .insc-list-modal{max-height:90vh;border-radius:16px 16px 0 0}
+        }
+
         /* arte em tela cheia */
         .evt-zoom{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.94);display:flex;align-items:center;justify-content:center;padding:2rem;cursor:zoom-out}
         .evt-zoom img{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 20px 80px rgba(0,0,0,.8)}
@@ -264,7 +305,7 @@ export default function Eventos() {
 
       <div className="page-hero">
         <p className="section-eyebrow">Podium Arena</p>
-        <h1>EVENTOS <span style={{ background: 'linear-gradient(135deg,var(--gold-dark),var(--gold),var(--gold-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>& TORNEIOS</span></h1>
+        <h1><span style={{ background: 'linear-gradient(135deg,var(--gold-dark),var(--gold),var(--gold-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>CAMPEONATOS</span></h1>
         <p>Campeonatos, ligas e eventos de beach sports. Inscreva-se e faça parte da arena.</p>
       </div>
 
@@ -283,9 +324,9 @@ export default function Eventos() {
             <p className="section-eyebrow">Agenda Podium</p>
             <h2>INSCRIÇÕES <span>DISPONÍVEIS</span></h2>
           </div>
-          <p>Eventos cadastrados com inscrição e pagamento direto pelo site.</p>
+          <p>Campeonatos cadastrados com inscrição e pagamento direto pelo site.</p>
         </div>
-        {loading && <p style={{ color: 'var(--gray)', fontFamily: 'var(--font-cond)', letterSpacing: '1px' }}>Carregando eventos…</p>}
+        {loading && <p style={{ color: 'var(--gray)', fontFamily: 'var(--font-cond)', letterSpacing: '1px' }}>Carregando campeonatos…</p>}
         {!loading && eventos.length === 0 && (
           <p className="events-list-empty">As próximas inscrições online serão liberadas em breve.</p>
         )}
@@ -390,6 +431,13 @@ export default function Eventos() {
 
                 {selectedEvt.desc && <p className="evt-desc">{selectedEvt.desc}</p>}
 
+                <div style={{ marginBottom: '1rem' }}>
+                  <button className="evt-ver-inscritos" onClick={() => abrirInscritos(selectedEvt)}>
+                    <IcoUsers />
+                    Ver inscritos ({inscritosDe(selectedEvt)})
+                  </button>
+                </div>
+
                 <div className="evt-modal-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
                   {inscStep === 'details' ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
@@ -454,6 +502,50 @@ export default function Eventos() {
           </div>
         );
       })()}
+
+      {/* Modal lista de inscritos */}
+      {inscritosModal && (
+        <div className="insc-list-overlay" onClick={e => { if (e.target === e.currentTarget) setInscritosModal(null); }}>
+          <div className="insc-list-modal">
+            <div className="insc-list-header">
+              <h3>{inscritosModal.nome}</h3>
+              {!inscritosLoading && (
+                <span className="insc-count-badge">{inscritosModal.list.length} inscrito{inscritosModal.list.length !== 1 ? 's' : ''}</span>
+              )}
+              <button className="evt-close-btn" onClick={() => setInscritosModal(null)} aria-label="Fechar" style={{ border: '1px solid var(--border)', borderRadius: 8, width: 36, height: 36, flexShrink: 0 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="insc-list-body">
+              {inscritosLoading ? (
+                <div className="insc-list-empty">Carregando…</div>
+              ) : inscritosModal.list.length === 0 ? (
+                <div className="insc-list-empty">Nenhum inscrito confirmado ainda</div>
+              ) : inscritosModal.list.map((atleta, i) => {
+                const initials = atleta.nome.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+                const sub = [
+                  atleta.genero === 'masculino' ? 'Masculino' : atleta.genero === 'feminino' ? 'Feminino' : null,
+                  atleta.nivel ? `Categoria ${atleta.nivel}` : null,
+                  atleta.parceiro ? `Dupla: ${atleta.parceiro}` : null,
+                ].filter(Boolean).join(' · ');
+                return (
+                  <div key={i} className="insc-list-row">
+                    <span className="insc-list-num">{i + 1}</span>
+                    <div className="insc-list-avatar">{initials}</div>
+                    <div className="insc-list-info">
+                      <div className="insc-list-name">{atleta.nome}</div>
+                      {sub && <div className="insc-list-sub">{sub}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="insc-list-footer">
+              <button className="evt-ver-inscritos" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setInscritosModal(null)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Arte em tela cheia */}
       {posterZoom && selectedEvt?.imagem && (

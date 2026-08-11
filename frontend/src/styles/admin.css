@@ -1990,7 +1990,7 @@ body.gate-active .admin-layout { display: none; }
 }
 .rank-entries-header {
   display: grid;
-  grid-template-columns: 32px 1fr 100px 64px 28px;
+  grid-template-columns: 32px 1fr 150px 80px 28px;
   align-items: center;
   gap: .5rem;
   padding: .5rem 1.7rem;
@@ -2016,7 +2016,7 @@ body.gate-active .admin-layout { display: none; }
 }
 .rank-entry-row {
   display: grid;
-  grid-template-columns: 32px 1fr 100px 64px 28px;
+  grid-template-columns: 32px 1fr 150px 80px 28px;
   gap: .5rem;
   align-items: center;
   padding: .3rem .2rem;
@@ -2200,35 +2200,58 @@ body.gate-active .admin-layout { display: none; }
 
 @media(max-width:860px) {
   .rank-modal-wide { width: calc(100vw - 2rem) !important; max-width: 100% !important; }
-  .rank-entries-header { display: none; }
 
-  /* Cada dupla vira um card: posição + lixeira em cima, jogadores empilhados, Pts/V/D lado a lado */
+  /* Header: esconde colunas de label, mantém só o seletor de etapa */
+  .rank-entries-header {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .55rem 1.5rem .65rem;
+  }
+  .rank-entries-header > span { display: none; }
+  .rank-entries-header::before {
+    content: 'Lançando:';
+    font-family: var(--font-body);
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gray);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .rank-entries-header .rank-stage-select { flex: 1 1 auto; }
+
+  /* Cada atleta vira um card: nome em cima, pontos + total embaixo */
   .rank-entry-row {
-    grid-template-columns: 30px 1fr 1fr 36px;
+    grid-template-columns: 32px 1fr 1fr 40px;
     grid-template-areas:
       "num j1  j1  del"
       ".   pts total .";
-    gap: .5rem;
+    gap: .6rem .5rem;
     align-items: center;
     background: var(--dark);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: .75rem .65rem;
-    margin-bottom: .6rem;
+    padding: .9rem .75rem;
+    margin-bottom: .65rem;
   }
   .rank-entry-row:hover { background: var(--dark); }
-  .rank-entry-row > :nth-child(1) { grid-area: num; }
+  .rank-entry-row > :nth-child(1) { grid-area: num; align-self: center; }
   .rank-entry-row > :nth-child(2) { grid-area: j1; min-width: 0; }
   .rank-entry-row > :nth-child(3) { grid-area: pts; min-width: 0; }
-  .rank-entry-row > :nth-child(4) { grid-area: total; }
-  .rank-entry-row > :nth-child(5) { grid-area: del; }
-  .rank-mini-field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+  .rank-entry-row > :nth-child(4) { grid-area: total; justify-self: start; }
+  .rank-entry-row > :nth-child(5) { grid-area: del; justify-self: end; }
+
+  .rank-mini-field { display: flex; align-items: center; gap: .5rem; min-width: 0; }
   .rank-mini-label {
-    display: block; font-family: var(--font-body); font-size: .54rem; font-weight: 700;
-    letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray); text-align: center;
+    display: block; font-family: var(--font-body); font-size: .56rem; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray);
   }
-  .rank-entry-input { font-size: 1rem; padding: .55rem .6rem; }
-  .rank-entry-del { width: 36px; height: 36px; border-radius: 9px; align-self: center; }
+  .rank-mini-field strong { font-family: var(--font-cond); font-size: 1.05rem; }
+
+  .rank-entry-input { font-size: 1rem; padding: .65rem .7rem; }
+  .rank-entry-del { width: 40px; height: 40px; border-radius: 10px; align-self: center; }
   .rank-entry-num { font-size: 1.15rem; }
 }
 
@@ -2586,6 +2609,72 @@ body.gate-active .admin-layout { display: none; }
    ══════════════════════════════════════ */
 .admin-rank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 @media (max-width: 860px) { .admin-rank-grid { grid-template-columns: 1fr; } }
+
+/* Modal ranking — seletores responsivos */
+.rank-modal-selectors { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 860px) { .rank-modal-selectors { grid-template-columns: repeat(2, 1fr); } }
+
+/* Cards do ranking no mobile: flex wrap se o título for longo */
+@media (max-width: 480px) {
+  .admin-rank-grid .admin-card { flex-wrap: wrap; gap: .75rem; }
+  .admin-rank-grid .admin-card h3 { font-size: .9rem; }
+}
+
+/* ══════════════════════════════════════
+   MODAL RANKING — BOTTOM SHEET MOBILE
+   ══════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Overlay vira bottom sheet */
+  .ranking-modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .ranking-admin-modal {
+    border-radius: 20px 20px 0 0 !important;
+    height: 95svh !important;
+    max-height: 95svh !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Seletores: 2 colunas compactas, menos padding */
+  .rank-modal-selectors-wrap { padding: .65rem 1rem .55rem !important; }
+  .rank-modal-selectors { grid-template-columns: repeat(2, 1fr) !important; gap: .5rem !important; }
+  .rank-modal-selectors .admin-field { margin: 0; }
+  .rank-modal-selectors .admin-field label {
+    font-size: .5rem;
+    letter-spacing: 1.5px;
+    margin-bottom: .2rem;
+  }
+
+  /* Entries: preenche o espaço restante do modal */
+  .ranking-modal-entries {
+    flex: 1 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 .85rem .5rem !important;
+  }
+
+  /* Entry row: mais espaçoso e legível */
+  .rank-entry-row {
+    grid-template-columns: 28px 1fr 1fr 40px;
+    padding: 1rem .7rem;
+    gap: .7rem .5rem;
+    border-radius: 14px;
+    margin-bottom: .7rem;
+  }
+  .rank-mini-field { gap: .3rem; }
+  .rank-mini-label { font-size: .58rem; }
+  .rank-mini-field strong { font-size: 1.1rem; }
+  .rank-entry-input { font-size: 1.05rem; padding: .7rem .6rem; }
+  .rank-entry-num { font-size: 1.2rem; }
+  .rank-add-btn { margin: .5rem 0 1rem; padding: .8rem; font-size: .78rem; }
+
+  /* Header e footer do modal mais compactos */
+  .ranking-admin-modal .admin-modal-header { padding: .85rem 1rem; }
+  .ranking-admin-modal .admin-modal-footer { padding: .85rem 1rem; }
+  .rank-entries-header { padding: .45rem 1rem .5rem; }
+}
 
 /* ══════════════════════════════════════
    CONFIGURAÇÕES

@@ -72,7 +72,7 @@ export default function SuperligaShowcase({ registrationEvent = null, onRegister
         </button>
 
         <div className="sl-hero-copy">
-          <div className="sl-kicker"><span>Temporada 2026</span> Evento em destaque</div>
+          <div className="sl-kicker"><span>Temporada 2026</span> Campeonato em destaque</div>
           <h2 id="superliga-title">SUPERLIGA <em>BEACH TENNIS</em></h2>
           <p className="sl-subtitle">A liga dos super-heróis invadiu a areia.</p>
           <p className="sl-intro">Uma temporada completa na Podium Arena, com etapas masculinas, femininas, mistas e kids — cada rodada inspirada em um novo herói.</p>

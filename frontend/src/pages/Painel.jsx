@@ -392,7 +392,7 @@ export default function Painel() {
       extrato.push({
         id: `${registration._id}-event-deb`,
         tipo: 'debito',
-        desc: `Evento — ${registration.eventId?.nome || registration.eventNome}`,
+        desc: `Campeonato — ${registration.eventId?.nome || registration.eventNome}`,
         metodo: payment.method,
         timestamp: payment.paidAt,
         valor: total,
@@ -530,7 +530,7 @@ export default function Painel() {
               <NavItem id="reservas" label="Minhas Reservas" icon={<IcoCal />} activeTab={tab} onSelect={handleNavSelect} />
             </NavGroup>
             <NavGroup label="Comunidade">
-              <NavItem id="eventos" label="Eventos e Inscrições" icon={<IcoTrophy />} activeTab={tab} onSelect={handleNavSelect} />
+              <NavItem id="eventos" label="Competições & Inscrições" icon={<IcoTrophy />} activeTab={tab} onSelect={handleNavSelect} />
               <NavItem id="ranking" label="Ranking" icon={<IcoBar />} activeTab={tab} onSelect={handleNavSelect} />
             </NavGroup>
             <NavGroup label="Conta">
@@ -798,14 +798,14 @@ export default function Painel() {
                   <p className="painel-eyebrow">Competições</p>
                   <h2 className="painel-section-title-h2">EVENTOS & INSCRIÇÕES</h2>
                 </div>
-                <Link to="/eventos" className="btn-ghost">Ver todos →</Link>
+                <Link to="/campeonatos" className="btn-ghost">Ver todos →</Link>
               </div>
 
               <div className="painel-card event-registrations-panel">
                 <div className="painel-card-header">
                   <div>
                     <h3>Minhas inscrições</h3>
-                    <p className="event-registrations-subtitle">Acompanhe os eventos em que você está inscrito.</p>
+                    <p className="event-registrations-subtitle">Acompanhe os campeonatos em que você está inscrito.</p>
                   </div>
                   <span className="event-registrations-count">{inscricoes.length}</span>
                 </div>
@@ -820,7 +820,7 @@ export default function Painel() {
                     <div className="empty-state-icon"><IcoTrophy /></div>
                     <h4>Nenhuma inscrição</h4>
                     <p>Quando você se inscrever em um evento, ele aparecerá aqui.</p>
-                    <Link to="/eventos" className="btn-gold-sm">Ver eventos disponíveis</Link>
+                    <Link to="/campeonatos" className="btn-gold-sm">Ver eventos disponíveis</Link>
                   </div>
                 )}
               </div>
@@ -828,7 +828,7 @@ export default function Painel() {
               <div className="event-available-heading">
                 <div>
                   <p className="painel-eyebrow">Agenda Podium</p>
-                  <h3>Eventos disponíveis</h3>
+                  <h3>Campeonatos disponíveis</h3>
                 </div>
               </div>
 
@@ -861,12 +861,12 @@ export default function Painel() {
                                 <span className="evento-card-month">{MESES[dt.getMonth()]}</span>
                               </div>
                             )}
-                            <span className="evento-card-tag">{ev.modalidade || ev.tipo || 'Evento'}</span>
+                            <span className="evento-card-tag">{ev.modalidade || ev.tipo || 'Campeonato'}</span>
                           </div>
                           <div className="evento-card-name">{ev.nome}</div>
                           {ev.local && <div className="evento-card-local">{ev.local}</div>}
                           {ev.preco > 0 && <div className="evento-card-price">{fmtMoney(ev.preco)}</div>}
-                          <Link to="/eventos" className="btn-gold-sm" style={{ marginTop: 'auto', paddingTop: '.75rem', display: 'inline-flex' }}>
+                          <Link to="/campeonatos" className="btn-gold-sm" style={{ marginTop: 'auto', paddingTop: '.75rem', display: 'inline-flex' }}>
                             Ver detalhes
                           </Link>
                         </div>
@@ -1106,7 +1106,7 @@ export default function Painel() {
         {[
           { id: 'inicio',   label: 'Início',   icon: <IcoHome /> },
           { id: 'reservas', label: 'Reservas',  icon: <IcoCal /> },
-          { id: 'eventos',  label: 'Eventos',   icon: <IcoTrophy /> },
+          { id: 'eventos',  label: 'Campeonatos',   icon: <IcoTrophy /> },
           { id: 'ranking',  label: 'Ranking',   icon: <IcoBar /> },
           { id: 'perfil',   label: 'Perfil',    icon: <IcoUser /> },
         ].map(t => (

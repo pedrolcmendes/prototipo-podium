@@ -433,6 +433,10 @@
   .ranking-tab { padding: .85rem 1.3rem; font-size: .78rem; letter-spacing: 2px; gap: .4rem; }
   .ranking-tab svg { width: 15px; height: 15px; }
 
+  /* Filtros: 2 colunas no mobile */
+  .ranking-filters { gap: .5rem; margin-bottom: 1.5rem; }
+  .ranking-filters .podium-select { flex: 1 1 calc(50% - .25rem); min-width: 0; }
+
   .gender-toggle { padding: .6rem 1rem; font-size: .72rem; letter-spacing: 2px; }
   .ranking-controls-bar { margin-bottom: 1.8rem; }
   .ranking-season-badge { display: none; }
@@ -477,13 +481,6 @@
   .podium-avatar { width: 40px; height: 40px; font-size: .8rem; }
   .podium-p1 .podium-avatar { width: 52px; height: 52px; }
   .podium-name { font-size: .65rem; }
+  .ranking-filters .podium-select { flex: 1 1 100%; }
 }
 
-/* ══════════════════════════════════════
-   ADMIN RANKING MODAL — mobile scroll
-   ══════════════════════════════════════ */
-@media(max-width: 700px) {
-  .rank-entries-header,
-  .rank-entry-row { min-width: 480px; }
-  .ranking-modal-entries { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-}

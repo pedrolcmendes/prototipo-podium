@@ -217,7 +217,7 @@ export default function Home() {
           </div>
           <div className="num-item reveal reveal-delay-2">
             <div className="num-value" ref={ref50}>0</div>
-            <div className="num-label">Eventos por Ano</div>
+            <div className="num-label">Campeonatos por Ano</div>
           </div>
           <div className="num-item reveal reveal-delay-3">
             <div className="num-value">{hourOf(settings.openWeek, 6)}h–{hourOf(settings.closeWeek, 23)}h</div>
@@ -337,7 +337,7 @@ export default function Home() {
           <div className="diff-grid">
             {[
               { title: 'Iluminação LED', text: 'Sistema profissional em todas as quadras para jogar a qualquer hora do dia ou da noite.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" x2="12" y1="1" y2="3"/><line x1="12" x2="12" y1="21" y2="23"/><line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/><line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/><line x1="1" x2="3" y1="12" y2="12"/><line x1="21" x2="23" y1="12" y2="12"/><line x1="4.22" x2="5.64" y1="19.78" y2="18.36"/><line x1="18.36" x2="19.78" y1="5.64" y2="4.22"/></svg> },
-              { title: 'Eventos & Torneios', text: 'Infraestrutura completa para receber campeonatos, ligas e eventos de todos os portes.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> },
+              { title: 'Campeonatos', text: 'Infraestrutura completa para receber campeonatos, ligas e eventos de todos os portes.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> },
               { title: 'Reserva Online', text: 'Agende sua quadra em segundos pelo sistema online com calendário em tempo real.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg> },
               { title: 'Estacionamento', text: 'Estacionamento amplo e gratuito para atletas e visitantes com total comodidade.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> },
               { title: 'Quadras Cobertas', text: 'Cobertura garantindo conforto para prática em qualquer condição climática.', icon: <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
@@ -378,7 +378,7 @@ export default function Home() {
             <p className="section-eyebrow reveal">Agenda</p>
             <h2 className="section-title reveal" style={{ marginBottom: 0 }}>PRÓXIMOS EVENTOS</h2>
           </div>
-          <Link to="/eventos" className="btn-ghost reveal">Ver todos →</Link>
+          <Link to="/campeonatos" className="btn-ghost reveal">Ver todos →</Link>
         </div>
         <div className="events-grid reveal" id="homeEventsGrid">
           {eventos.length === 0 && (
@@ -387,7 +387,7 @@ export default function Home() {
           {eventos.map(ev => {
             const d = new Date(ev.data);
             return (
-              <Link to="/eventos" key={ev._id} className="ev-card">
+              <Link to="/campeonatos" key={ev._id} className="ev-card">
                 <div className="ev-card-top">
                   <div className="ev-date-block">
                     <span className="ev-day">{String(d.getDate()).padStart(2, '0')}</span>
@@ -420,7 +420,7 @@ export default function Home() {
           <div className="cta-btns">
             <Link to="/reservas" className="btn-gold">Reservar Quadra</Link>
             <a href={wa} className="btn-wpp" target="_blank" rel="noreferrer">WhatsApp</a>
-            <Link to="/eventos" className="btn-outline">Ver Eventos</Link>
+            <Link to="/campeonatos" className="btn-outline">Ver Campeonatos</Link>
           </div>
         </div>
       </div>

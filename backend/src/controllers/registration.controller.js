@@ -33,6 +33,21 @@ const porEvento = async (req, res) => {
   res.json(registrations.map((registration) => sanitizeRegistrationForAdmin(registration, req.user)));
 };
 
+const inscritosPublicos = async (req, res) => {
+  const registrations = await Registration.find({
+    eventId: req.params.eventId,
+    status: 'confirmada',
+  })
+    .populate('userId', 'nome')
+    .sort({ createdAt: 1 });
+  res.json(registrations.map((r) => ({
+    nome: r.userId?.nome || r.userName || 'Atleta',
+    genero: r.genero || null,
+    nivel: r.nivel || null,
+    parceiro: r.parceiro || null,
+  })));
+};
+
 const inscrever = async (req, res) => {
   const [event, settings] = await Promise.all([
     Event.findById(req.params.eventId),
@@ -260,4 +275,4 @@ const cancelar = async (req, res) => {
   return res.json({ message: 'Inscrição cancelada', registration });
 };
 
-module.exports = { minhasInscricoes, listar, porEvento, inscrever, cancelar };
+module.exports = { minhasInscricoes, listar, porEvento, inscritosPublicos, inscrever, cancelar };

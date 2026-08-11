@@ -29,6 +29,11 @@ import {
 } from '../utils/finance';
 import { rankByRelevance } from '../utils/search';
 
+const NIVEIS_BY_SPORT = {
+  beachtennis: [{ value: 'A', label: 'Categoria A' }, { value: 'B', label: 'Categoria B' }, { value: 'C', label: 'Categoria C' }, { value: 'D', label: 'Categoria D' }],
+  futevolei: [{ value: 'A', label: 'Ouro' }, { value: 'B', label: 'Prata' }],
+};
+
 // ── helpers ──────────────────────────────────────────────────
 const formatTel = (v) => {
   const n = v.replace(/\D/g, '').slice(0, 11);
@@ -944,7 +949,7 @@ export default function Admin() {
   useBodyScrollLock(sidebarOpen);
 
   const loadRankings = async () => {
-    const combos = ['beachtennis', 'futevolei'].flatMap(esporte => RANKING_GENDERS[esporte].flatMap(genero => RANKING_CATEGORIES[esporte].map(nivel => [esporte, genero, nivel])));
+    const combos = ['beachtennis', 'futevolei'].flatMap(esporte => RANKING_GENDERS[esporte].flatMap(genero => NIVEIS_BY_SPORT[esporte].map(({ value: nivel }) => [esporte, genero, nivel])));
     const results = {};
     await Promise.all(combos.map(async ([esporte, genero, nivel]) => {
       try {
@@ -1153,7 +1158,7 @@ export default function Admin() {
     const insc = inscricoes.map(i => ({
       id: i._id, tipo: 'evento',
       nome: i.userId?.nome || i.userName || '—',
-      detalhe: i.eventId?.nome || i.eventNome || 'Evento',
+      detalhe: i.eventId?.nome || i.eventNome || 'Campeonato',
       data: (i.createdAt || '').slice(0, 10) || i.eventId?.data || '',
       pagamento: '—',
       valor: Number(i.preco ?? i.eventId?.preco ?? 0),
@@ -1318,11 +1323,11 @@ export default function Admin() {
       if (eventoModal?._id) {
         const { data } = await api.put(`/events/${eventoModal._id}`, payload);
         setEventos(prev => prev.map(e => e._id === data._id ? data : e));
-        toast('Evento atualizado', 'success');
+        toast('Campeonato atualizado', 'success');
       } else {
         const { data } = await api.post('/events', payload);
         setEventos(prev => [data, ...prev]);
-        toast('Evento criado', 'success');
+        toast('Campeonato criado', 'success');
       }
       setEventoModal(null);
       setEventoImagemFile(null);
@@ -1337,7 +1342,7 @@ export default function Admin() {
         try {
           await api.delete(`/events/${id}`);
           setEventos(prev => prev.filter(e => e._id !== id));
-          toast('Evento removido', 'info');
+          toast('Campeonato removido', 'info');
         } catch { toast('Erro ao remover', 'error'); }
         setConfirmModal(null);
       }
@@ -1730,7 +1735,7 @@ export default function Admin() {
                 </div>
                 <div className="admin-profile-stats">
                   <div className="admin-profile-stat"><strong>{uReservas.length}</strong><span>Reservas</span></div>
-                  <div className="admin-profile-stat"><strong>{uInsc.length}</strong><span>Eventos</span></div>
+                  <div className="admin-profile-stat"><strong>{uInsc.length}</strong><span>Campeonatos</span></div>
                   {isMaster && <div className="admin-profile-stat"><strong>{fmtMoney(uGasto)}</strong><span>Gasto</span></div>}
                   {isMaster && <div className="admin-profile-stat credit"><strong>{fmtMoney(u.creditos)}</strong><span>Crédito</span></div>}
                 </div>
@@ -1787,7 +1792,7 @@ export default function Admin() {
             <div className="edit-user-stats">
               {[
                 { label: 'Reservas', val: uReservas.length },
-                { label: 'Eventos', val: uEventos.length },
+                { label: 'Campeonatos', val: uEventos.length },
                 ...(isMaster ? [
                   { label: 'Gasto Total', val: fmtMoney(gastoTotal) },
                   { label: 'Crédito', val: fmtMoney(u.creditos || 0) },
@@ -1924,10 +1929,10 @@ export default function Admin() {
       })()}
 
       {/* Evento modal */}
-      <AdminModal open={eventoModal !== null} onClose={() => setEventoModal(null)} title={eventoModal?._id ? 'Editar Evento' : 'Novo Evento'} maxWidth={560}
-        footer={<><button className="btn-admin-secondary" onClick={() => setEventoModal(null)}>Cancelar</button><button className="btn-admin-primary" onClick={salvarEvento}>Salvar Evento</button></>}>
+      <AdminModal open={eventoModal !== null} onClose={() => setEventoModal(null)} title={eventoModal?._id ? 'Editar Campeonato' : 'Novo Campeonato'} maxWidth={560}
+        footer={<><button className="btn-admin-secondary" onClick={() => setEventoModal(null)}>Cancelar</button><button className="btn-admin-primary" onClick={salvarEvento}>Salvar Campeonato</button></>}>
         <div className="admin-grid-2">
-          <div className="admin-field" style={{ gridColumn: '1/-1' }}><label>Nome do Evento *</label><input type="text" value={eventoForm.nome} onChange={e => setEventoForm({ ...eventoForm, nome: e.target.value })} placeholder="Ex: Copa Podium Arena" /></div>
+          <div className="admin-field" style={{ gridColumn: '1/-1' }}><label>Nome do Campeonato *</label><input type="text" value={eventoForm.nome} onChange={e => setEventoForm({ ...eventoForm, nome: e.target.value })} placeholder="Ex: Copa Podium Arena" /></div>
           <div className="admin-field"><label>Data *</label><PodiumDatePicker value={eventoForm.data} onChange={e => setEventoForm({ ...eventoForm, data: e.target.value })} aria-label="Data do evento" /></div>
           <div className="admin-field">
             <label>Horário</label>
@@ -1991,7 +1996,7 @@ export default function Admin() {
             </PodiumSelect>
           </div>
           <div className="admin-field" style={{ gridColumn: '1/-1' }}>
-            <label>Imagem do Evento</label>
+            <label>Imagem do Campeonato</label>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
               <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '.6rem', background: 'var(--surface-soft)', border: '1px dashed var(--border)', borderRadius: 8, padding: '.75rem 1rem', cursor: 'pointer', color: 'var(--gray)', fontSize: '.83rem', transition: 'border-color .18s' }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
@@ -2245,8 +2250,8 @@ export default function Admin() {
 
       {/* Ranking modal */}
       {rankingModal && (
-        <div className="admin-modal-overlay open">
-          <div className="admin-modal" style={{ maxWidth: 680, width: '95vw' }}>
+        <div className="admin-modal-overlay open ranking-modal-overlay">
+          <div className="admin-modal ranking-admin-modal" style={{ maxWidth: 'min(1100px, 95vw)', width: '95vw' }}>
             <div className="admin-modal-header">
               <div>
                 <p className="admin-eyebrow" style={{ marginBottom: '.2rem' }}>Gestão</p>
@@ -2256,16 +2261,16 @@ export default function Admin() {
             </div>
 
             {/* Seletores */}
-            <div style={{ padding: '1.2rem 1.5rem .8rem', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+            <div className="rank-modal-selectors-wrap" style={{ padding: '1.2rem 1.5rem .8rem', borderBottom: '1px solid var(--border)' }}>
+              <div className="rank-modal-selectors" style={{ display: 'grid', gap: '1rem' }}>
                 <div className="admin-field" style={{ margin: 0 }}>
                   <label>Modalidade</label>
                   <PodiumSelect value={rankForm.modalidade} onChange={e => {
                     const mod = e.target.value;
-                    const nivel = RANKING_CATEGORIES[mod][0];
-                    const categoria = RANKING_GENDERS[mod][0];
-                    setRankForm(prev => ({ ...prev, modalidade: mod, categoria, nivel, entries: [] }));
-                    loadRanking(mod, categoria, nivel);
+                    const primeiroNivel = NIVEIS_BY_SPORT[mod][0].value;
+                    const cat = mod === 'futevolei' ? 'masculino' : rankForm.categoria;
+                    setRankForm(prev => ({ ...prev, modalidade: mod, nivel: primeiroNivel, categoria: cat, entries: [] }));
+                    loadRanking(mod, cat, primeiroNivel);
                   }}>
                     <option value="beachtennis">Beach Tennis</option>
                     <option value="futevolei">Futevôlei</option>
@@ -2281,7 +2286,7 @@ export default function Admin() {
                     {RANKING_GENDERS[rankForm.modalidade].map(item => <option key={item} value={item}>{item === 'masculino' ? 'Masculino' : item === 'feminino' ? 'Feminino' : 'Misto'}</option>)}
                   </PodiumSelect>
                 </div>
-                <div className="admin-field" style={{ margin: 0 }}><label>Categoria</label><PodiumSelect value={rankForm.nivel} onChange={e => { const nivel = e.target.value; setRankForm(prev => ({ ...prev, nivel, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, nivel); }}>{RANKING_CATEGORIES[rankForm.modalidade].map(item => <option key={item}>{item}</option>)}</PodiumSelect></div>
+                <div className="admin-field" style={{ margin: 0 }}><label>{rankForm.modalidade === 'futevolei' ? 'Divisão' : 'Categoria'}</label><PodiumSelect value={rankForm.nivel} onChange={e => { const nivel = e.target.value; setRankForm(prev => ({ ...prev, nivel, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, nivel); }}>{NIVEIS_BY_SPORT[rankForm.modalidade].map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</PodiumSelect></div>
                 <div className="admin-field" style={{ margin: 0 }}><label>Ano</label><PodiumSelect value={rankForm.ano} onChange={e => { const ano = Number(e.target.value); setRankForm(prev => ({ ...prev, ano, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, ano); }}><option value={2026}>2026</option><option value={2027}>2027</option></PodiumSelect></div>
                 <div className="admin-field" style={{ margin: 0 }}><label>Semestre</label><PodiumSelect value={rankForm.semestre} onChange={e => { const semestre = Number(e.target.value); setRankForm(prev => ({ ...prev, semestre, entries: [] })); loadRanking(rankForm.modalidade, rankForm.categoria, rankForm.nivel, rankForm.ano, semestre); }}><option value={1}>1º semestre</option><option value={2}>2º semestre</option></PodiumSelect></div>
               </div>
@@ -2297,7 +2302,7 @@ export default function Admin() {
             </div>
 
             {/* Lista de entries */}
-            <div className="ranking-modal-entries" style={{ overflowY: 'auto', maxHeight: 340, padding: '0 1.5rem .5rem' }}>
+            <div className="ranking-modal-entries" style={{ overflowY: 'auto', maxHeight: 'min(55vh, 600px)', padding: '0 1.5rem .5rem' }}>
               {rankForm.entries.length === 0 && (
                 <div style={{ padding: '2.5rem 0', textAlign: 'center', color: 'var(--gray)', fontSize: '.78rem', letterSpacing: '2px', fontFamily: 'var(--font-cond)', textTransform: 'uppercase' }}>
                   Nenhum atleta — clique em "+ Adicionar" abaixo
@@ -2440,7 +2445,7 @@ export default function Admin() {
               { id: 'reservas', label: 'Reservas', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg> },
               { id: 'temporadas', label: 'Temporadas', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/><path d="M12 7v5l3 2"/></svg> },
               { id: 'usuarios', label: 'Usuários', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-              { id: 'eventos', label: 'Eventos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> },
+              { id: 'eventos', label: 'Campeonatos', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> },
               { id: 'ranking', label: 'Ranking', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg> },
             ].filter(({ id }) => isMaster || id !== 'temporadas').map(({ id, label, icon }) => (
               <button key={id} className={`admin-nav-item${tab === id ? ' active' : ''}`} onClick={() => adminTab(id)}>{icon}{label}</button>
@@ -2918,15 +2923,15 @@ export default function Admin() {
           {/* EVENTOS */}
           <section id="admin-eventos" className={`admin-section${tab === 'eventos' ? ' active' : ''}`}>
             <div className="admin-section-header">
-              <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">EVENTOS</h2></div>
+              <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">CAMPEONATOS</h2></div>
               <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 40, tipoInscricao: 'individual', categoria: 'beachtennis', status: 'aberto', nivel: 'A, B, C e D', desc: '' }); setEventoImagemFile(null); setEventoImagemPreview(''); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                Novo Evento
+                Novo Campeonato
               </button>
             </div>
             <div className="admin-card" style={{ marginBottom: '1.5rem' }}>
               <div className="admin-card-header">
-                <h3>Agenda de Eventos</h3>
+                <h3>Agenda de Campeonatos</h3>
                 <div className="admin-card-toolbar">
                   <div className="admin-search">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -2989,12 +2994,12 @@ export default function Admin() {
               <div className="admin-card-header"><h3>Inscrições Recentes</h3></div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
-                  <thead><tr><th>Atleta</th><th>Evento / Data</th>{isMaster && <th>Valor</th>}<th>Status</th></tr></thead>
+                  <thead><tr><th>Atleta</th><th>Campeonato / Data</th>{isMaster && <th>Valor</th>}<th>Status</th></tr></thead>
                   <tbody>
                     {inscricoes.slice(0, 15).map(i => (
                       <tr key={i._id}>
                         <td><div className="admin-table-name">{i.userId?.nome || i.userName || '—'}</div></td>
-                        <td><div className="admin-table-name" style={{ fontSize: '.85rem' }}>{i.eventId?.nome || i.eventNome || 'Evento removido'}</div><div className="admin-table-sub">{fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}</div></td>
+                        <td><div className="admin-table-name" style={{ fontSize: '.85rem' }}>{i.eventId?.nome || i.eventNome || 'Campeonato removido'}</div><div className="admin-table-sub">{fmtDate(i.eventId?.data || (i.createdAt || '').slice(0, 10))}</div></td>
                         {isMaster && <td>{fmtMoney(i.valorTotal ?? i.precoDupla ?? i.preco ?? i.eventId?.preco)}</td>}
                         <td><span className={`badge ${STATUS_CLS[i.status] || 'badge-success'}`}>{i.status || 'confirmada'}</span></td>
                       </tr>
@@ -3013,7 +3018,7 @@ export default function Admin() {
                         <div className="admin-avatar-mini">{getInitials(i.userId?.nome || i.userName || '?')}</div>
                         <div className="adm-res-card-who">
                           <div className="adm-res-card-name">{i.userId?.nome || i.userName || '—'}</div>
-                          <div className="adm-res-card-sub">{i.eventId?.nome || i.eventNome || 'Evento removido'}</div>
+                          <div className="adm-res-card-sub">{i.eventId?.nome || i.eventNome || 'Campeonato removido'}</div>
                         </div>
                       </div>
                       <span className={`badge ${STATUS_CLS[i.status] || 'badge-green'}`}>{i.status || 'confirmada'}</span>
@@ -3166,11 +3171,11 @@ export default function Admin() {
                 </article>
                 <article className="finance-kpi-card event">
                   <div className="finance-kpi-head">
-                    <span>Eventos</span>
+                    <span>Campeonatos</span>
                     <small>{participacaoEventos}% do período</small>
                   </div>
                   <strong>{fmtMoney(receitaEventosPeriodo)}</strong>
-                  <div className="finance-progress" aria-label={`${participacaoEventos}% da receita do período vem de eventos`}>
+                  <div className="finance-progress" aria-label={`${participacaoEventos}% da receita do período vem de campeonatos`}>
                     <span style={{ width: `${participacaoEventos}%` }} />
                   </div>
                   <p>Inscrições confirmadas</p>
@@ -3233,7 +3238,7 @@ export default function Admin() {
                           <div className="admin-table-name">{t.nome}</div>
                           <div className="admin-table-sub">{t.detalhe}</div>
                         </td>
-                        <td><span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Evento'}</span></td>
+                        <td><span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Campeonato'}</span></td>
                         <td className="muted">{fmtDate(t.data)}</td>
                         <td className="muted">{PAYMENT_LABELS[t.pagamento] || t.pagamento}</td>
                         <td className="finance-table-value">{fmtMoney(t.valor)}</td>
@@ -3257,7 +3262,7 @@ export default function Admin() {
                       <span className={`badge ${STATUS_CLS[t.status] || 'badge-success'}`}>{STATUS_LABELS[t.status] || t.status}</span>
                     </div>
                     <div className="adm-res-card-info">
-                      <span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Evento'}</span>
+                      <span className={`fin-type-tag ${t.tipo}`}>{t.tipo === 'reserva' ? 'Reserva' : 'Campeonato'}</span>
                       <span className="adm-res-card-chip">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
                         {fmtDate(t.data)}
@@ -3288,45 +3293,26 @@ export default function Admin() {
                 Atualizar Ranking
               </button>
             </div>
-            <div className="admin-rank-grid">
-              {['beachtennis', 'futevolei'].flatMap(mod => RANKING_GENDERS[mod].flatMap(cat => RANKING_CATEGORIES[mod].map(nivel => [mod, cat, nivel]))).map(([mod, cat, nivel]) => {
-                const rankingData = rankings[`${mod}_${cat}_${nivel}`] || { entries: [] };
-                const entries = rankingData.entries || [];
-                const key = `${mod}_${cat}_${nivel}`;
-                const expanded = !!rankExpand[key];
-                return (
-                  <div key={`${mod}-${cat}-${nivel}`} className={`admin-card${expanded ? ' rank-expanded' : ''}`}>
-                    <div className="rank-admin-card-header">
-                      <h3>{mod === 'beachtennis' ? 'Beach Tennis' : 'Futevôlei'} — {cat === 'masculino' ? 'Masculino' : cat === 'feminino' ? 'Feminino' : 'Misto'} · Categoria {nivel}</h3>
-                      <button className="btn-rank-edit" onClick={() => { setRankForm({ modalidade: mod, categoria: cat, nivel, ano: 2026, semestre: 1, etapas: RANKING_ETAPAS, entries: [] }); setRankEtapaAtual(0); setRankingModal(true); loadRanking(mod, cat, nivel, 2026, 1); }}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                        Editar
-                      </button>
-                    </div>
-                    {entries.length === 0 ? (
-                      <div style={{ padding: '1rem 1.2rem', color: 'var(--gray)', fontSize: '.85rem' }}>Sem dados — clique em Editar para adicionar.</div>
-                    ) : entries.map((p, i) => (
-                      <div key={i} className={`rank-admin-row${i >= 3 ? ' rank-row-extra' : ''}`}>
-                        <div className={`rank-admin-pos${i === 0 ? ' p1' : i === 1 ? ' p2' : i === 2 ? ' p3' : ''}`}>{p.pos}</div>
-                        <div>
-                          <div className="rank-admin-name">{p.nome}</div>
-                          {p.clube && <div className="rank-admin-club">{p.clube}</div>}
-                        </div>
-                        <div className="rank-admin-stats">
-                          <div className="rank-admin-pts">{p.pts}</div>
-                          <div className="rank-admin-vd">{p.v}V {p.d}D</div>
-                        </div>
-                      </div>
-                    ))}
-                    {entries.length > 3 && (
-                      <button className="rank-see-all" onClick={() => setRankExpand(prev => ({ ...prev, [key]: !expanded }))}>
-                        {expanded ? 'Ver menos' : `Ver tudo (${entries.length})`}
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                      </button>
-                    )}
+            <div className="admin-rank-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              {[
+                { mod: 'beachtennis', cat: 'masculino', modLabel: 'Beach Tennis', catLabel: 'Masculino' },
+                { mod: 'beachtennis', cat: 'feminino',  modLabel: 'Beach Tennis', catLabel: 'Feminino'  },
+                { mod: 'beachtennis', cat: 'misto',     modLabel: 'Beach Tennis', catLabel: 'Misto'     },
+                { mod: 'futevolei',   cat: 'masculino', modLabel: 'Futevôlei',    catLabel: 'Masculino' },
+              ].map(({ mod, cat, modLabel, catLabel }) => (
+                <div key={`${mod}-${cat}`} className="admin-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.4rem 1.5rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1rem' }}>{modLabel} — {catLabel}</h3>
+                    <p style={{ margin: '.3rem 0 0', fontSize: '.8rem', color: 'var(--gray)' }}>
+                      {NIVEIS_BY_SPORT[mod].map(n => n.label).join(' · ')}
+                    </p>
                   </div>
-                );
-              })}
+                  <button className="btn-rank-edit" onClick={() => { setRankForm({ modalidade: mod, categoria: cat, nivel: NIVEIS_BY_SPORT[mod][0].value, ano: 2026, semestre: 1, etapas: RANKING_ETAPAS, entries: [] }); setRankEtapaAtual(0); setRankingModal(true); loadRanking(mod, cat, NIVEIS_BY_SPORT[mod][0].value, 2026, 1); }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                    Editar
+                  </button>
+                </div>
+              ))}
             </div>
           </section>
 

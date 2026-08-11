@@ -48,7 +48,7 @@ function Layout() {
       <CompletePerfilModal />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/eventos" element={<Eventos />} />
+        <Route path="/campeonatos" element={<Eventos />} />
         <Route path="/ranking" element={<Ranking />} />
         <Route path="/reservas" element={<Reservas />} />
         <Route path="/painel" element={<Painel />} />
