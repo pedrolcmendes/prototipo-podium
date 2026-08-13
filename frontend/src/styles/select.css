@@ -237,6 +237,10 @@
   text-transform: uppercase;
 }
 
+.podium-select.admin-user-gender-filter .podium-select-trigger {
+  gap: .35rem;
+}
+
 .ranking-filters .podium-select {
   width: auto;
   min-width: 112px;

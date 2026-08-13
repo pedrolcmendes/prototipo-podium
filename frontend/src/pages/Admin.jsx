@@ -2792,7 +2792,7 @@ export default function Admin() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     <input type="text" placeholder="Buscar por nome…" value={usrSearch} onChange={e => { setUsrSearch(e.target.value); setUsrPage(1); }} />
                   </div>
-                  <PodiumSelect className="admin-filter-select" value={usrGenero} onChange={e => { setUsrGenero(e.target.value); setUsrPage(1); }}>
+                  <PodiumSelect className="admin-filter-select admin-user-gender-filter" value={usrGenero} onChange={e => { setUsrGenero(e.target.value); setUsrPage(1); }}>
                     <option value="todos">Todos gêneros</option>
                     <option value="masculino">♂ Masculino</option>
                     <option value="feminino">♀ Feminino</option>
