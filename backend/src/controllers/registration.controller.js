@@ -79,6 +79,13 @@ const inscrever = async (req, res) => {
     return res.status(400).json({ message: 'Inscrições encerradas para este evento' });
   }
 
+  // Inscrições fecham às 19h BRT do dia anterior = 22h UTC do dia anterior = meia-noite UTC do evento − 2h
+  const [ey, em, ed] = event.data.split('-').map(Number);
+  const deadlineUTC = new Date(Date.UTC(ey, em - 1, ed) - 2 * 60 * 60 * 1000);
+  if (new Date() >= deadlineUTC) {
+    return res.status(400).json({ message: 'Inscrições encerradas para este evento' });
+  }
+
   const inscritos = await Registration.countDocuments({
     eventId: event._id,
     status: { $in: ['confirmada', 'pendente_pagamento'] },

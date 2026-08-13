@@ -32,6 +32,20 @@ function catIcon(cat) {
   return d[cat] || d['Geral'];
 }
 
+function calcStatus(ev) {
+  if (!ev?.data) return ev?.status || 'encerrado';
+  const [y, m, d] = ev.data.split('-').map(Number);
+  const now = Date.now();
+  // Event day fully passed (next UTC midnight ≈ 21h BRT of event day)
+  if (now >= Date.UTC(y, m - 1, d + 1)) return 'passado';
+  // Registrations deadline: 19h BRT of previous day = 22h UTC of previous day = event UTC midnight − 2h
+  if (now >= Date.UTC(y, m - 1, d) - 2 * 60 * 60 * 1000 || ev.status === 'encerrado') return 'encerrado';
+  // Vagas full
+  const inscritos = ev.inscritos ?? ev.vagasOcupadas ?? 0;
+  if (ev.vagas > 0 && inscritos >= ev.vagas) return 'esgotado';
+  if (ev.status === 'breve') return 'breve';
+  return 'aberto';
+}
 function statusClass(s) {
   if (s === 'aberto') return 'evt-status open';
   if (s === 'esgotado') return 'evt-status last';
@@ -39,7 +53,10 @@ function statusClass(s) {
 }
 function statusLabel(s) {
   if (s === 'aberto') return 'Inscrições Abertas';
-  if (s === 'esgotado') return 'Últimas vagas';
+  if (s === 'esgotado') return 'Vagas Esgotadas';
+  if (s === 'passado') return 'Campeonato Encerrado';
+  if (s === 'encerrado') return 'Inscrições Encerradas';
+  if (s === 'breve') return 'Em Breve';
   return 'Encerrado';
 }
 
@@ -183,7 +200,7 @@ export default function Eventos() {
   const pendingRegForEvt = selectedEvt ? pendingRegsByEvent[selectedEvt._id] : null;
   const inscritosDe = (ev) => ev.inscritos ?? ev.vagasOcupadas ?? 0;
   const superligaRegistration = eventos.find((ev) => (
-    ev.status === 'aberto' && ev.nome?.toLocaleLowerCase('pt-BR').includes('superliga')
+    calcStatus(ev) === 'aberto' && ev.nome?.toLocaleLowerCase('pt-BR').includes('superliga')
   ));
 
   return (
@@ -256,13 +273,13 @@ export default function Eventos() {
         .evt-payment-methods button{min-width:0;line-height:1.35;overflow-wrap:anywhere}
 
         /* botão ver inscritos */
-        .evt-ver-inscritos{display:inline-flex;align-items:center;gap:.5rem;background:var(--gold-faint);border:1px solid rgba(197,160,40,.45);color:var(--gold);font-family:var(--font-cond);font-size:.74rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:.65rem 1.2rem;cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s;white-space:nowrap;border-radius:2px}
+        .evt-ver-inscritos{display:inline-flex;align-items:center;gap:.5rem;background:var(--gold-faint);border:1px solid rgba(197,160,40,.45);color:var(--gold);font-family:var(--font-cond);font-size:.74rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:.65rem 1.2rem;cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s;white-space:nowrap}
         .evt-ver-inscritos:hover{background:rgba(197,160,40,.18);border-color:var(--gold);box-shadow:0 0 0 3px rgba(197,160,40,.1)}
         .evt-ver-inscritos svg{flex-shrink:0;stroke:var(--gold)}
 
         /* modal lista de inscritos */
         .insc-list-overlay{position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.92);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:1.5rem}
-        .insc-list-modal{background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.5)}
+        .insc-list-modal{background:var(--card);border:1px solid var(--border);width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 30px 70px rgba(0,0,0,.5)}
         .insc-list-header{display:flex;align-items:center;justify-content:space-between;padding:1.2rem 1.5rem;border-bottom:1px solid var(--border);gap:1rem}
         .insc-list-header h3{font-family:var(--font-cond);font-size:1.1rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .insc-list-header .insc-count-badge{font-family:var(--font-cond);font-size:.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--gold);background:var(--gold-faint);border:1px solid rgba(197,160,40,.3);padding:.25rem .65rem;white-space:nowrap;flex-shrink:0}
@@ -278,7 +295,7 @@ export default function Eventos() {
         .insc-list-footer{padding:.9rem 1.5rem;border-top:1px solid var(--border)}
         @media(max-width:480px){
           .insc-list-overlay{padding:.75rem}
-          .insc-list-modal{max-height:90vh;border-radius:16px 16px 0 0}
+          .insc-list-modal{max-height:90vh}
         }
 
         /* arte em tela cheia */
@@ -334,13 +351,14 @@ export default function Eventos() {
           {[...eventos]
             .sort((a, b) => {
               // inscrições abertas primeiro; encerrados por último; empate → data mais próxima
-              const rank = (e) => e.status === 'aberto' ? 0 : e.status === 'esgotado' ? 1 : 2;
+              const rank = (e) => { const s = calcStatus(e); return s === 'aberto' ? 0 : s === 'esgotado' ? 1 : s === 'breve' ? 2 : 3; };
               return rank(a) - rank(b) || (a.data || '').localeCompare(b.data || '');
             })
             .map(ev => {
             const d = ev.data ? new Date(ev.data + 'T12:00:00') : null;
             const inscritos = inscritosDe(ev);
             const pct = ev.vagas > 0 ? Math.min(100, Math.round((inscritos / ev.vagas) * 100)) : 0;
+            const evtStatus = calcStatus(ev);
             return (
               <article key={ev._id} className="evt-card" onClick={() => { setPosterZoom(false); setSelectedEvt(ev); }}>
                 <div className="evt-poster">
@@ -352,7 +370,7 @@ export default function Eventos() {
                       <span>{MESES[d.getMonth()]}</span>
                     </div>
                   )}
-                  <span className={`evt-chip-status ${statusClass(ev.status)}`}>{statusLabel(ev.status)}</span>
+                  <span className={`evt-chip-status ${statusClass(evtStatus)}`}>{statusLabel(evtStatus)}</span>
                 </div>
                 <div className="evt-body">
                   <div className="evt-cat">{catLabel(ev.categoria)}</div>
@@ -385,6 +403,7 @@ export default function Eventos() {
         const d = selectedEvt.data ? new Date(selectedEvt.data + 'T12:00:00') : null;
         const inscritos = inscritosDe(selectedEvt);
         const restantes = selectedEvt.vagasRestantes ?? (selectedEvt.vagas > 0 ? selectedEvt.vagas - inscritos : null);
+        const selectedStatus = calcStatus(selectedEvt);
         return (
           <div className="evt-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setSelectedEvt(null); setInscStep('btn'); setIsContinuando(false); } }}>
             <div className="evt-modal">
@@ -484,13 +503,19 @@ export default function Eventos() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                      <span className={statusClass(selectedEvt.status)}>{statusLabel(selectedEvt.status)}</span>
+                      <span className={statusClass(selectedStatus)}>{statusLabel(selectedStatus)}</span>
                       {isInscrito ? (
                         <button className="btn-outline" disabled style={{ opacity: .6 }}>Já inscrito ✓</button>
                       ) : pendingRegForEvt ? (
                         <button className="btn-gold" onClick={iniciarContinuarPagamento}>Continuar pagamento</button>
+                      ) : selectedStatus === 'passado' ? (
+                        <button className="btn-outline" disabled style={{ opacity: .5 }}>Campeonato Encerrado</button>
+                      ) : selectedStatus === 'encerrado' ? (
+                        <button className="btn-outline" disabled style={{ opacity: .5 }}>Inscrições Encerradas</button>
+                      ) : selectedStatus === 'esgotado' ? (
+                        <button className="btn-outline" disabled style={{ opacity: .5 }}>Vagas Esgotadas</button>
                       ) : (
-                        <button className="btn-gold" disabled={selectedEvt.status !== 'aberto' || inscLoading} onClick={handleInscrever}>
+                        <button className="btn-gold" disabled={inscLoading} onClick={handleInscrever}>
                           {inscLoading ? 'Inscrevendo…' : 'Inscrever-se'}
                         </button>
                       )}
@@ -512,7 +537,7 @@ export default function Eventos() {
               {!inscritosLoading && (
                 <span className="insc-count-badge">{inscritosModal.list.length} inscrito{inscritosModal.list.length !== 1 ? 's' : ''}</span>
               )}
-              <button className="evt-close-btn" onClick={() => setInscritosModal(null)} aria-label="Fechar" style={{ border: '1px solid var(--border)', borderRadius: 8, width: 36, height: 36, flexShrink: 0 }}>
+              <button className="evt-close-btn" onClick={() => setInscritosModal(null)} aria-label="Fechar" style={{ border: '1px solid var(--border)', width: 36, height: 36, flexShrink: 0 }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>

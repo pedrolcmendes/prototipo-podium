@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings, hourOf } from '../contexts/SettingsContext';
@@ -100,6 +100,7 @@ export default function Reservas() {
   const toast = useToast();
   const [authOpen, setAuthOpen] = useState(false);
 
+  // step: 1=modalidade, 2=data+quadra, 3=pagamento
   const [step, setStep] = useState(1);
   const [modalidade, setModalidade] = useState(null);
   const [quadra, setQuadra] = useState(null);
@@ -110,7 +111,8 @@ export default function Reservas() {
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedSlots, setSelectedSlots] = useState([]);
-  const [busySlots, setBusySlots] = useState([]);
+  const [busyByQuadra, setBusyByQuadra] = useState({});
+  const [loadingAvail, setLoadingAvail] = useState(false);
   const [dayUse, setDayUse] = useState(false);
 
   const [payMethod, setPayMethod] = useState(null);
@@ -123,6 +125,9 @@ export default function Reservas() {
   const [hasPending, setHasPending] = useState(false);
   const { settings } = useSettings();
 
+  // derived
+  const busySlots = busyByQuadra[quadra?.id] || [];
+
   useEffect(() => {
     if (!user) { setHasPending(false); return; }
     api.get('/bookings/me').then(r => {
@@ -130,11 +135,14 @@ export default function Reservas() {
       setHasPending(list.some(b => b.status === 'pendente_pagamento'));
     }).catch(() => {});
   }, [user]);
+
   const maxAdvanceDays = Number(settings.maxAdvanceDays) || 30;
 
-  // ao trocar de etapa, rola a tela de volta para o topo das opções
   const stepperRef = useRef(null);
   const firstStepRender = useRef(true);
+  const gridScrollRef = useRef(null);
+  const calendarRef = useRef(null);
+  const availSectionRef = useRef(null);
   useEffect(() => {
     if (firstStepRender.current) { firstStepRender.current = false; return; }
     stepperRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -147,25 +155,55 @@ export default function Reservas() {
     ? buildHours(hourOf(settings.openWeekend, 6), hourOf(settings.closeWeekend, 22))
     : buildHours(hourOf(settings.openWeek, 6), hourOf(settings.closeWeek, 23));
 
-  useEffect(() => {
-    if (!quadra || !selectedDate) return;
-    setBusySlots([]);
-    setSelectedSlots([]);
-    api.get(`/bookings/horarios-ocupados?quadraId=${quadra.id}&date=${selectedDate}`)
-      .then(r => setBusySlots(Array.isArray(r.data) ? r.data : []))
-      .catch(() => {});
-  }, [quadra, selectedDate]);
+  const visibleCourts = QUADRAS.filter(q => q.tipo !== 'teste' || user?.admin);
 
-  // tempo real: se alguém reservar/bloquear este horário agora, a grade reflete na hora
+  // Auto-scroll para a hora atual quando a grade carrega (só para hoje)
+  useEffect(() => {
+    if (loadingAvail || !selectedDate || dayUse) return;
+    requestAnimationFrame(() => {
+      const el = gridScrollRef.current;
+      if (!el) return;
+      if (selectedDate === todayStr) {
+        const currentH = today.getHours();
+        const row = el.querySelector(`tr[data-hour="${currentH}"]`)
+                 ?? el.querySelector(`tr[data-hour="${currentH + 1}"]`);
+        if (row) el.scrollTop = Math.max(0, row.offsetTop - 8);
+      } else {
+        el.scrollTop = 0;
+      }
+    });
+  }, [loadingAvail, selectedDate, dayUse]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Busca disponibilidade de todas as quadras ao trocar de data
+  useEffect(() => {
+    if (!selectedDate || dayUse) { setBusyByQuadra({}); return; }
+    setLoadingAvail(true);
+    Promise.all(
+      visibleCourts.map(q =>
+        api.get(`/bookings/horarios-ocupados?quadraId=${q.id}&date=${selectedDate}`)
+          .then(r => [q.id, Array.isArray(r.data) ? r.data : []])
+          .catch(() => [q.id, []])
+      )
+    ).then(results => {
+      const map = Object.fromEntries(results);
+      setBusyByQuadra(map);
+      if (quadra) setSelectedSlots(prev => prev.filter(h => !(map[quadra.id] || []).includes(h)));
+    }).finally(() => setLoadingAvail(false));
+  }, [selectedDate, dayUse]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useLive(['bookings', 'blocked-slots'], () => {
-    if (quadra && selectedDate) {
-      api.get(`/bookings/horarios-ocupados?quadraId=${quadra.id}&date=${selectedDate}`)
-        .then(r => {
-          const busy = Array.isArray(r.data) ? r.data : [];
-          setBusySlots(busy);
-          setSelectedSlots(prev => prev.filter(h => !busy.includes(h)));
-        })
-        .catch(() => {});
+    if (selectedDate && !dayUse) {
+      Promise.all(
+        visibleCourts.map(q =>
+          api.get(`/bookings/horarios-ocupados?quadraId=${q.id}&date=${selectedDate}`)
+            .then(r => [q.id, Array.isArray(r.data) ? r.data : []])
+            .catch(() => [q.id, []])
+        )
+      ).then(results => {
+        const map = Object.fromEntries(results);
+        setBusyByQuadra(map);
+        if (quadra) setSelectedSlots(prev => prev.filter(h => !(map[quadra.id] || []).includes(h)));
+      });
     }
     if (user) {
       api.get('/bookings/me').then(r => {
@@ -175,11 +213,26 @@ export default function Reservas() {
     }
   });
 
-  const toggleSlot = (h) => {
-    if (busySlots.includes(h) || (selectedDate === todayStr && h < today.getHours())) return;
-    setSelectedSlots(prev =>
-      prev.includes(h) ? prev.filter(s => s !== h) : [...prev, h]
-    );
+  useLayoutEffect(() => {
+    const cal = calendarRef.current;
+    const sec = availSectionRef.current;
+    if (!cal || !sec) return;
+    const sync = () => { sec.style.height = cal.offsetHeight + 'px'; };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(cal);
+    return () => ro.disconnect();
+  }, [step, selectedDate, calMonth, calYear]);
+
+  const handleGridCellClick = (court, h) => {
+    const busy = (busyByQuadra[court.id] || []).includes(h);
+    if (busy || (selectedDate === todayStr && h < today.getHours())) return;
+    if (quadra?.id !== court.id) {
+      setQuadra(court);
+      setSelectedSlots([h]);
+    } else {
+      setSelectedSlots(prev => prev.includes(h) ? prev.filter(s => s !== h) : [...prev, h]);
+    }
   };
 
   const totalPrice = () => {
@@ -208,7 +261,6 @@ export default function Reservas() {
         payload.quadraId = quadra.id;
         payload.date = selectedDate;
       } else {
-        // pickleball day use — sem quadra específica
         payload.quadra = 'pickleball';
         payload.quadraId = 'PKB-DU';
         payload.date = selectedDate;
@@ -216,12 +268,9 @@ export default function Reservas() {
       const res = await api.post('/bookings', payload);
       const booking = res.data.data || res.data;
       if (booking.creditosAplicados > 0) {
-        updateUser({
-          creditos: Math.max(0, Number(user?.creditos || 0) - booking.creditosAplicados),
-        });
+        updateUser({ creditos: Math.max(0, Number(user?.creditos || 0) - booking.creditosAplicados) });
       }
       if (booking.status === 'confirmada') {
-        // Admin: reserva já confirmada pelo backend, pula pagamento
         setConfData(booking);
         setConfOpen(true);
       } else {
@@ -247,13 +296,16 @@ export default function Reservas() {
     setStep(1); setModalidade(null); setQuadra(null);
     setSelectedDate(null); setSelectedSlots([]); setDayUse(false);
     setPayMethod(null); setConfOpen(false); setPagOpen(false); setPendingBooking(null);
+    setBusyByQuadra({}); setLoadingAvail(false);
   };
 
-  const goToStep3 = (isDayUse = false) => {
+  const startStep2 = (isDayUse = false) => {
     setDayUse(isDayUse);
     setSelectedDate(null);
     setSelectedSlots([]);
-    setStep(3);
+    setQuadra(null);
+    setBusyByQuadra({});
+    setStep(2);
   };
 
   const stepClass = (n) => {
@@ -270,7 +322,7 @@ export default function Reservas() {
     return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()} (${DIAS_FULL[dt.getDay()]})`;
   };
 
-  const canProceedStep3 = selectedDate && (dayUse || selectedSlots.length > 0);
+  const canProceedStep2 = selectedDate && (dayUse || (quadra && selectedSlots.length > 0));
 
   return (
     <>
@@ -314,7 +366,7 @@ export default function Reservas() {
         .bk-pickleball-notice p{font-size:.85rem;color:var(--gray);line-height:1.5}
         .bk-pickleball-notice strong{color:var(--amber)}
         .bk-nav{display:flex;justify-content:space-between;align-items:center;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)}
-        .bk-step3-layout{display:grid;grid-template-columns:1fr 340px;gap:2rem;align-items:start}
+        .bk-pay-layout{display:grid;grid-template-columns:1fr 340px;gap:2rem;align-items:start}
         .bk-sidebar{background:var(--dark);border:1px solid var(--border)}
         .bk-sidebar-head{padding:1.2rem 1.5rem;border-bottom:1px solid var(--border)}
         .bk-sidebar-head h4{font-family:var(--font-cond);font-size:1rem;font-weight:700;letter-spacing:2px;text-transform:uppercase}
@@ -327,22 +379,16 @@ export default function Reservas() {
         .bk-sum-total{display:flex;justify-content:space-between;align-items:center;padding:1rem 0 0;margin-top:.5rem;border-top:2px solid var(--border)}
         .bk-sum-total-label{font-family:var(--font-cond);font-size:.72rem;letter-spacing:3px;text-transform:uppercase;color:var(--gray)}
         .bk-sum-total-val{font-family:var(--font-display);font-size:1.8rem;color:var(--gold)}
-        .bk-times-wrap{background:var(--dark);border:1px solid var(--border);padding:1.5rem}
-        .bk-times-label{font-family:var(--font-cond);font-size:.75rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gray);margin-bottom:1rem;display:flex;align-items:center;gap:.6rem}
-        .bk-times-label::after{content:'';flex:1;height:1px;background:var(--border)}
-        .ts-hour{font-family:var(--font-cond);font-size:.82rem;font-weight:700;letter-spacing:1px}
-        .ts-price{font-family:var(--font-cond);font-size:.65rem;color:var(--gray);letter-spacing:.5px}
-        .time-slot.selected .ts-price{color:var(--black)}
-        .time-slot.taken .ts-price{color:var(--muted)}
-        .bk-mode-toggle{display:flex;gap:.5rem;margin-bottom:1.5rem;background:var(--dark);border:1px solid var(--border);padding:.4rem;border-radius:6px;width:fit-content}
-        .bk-mode-btn{padding:.5rem 1.2rem;border:none;background:none;cursor:pointer;font-family:var(--font-cond);font-size:.82rem;font-weight:700;letter-spacing:1px;color:var(--gray);border-radius:4px;transition:all var(--trans-fast)}
+        .bk-mode-toggle{display:flex;gap:.5rem;margin-bottom:1.5rem;background:var(--dark);border:1px solid var(--border);padding:.4rem;width:fit-content}
+        .bk-mode-btn{padding:.5rem 1.2rem;border:none;background:none;cursor:pointer;font-family:var(--font-cond);font-size:.82rem;font-weight:700;letter-spacing:1px;color:var(--gray);transition:all var(--trans-fast)}
         .bk-mode-btn.active{background:var(--gold);color:#000}
-        .bk-dayuse-card{background:rgba(224,172,107,.04);border:1px solid rgba(224,172,107,.2);border-left:3px solid var(--gold);padding:1.5rem 1.5rem;display:flex;gap:1.2rem;align-items:flex-start;margin-bottom:1.5rem}
+        .bk-dayuse-layout{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:stretch}
+        .bk-dayuse-card{background:rgba(224,172,107,.04);border:1px solid rgba(224,172,107,.2);border-left:3px solid var(--gold);padding:1.5rem 1.5rem;display:flex;gap:1.2rem;align-items:flex-start}
+        @media(max-width:700px){.bk-dayuse-layout{grid-template-columns:1fr}}
         .bk-dayuse-card svg{flex-shrink:0;color:var(--gold);margin-top:2px}
         .bk-dayuse-card-title{font-family:var(--font-cond);font-size:1rem;font-weight:700;letter-spacing:1px;color:var(--white);margin-bottom:.35rem}
         .bk-dayuse-card-desc{font-size:.83rem;color:var(--gray);line-height:1.6}
         .bk-dayuse-card-price{font-family:var(--font-display);font-size:1.5rem;color:var(--gold);margin-top:.5rem}
-        .bk-pay-layout{display:grid;grid-template-columns:1fr 340px;gap:2rem;align-items:start}
         .bk-pay-methods{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.5rem}
         .bk-pay-method{display:flex;align-items:center;gap:.9rem;border:1px solid var(--border);background:var(--dark);padding:1rem 1.2rem;cursor:pointer;transition:all var(--trans-fast)}
         .bk-pay-method:hover{border-color:rgba(224,172,107,.35);background:var(--gold-faint)}
@@ -351,16 +397,6 @@ export default function Reservas() {
         .bk-pay-method.active .bk-pay-icon,.bk-pay-method:hover .bk-pay-icon{color:var(--gold)}
         .bk-pay-label{font-family:var(--font-cond);font-size:.9rem;font-weight:700;letter-spacing:.5px}
         .bk-pay-sub{font-size:.72rem;color:var(--gray)}
-        .bk-pix-block{background:rgba(224,172,107,.04);border:1px solid rgba(224,172,107,.2);padding:1.5rem;text-align:center;margin-bottom:1.5rem}
-        .bk-pix-qr{width:120px;height:120px;background:var(--border);margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;font-family:var(--font-cond);font-size:.75rem;color:var(--gray);letter-spacing:1px}
-        .bk-pix-key{font-family:var(--font-cond);font-size:.85rem;letter-spacing:1px;color:var(--gray);margin-bottom:.5rem}
-        .bk-pix-note{font-size:.78rem;color:var(--muted);line-height:1.5}
-        .bk-card-form{display:flex;flex-direction:column;gap:1rem;margin-bottom:1.5rem}
-        .bk-field{display:flex;flex-direction:column;gap:.4rem}
-        .bk-field label{font-family:var(--font-cond);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--gray)}
-        .bk-field input{background:var(--dark);border:1px solid var(--border);color:var(--white);padding:.75rem 1rem;font-family:var(--font-body);font-size:.9rem;outline:none;transition:border-color var(--trans-fast)}
-        .bk-field input:focus{border-color:var(--gold)}
-        .bk-field-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
         .conf-overlay{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.9);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto}
         .conf-modal{background:var(--card);border:1px solid var(--border);padding:2.5rem;max-width:480px;width:100%;text-align:center;margin:auto}
         .conf-check-wrap{width:64px;height:64px;border-radius:50%;background:rgba(34,197,94,.08);border:1.5px solid rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem}
@@ -378,20 +414,61 @@ export default function Reservas() {
         .conf-btn-secondary:hover{border-color:var(--gold);color:var(--gold)}
         .conf-btn-primary{background:var(--gold);color:var(--black)}
         .conf-btn-primary:hover{background:var(--gold-light)}
-        @media(max-width:1000px){.bk-step3-layout,.bk-pay-layout{grid-template-columns:1fr}.bk-sidebar{position:static}}
-        @media(max-width:768px){.page-hero{padding:2rem 1rem 1.5rem}.reservas-container{padding:0 1rem 3rem}.bk-card-header,.bk-card-body{padding:1.2rem 1rem}.bk-option-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem}.bk-option-card{padding:1.2rem .9rem}.bk-field-row{grid-template-columns:1fr}}
-        @media(max-width:480px){.bk-step-label{font-size:.55rem;letter-spacing:1px}.bk-pay-methods{grid-template-columns:1fr}.conf-modal{padding:1.5rem}.conf-actions{grid-template-columns:1fr}.bk-nav{flex-direction:column-reverse;gap:.7rem;align-items:stretch}.bk-nav .btn-gold,.bk-nav .btn-ghost{width:100%;justify-content:center;padding:.9rem 1rem;white-space:nowrap}}
         .bk-pending-banner{display:flex;align-items:center;gap:1rem;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.35);border-left:3px solid var(--amber);padding:1rem 1.2rem;margin-bottom:1.5rem;flex-wrap:wrap}
         .bk-pending-banner svg{flex-shrink:0;color:var(--amber)}
         .bk-pending-banner strong{display:block;font-family:var(--font-cond);font-size:.9rem;font-weight:700;letter-spacing:.5px;color:var(--white);margin-bottom:.15rem}
         .bk-pending-banner p{font-size:.82rem;color:var(--gray);line-height:1.4;margin:0}
         .bk-pending-banner a{margin-left:auto;white-space:nowrap;flex-shrink:0}
+
+        /* ── Step 2: layout calendário + grade ── */
+        .bk-step2-layout{display:grid;grid-template-columns:auto 1fr;gap:2rem;align-items:start}
+        .bk-avail-section{min-width:0;display:flex;flex-direction:column}
+
+        /* Grade de disponibilidade */
+        .bk-avail-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 1rem;text-align:center;color:var(--gray);font-family:var(--font-cond);font-size:.75rem;letter-spacing:2px;text-transform:uppercase;border:1px dashed var(--border);gap:.8rem}
+        .bk-avail-placeholder svg{opacity:.3}
+        .bk-avail-loading{display:flex;align-items:center;justify-content:center;padding:2.5rem 1rem;color:var(--gray);font-family:var(--font-cond);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;border:1px solid var(--border);gap:.6rem}
+        .bk-avail-outer{overflow-x:auto;flex:1;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:rgba(224,172,107,.35) transparent}
+        .bk-avail-outer::-webkit-scrollbar{height:3px}
+        .bk-avail-outer::-webkit-scrollbar-track{background:transparent}
+        .bk-avail-outer::-webkit-scrollbar-thumb{background:rgba(224,172,107,.35);border-radius:2px}
+        .bk-avail-scroll{flex:1;min-height:0;overflow-y:auto;border:1px solid var(--border)}
+        .bk-avail-table{border-collapse:separate;border-spacing:3px;min-width:100%;width:100%;padding:3px}
+        .bk-avail-table thead{position:sticky;top:0;z-index:2}
+        .bk-avail-hour-th{width:46px;background:var(--card)}
+        .bk-avail-court-th{padding:.55rem .4rem;text-align:center;min-width:76px;background:var(--card);border:1px solid var(--border)}
+        .bk-avail-court-th-name{font-family:var(--font-cond);font-size:.78rem;font-weight:700;letter-spacing:.5px;color:var(--white);display:block}
+        .bk-avail-court-th-type{font-family:var(--font-cond);font-size:.56rem;letter-spacing:2px;text-transform:uppercase;color:var(--gold);display:block;margin-top:.15rem}
+        .bk-avail-hour-td{padding:.35rem .5rem;text-align:right;font-family:var(--font-cond);font-size:.7rem;color:var(--gray);background:var(--card);white-space:nowrap;user-select:none;vertical-align:middle}
+        .bk-avail-cell{padding:.42rem .25rem;text-align:center;cursor:pointer;border:1px solid var(--border);font-family:var(--font-cond);font-size:.82rem;font-weight:700;letter-spacing:1px;color:var(--gray-light);transition:all var(--trans-fast);background:var(--dark);user-select:none;display:table-cell;vertical-align:middle}
+        @media(hover:hover){.bk-avail-cell.avail:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-faint)}}
+        .bk-avail-cell.taken{opacity:.22;cursor:not-allowed;text-decoration:line-through;color:var(--muted);border-color:transparent}
+        .bk-avail-cell.past{opacity:.15;cursor:default;color:var(--muted);border-color:transparent}
+        .bk-avail-cell.sel{background:var(--gold);color:var(--black);border-color:var(--gold);font-weight:800;box-shadow:0 0 10px rgba(224,172,107,.3)}
+        .bk-av-hour{font-size:.82rem;font-weight:700;letter-spacing:1px;line-height:1}
+        .bk-av-price{font-size:.6rem;color:var(--gray);letter-spacing:.3px;margin-top:.1rem;font-weight:400}
+        .bk-avail-cell.sel .bk-av-price{color:var(--black)}
+        .bk-avail-legend{display:flex;gap:1.5rem;padding:.6rem 1rem;border:1px solid var(--border);border-top:none;background:rgba(255,255,255,.01);flex-wrap:wrap}
+        .bk-avail-legend-item{display:flex;align-items:center;gap:.45rem;font-family:var(--font-cond);font-size:.6rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--gray)}
+        .bk-avail-dot{width:9px;height:9px;flex-shrink:0}
+
+        /* Resumo de seleção (step 2) */
+        .bk-sel-summary{margin-top:.6rem;background:var(--dark);border:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
+        .bk-sel-summary-item{display:flex;flex-direction:column;gap:.15rem}
+        .bk-sel-summary-label{font-family:var(--font-cond);font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--gray)}
+        .bk-sel-summary-val{font-family:var(--font-cond);font-size:.88rem;font-weight:700;color:var(--white)}
+        .bk-sel-summary-total{margin-left:auto;font-family:var(--font-display);font-size:1.4rem;color:var(--gold)}
+
+        @media(max-width:1000px){.bk-pay-layout{grid-template-columns:1fr}.bk-sidebar{position:static}}
+        @media(max-width:900px){.bk-step2-layout{grid-template-columns:1fr}}
+        @media(max-width:768px){.page-hero{padding:2rem 1rem 1.5rem}.reservas-container{padding:0 1rem 3rem}.bk-card-header,.bk-card-body{padding:1.2rem 1rem}.bk-option-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem}.bk-option-card{padding:1.2rem .9rem}}
+        @media(max-width:480px){.bk-step-label{font-size:.55rem;letter-spacing:1px}.bk-pay-methods{grid-template-columns:1fr}.conf-modal{padding:1.5rem}.conf-actions{grid-template-columns:1fr}.bk-nav{flex-direction:column-reverse;gap:.7rem;align-items:stretch}.bk-nav .btn-gold,.bk-nav .btn-ghost{width:100%;justify-content:center;padding:.9rem 1rem;white-space:nowrap}.bk-sel-summary{gap:1rem}.bk-sel-summary-total{margin-left:0}}
       `}</style>
 
       <div className="page-hero">
         <p className="section-eyebrow">Podium Arena</p>
         <h1>RESERVE SUA <span style={{ background: 'linear-gradient(135deg,var(--gold-dark),var(--gold),var(--gold-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>QUADRA</span></h1>
-        <p>Escolha a modalidade, quadra e horários disponíveis para sua reserva.</p>
+        <p>Escolha a modalidade, data e horário disponível para sua reserva.</p>
       </div>
 
       <div className="reservas-container">
@@ -411,15 +488,14 @@ export default function Reservas() {
           <div className="bk-stepper">
             <div className={stepClass(1)}><div className="bk-step-circle">1</div><div className="bk-step-label">Modalidade</div></div>
             <div className={lineClass(1)} />
-            <div className={stepClass(2)}><div className="bk-step-circle">2</div><div className="bk-step-label">Quadra</div></div>
+            <div className={stepClass(2)}><div className="bk-step-circle">2</div><div className="bk-step-label">Data & Quadra</div></div>
             <div className={lineClass(2)} />
-            <div className={stepClass(3)}><div className="bk-step-circle">3</div><div className="bk-step-label">Data & Hora</div></div>
-            <div className={lineClass(3)} />
-            <div className={stepClass(4)}><div className="bk-step-circle">4</div><div className="bk-step-label">Pagamento</div></div>
+            <div className={stepClass(3)}><div className="bk-step-circle">3</div><div className="bk-step-label">Pagamento</div></div>
           </div>
         </div>
 
         <div className="bk-card">
+
           {/* ══ ETAPA 1 – MODALIDADE ══ */}
           {step === 1 && (
             <>
@@ -446,17 +522,8 @@ export default function Reservas() {
                 </div>
                 <div className="bk-nav" style={{ justifyContent: 'flex-end' }}>
                   <button className="btn-gold" disabled={!modalidade} style={hasPending ? { opacity: 0.45, cursor: 'not-allowed' } : {}} onClick={() => {
-                    if (hasPending) {
-                      toast('Você tem um pagamento pendente. Finalize ou cancele antes de iniciar uma nova reserva.', 'error');
-                      return;
-                    }
-                    if (modalidade.dayuse) {
-                      // Pickleball: pula etapa de quadra, vai direto para day use
-                      setQuadra(null);
-                      goToStep3(true);
-                    } else {
-                      setStep(2);
-                    }
+                    if (hasPending) { toast('Você tem um pagamento pendente. Finalize ou cancele antes de iniciar uma nova reserva.', 'error'); return; }
+                    startStep2(!!modalidade.dayuse);
                   }}>
                     Continuar
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -466,161 +533,156 @@ export default function Reservas() {
             </>
           )}
 
-          {/* ══ ETAPA 2 – QUADRA ══ */}
+          {/* ══ ETAPA 2 – DATA & QUADRA ══ */}
           {step === 2 && (
             <>
               <div className="bk-card-header">
-                <h2>ESCOLHA A QUADRA</h2>
-                <p>Cada quadra tem disponibilidade própria — confira os valores por faixa de horário</p>
+                <h2>DATA E DISPONIBILIDADE</h2>
+                <p>{dayUse ? 'Modalidade Day Use — escolha a data' : 'Selecione a data e clique no horário desejado para cada quadra'}</p>
               </div>
               <div className="bk-card-body">
-                <div className="bk-option-grid">
-                  {QUADRAS.filter(q => q.tipo !== 'teste' || user?.admin).map(q => (
-                    <div key={q.id} className={`bk-option-card${quadra?.id === q.id ? ' active' : ''}`} onClick={() => setQuadra(q)}>
-                      <div className="bk-option-icon">
-                        {q.tipo === 'coberta'
-                          ? <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                          : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-                        }
+
+
+                {dayUse ? (
+                  /* Day Use: info + calendário lado a lado */
+                  <div className="bk-dayuse-layout">
+                    <Calendar
+                      year={calYear} month={calMonth}
+                      onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
+                      onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
+                      selectedDate={selectedDate}
+                      onSelect={(d) => setSelectedDate(d)}
+                      maxDate={maxDateStr}
+                    />
+                    <div className="bk-dayuse-card">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                      <div>
+                        <div className="bk-dayuse-card-title">Day Use — Acesso Livre</div>
+                        <div className="bk-dayuse-card-desc">
+                          Acesso à quadra e às áreas comuns da arena durante todo o período de funcionamento do dia.<br /><br />
+                          O Pickleball é disponibilizado exclusivamente no modelo Day Use. Escolha o dia abaixo.
+                        </div>
+                        <div className="bk-dayuse-card-price">R$ {DAY_USE_PRICE}<span style={{ fontSize: '.9rem', color: 'var(--gray)', fontFamily: 'var(--font-body)' }}>/pessoa</span></div>
                       </div>
-                      <div className="bk-option-name">{q.nome}</div>
-                      <div className="bk-option-desc">{q.desc}</div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  /* Por hora: calendário + grade de quadras */
+                  <div className="bk-step2-layout">
+                    {/* Calendário */}
+                    <div ref={calendarRef}>
+                      <Calendar
+                        year={calYear} month={calMonth}
+                        onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
+                        onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
+                        selectedDate={selectedDate}
+                        onSelect={(d) => { setSelectedDate(d); setSelectedSlots([]); setQuadra(null); }}
+                        maxDate={maxDateStr}
+                      />
+                    </div>
+
+                    {/* Grade de disponibilidade */}
+                    <div className="bk-avail-section" ref={availSectionRef}>
+                      {!selectedDate ? (
+                        <div className="bk-avail-placeholder">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          Selecione uma data para ver<br />a disponibilidade das quadras
+                        </div>
+                      ) : loadingAvail ? (
+                        <div className="bk-avail-loading">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spinSlow 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                          Verificando disponibilidade…
+                        </div>
+                      ) : (
+                        <div className="bk-avail-outer">
+                          <div className="bk-avail-scroll" ref={gridScrollRef}>
+                            <table className="bk-avail-table">
+                              <thead>
+                                <tr>
+                                  <th className="bk-avail-hour-th" />
+                                  {visibleCourts.map(court => (
+                                    <th key={court.id} className="bk-avail-court-th">
+                                      <span className="bk-avail-court-th-name">{court.nome}</span>
+                                      <span className="bk-avail-court-th-type">{court.desc}</span>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {hours.map(h => (
+                                  <tr key={h} data-hour={h}>
+                                    <td className="bk-avail-hour-td">{String(h).padStart(2,'0')}h</td>
+                                    {visibleCourts.map(court => {
+                                      const busy = (busyByQuadra[court.id] || []).includes(h);
+                                      const past = selectedDate === todayStr && h < today.getHours();
+                                      const sel = quadra?.id === court.id && selectedSlots.includes(h);
+                                      let cls = 'bk-avail-cell';
+                                      if (sel) cls += ' sel';
+                                      else if (busy) cls += ' taken';
+                                      else if (past) cls += ' past';
+                                      else cls += ' avail';
+                                      const price = getPrice(h, court.tipo, isWeekend);
+                                      return (
+                                        <td key={court.id} className={cls} onClick={() => handleGridCellClick(court, h)}>
+                                          <div className="bk-av-hour">{String(h).padStart(2,'0')}h</div>
+                                          {!busy && !past && <div className="bk-av-price">R${price}</div>}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="bk-avail-legend">
+                            <div className="bk-avail-legend-item">
+                              <div className="bk-avail-dot" style={{ background: 'var(--gold)' }} />
+                              Selecionado
+                            </div>
+                            <div className="bk-avail-legend-item">
+                              <div className="bk-avail-dot" style={{ background: 'rgba(255,255,255,.15)' }} />
+                              Disponível
+                            </div>
+                            <div className="bk-avail-legend-item">
+                              <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', fontWeight: 700, textDecoration: 'line-through', opacity: .4, color: 'var(--muted)', lineHeight: 1 }}>00h</span>
+                              Ocupado
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resumo da seleção atual */}
+                      {(quadra || selectedSlots.length > 0) && (
+                        <div className="bk-sel-summary">
+                          {quadra && (
+                            <div className="bk-sel-summary-item">
+                              <span className="bk-sel-summary-label">Quadra</span>
+                              <span className="bk-sel-summary-val">{quadra.nome} · {quadra.desc}</span>
+                            </div>
+                          )}
+                          {selectedSlots.length > 0 && (
+                            <div className="bk-sel-summary-item">
+                              <span className="bk-sel-summary-label">Horários</span>
+                              <span className="bk-sel-summary-val">{[...selectedSlots].sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ')}</span>
+                            </div>
+                          )}
+                          {selectedSlots.length > 0 && quadra && (
+                            <div className="bk-sel-summary-total">
+                              R$ {totalPrice()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="bk-nav">
                   <button className="btn-ghost" onClick={() => setStep(1)}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
                     Voltar
                   </button>
-                  <button className="btn-gold" disabled={!quadra} onClick={() => goToStep3(false)}>
-                    Continuar
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ══ ETAPA 3 – DATA & HORA ══ */}
-          {step === 3 && (
-            <>
-              <div className="bk-card-header">
-                <h2>DATA E HORÁRIOS</h2>
-                <p>{dayUse ? 'Modalidade Day Use — acesso livre à quadra no período' : 'Selecione a data e um ou mais horários consecutivos'}</p>
-              </div>
-              <div className="bk-card-body">
-
-                {/* Toggle por hora / day use — só aparece para modalidades não-pickleball */}
-                {!modalidade?.dayuse && (
-                  <div className="bk-mode-toggle">
-                    <button className={`bk-mode-btn${!dayUse ? ' active' : ''}`} onClick={() => { setDayUse(false); setSelectedDate(null); setSelectedSlots([]); }}>
-                      Por Horário
-                    </button>
-                    <button className={`bk-mode-btn${dayUse ? ' active' : ''}`} onClick={() => { setDayUse(true); setSelectedDate(null); setSelectedSlots([]); }}>
-                      Day Use — R$ 25/pessoa
-                    </button>
-                  </div>
-                )}
-
-                <div className="bk-step3-layout">
-                  <div>
-                    {dayUse ? (
-                      /* Day Use: info card + calendário para escolher o dia */
-                      <>
-                        <div className="bk-dayuse-card">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                          <div>
-                            <div className="bk-dayuse-card-title">Day Use — Acesso Livre</div>
-                            <div className="bk-dayuse-card-desc">
-                              Acesso à quadra e às áreas comuns da arena durante todo o período de funcionamento do dia.<br /><br />
-                              {modalidade?.id === 'Pickleball'
-                                ? 'O Pickleball é disponibilizado exclusivamente no modelo Day Use. Escolha o dia abaixo.'
-                                : 'Ideal para quem quer jogar sem horário fixo ou quer curtir o espaço com mais liberdade.'}
-                            </div>
-                            <div className="bk-dayuse-card-price">R$ {DAY_USE_PRICE}<span style={{ fontSize: '.9rem', color: 'var(--gray)', fontFamily: 'var(--font-body)' }}>/pessoa</span></div>
-                          </div>
-                        </div>
-                        <Calendar
-                          year={calYear} month={calMonth}
-                          onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
-                          onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
-                          selectedDate={selectedDate}
-                          onSelect={(d) => setSelectedDate(d)}
-                          maxDate={maxDateStr}
-                        />
-                      </>
-                    ) : (
-                      /* Por hora: calendário + horários */
-                      <>
-                        <Calendar
-                          year={calYear} month={calMonth}
-                          onPrev={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }}
-                          onNext={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }}
-                          selectedDate={selectedDate}
-                          onSelect={(d) => { setSelectedDate(d); setSelectedSlots([]); }}
-                          maxDate={maxDateStr}
-                        />
-
-                        {selectedDate && (
-                          <div className="bk-times-wrap" style={{ marginTop: '1.5rem' }}>
-                            <div className="bk-times-label">
-                              Horários disponíveis
-                              <span style={{ color: 'var(--gray)', fontSize: '.7rem', fontWeight: 400, letterSpacing: '0' }}>· {isWeekend ? 'fim de semana' : 'dia de semana'} · selecione um ou mais</span>
-                            </div>
-                            <div className="times-grid">
-                              {hours.map(h => {
-                                const taken = busySlots.includes(h) || (selectedDate === todayStr && h < today.getHours());
-                                const sel = selectedSlots.includes(h);
-                                const price = getPrice(h, quadra?.tipo, isWeekend);
-                                return (
-                                  <div key={h} className={`time-slot${taken ? ' taken' : ''}${sel ? ' selected' : ''}`} onClick={() => toggleSlot(h)}>
-                                    <div className="ts-hour">{String(h).padStart(2,'0')}h</div>
-                                    <div className="ts-price">R${price}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  <div className="bk-sidebar">
-                    <div className="bk-sidebar-head">
-                      <h4>Sua Reserva</h4>
-                      <p>Resumo da seleção atual</p>
-                    </div>
-                    <div className="bk-sidebar-body">
-                      <div className="bk-summary-row"><span className="bk-summary-label">Modalidade</span><span className="bk-summary-val">{modalidade?.nome}</span></div>
-                      {quadra && <div className="bk-summary-row"><span className="bk-summary-label">Quadra</span><span className="bk-summary-val">{quadra.nome}</span></div>}
-                      {dayUse ? (
-                        <>
-                          <div className="bk-summary-row"><span className="bk-summary-label">Tipo</span><span className="bk-summary-val" style={{ color: 'var(--gold)' }}>Day Use</span></div>
-                          <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{selectedDate ? fmtDate(selectedDate) : '—'}</span></div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="bk-summary-row"><span className="bk-summary-label">Data</span><span className="bk-summary-val">{fmtDate(selectedDate)}</span></div>
-                          <div className="bk-summary-row"><span className="bk-summary-label">Horários</span><span className="bk-summary-val">{selectedSlots.length > 0 ? [...selectedSlots].sort((a,b)=>a-b).map(h=>`${String(h).padStart(2,'0')}h`).join(', ') : '—'}</span></div>
-                        </>
-                      )}
-                      <div className="bk-sum-total">
-                        <span className="bk-sum-total-label">Total</span>
-                        <span className="bk-sum-total-val">R$ {totalPrice()}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bk-nav">
-                  <button className="btn-ghost" onClick={() => modalidade?.dayuse ? setStep(1) : setStep(2)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-                    Voltar
-                  </button>
-                  <button className="btn-gold" disabled={!canProceedStep3} onClick={() => setStep(4)}>
+                  <button className="btn-gold" disabled={!canProceedStep2} onClick={() => setStep(3)}>
                     Ir para Pagamento
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                   </button>
@@ -629,8 +691,8 @@ export default function Reservas() {
             </>
           )}
 
-          {/* ══ ETAPA 4 – PAGAMENTO ══ */}
-          {step === 4 && (
+          {/* ══ ETAPA 3 – PAGAMENTO ══ */}
+          {step === 3 && (
             <>
               <div className="bk-card-header">
                 <h2>PAGAMENTO</h2>
@@ -698,7 +760,7 @@ export default function Reservas() {
                     </div>
                     <div className="bk-sidebar-body">
                       <div className="bk-summary-row"><span className="bk-summary-label">Modalidade</span><span className="bk-summary-val">{modalidade?.nome}</span></div>
-                      {quadra && <div className="bk-summary-row"><span className="bk-summary-label">Quadra</span><span className="bk-summary-val">{quadra.nome}</span></div>}
+                      {quadra && <div className="bk-summary-row"><span className="bk-summary-label">Quadra</span><span className="bk-summary-val">{quadra.nome} · {quadra.desc}</span></div>}
                       {dayUse ? (
                         <>
                           <div className="bk-summary-row"><span className="bk-summary-label">Tipo</span><span className="bk-summary-val" style={{ color: 'var(--gold)' }}>Day Use</span></div>
@@ -736,7 +798,7 @@ export default function Reservas() {
                 </div>
 
                 <div className="bk-nav">
-                  <button className="btn-ghost" onClick={() => setStep(3)}>
+                  <button className="btn-ghost" onClick={() => setStep(2)}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
                     Voltar
                   </button>
