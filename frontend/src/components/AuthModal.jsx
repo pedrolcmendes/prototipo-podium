@@ -3,6 +3,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './Toast';
 import PodiumDatePicker from './PodiumDatePicker';
+import api from '../services/api';
 
 function formatCPF(v) {
   return v.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2').slice(0, 14);
@@ -57,6 +58,8 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
   const [loginData, setLoginData] = useState({ email: '', senha: '' });
   const [loginErr, setLoginErr] = useState({});
   const [showLoginPw, setShowLoginPw] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   const handleGoogleSuccess = async (tokenResponse) => {
     setLoading(true);
@@ -108,6 +111,26 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
     } catch (ex) {
       setLoginErr({ senha: ex.response?.data?.message || 'E-mail ou senha incorretos' });
     } finally { setLoading(false); }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    const email = loginData.email.trim();
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      setLoginErr({ email: 'Digite seu e-mail acima para redefinir a senha' });
+      return;
+    }
+    setLoginErr({});
+    setLoading(true);
+    try {
+      const { data } = await api.post('/auth/esqueci-senha', { email });
+      setForgotSent(true);
+      toast(data.message, 'success');
+    } catch (ex) {
+      toast(ex.response?.data?.message || 'Não foi possível solicitar a redefinição', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCadSubmit = async (e) => {
@@ -196,6 +219,50 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
 
               {/* LOGIN */}
               <div className="auth-panel" id="panel-login">
+                {forgotMode ? (
+                  <div className="forgot-password-panel">
+                    <div className="panel-heading">
+                      <p className="forgot-eyebrow">SEGURANÇA DA CONTA</p>
+                      <h2>RECUPERAR SENHA</h2>
+                      <p>Informe seu e-mail para receber um link seguro de redefinição.</p>
+                    </div>
+
+                    {forgotSent ? (
+                      <div className="forgot-sent" role="status" aria-live="polite">
+                        <span>✓</span>
+                        <strong>VERIFIQUE SEU E-MAIL</strong>
+                        <p>Se o endereço estiver cadastrado, enviamos o link para criar uma nova senha. Confira também a caixa de spam.</p>
+                      </div>
+                    ) : (
+                      <form noValidate className="forgot-form" onSubmit={handleForgotPassword}>
+                        <div className={`field${loginErr.email ? ' error' : ''}`}>
+                          <label>E-mail</label>
+                          <input
+                            type="email"
+                            placeholder="seu@email.com"
+                            autoComplete="email"
+                            value={loginData.email}
+                            onChange={e => setLoginData({ ...loginData, email: e.target.value })}
+                            autoFocus
+                          />
+                          <span className="field-error">{loginErr.email || 'E-mail inválido'}</span>
+                        </div>
+                        <button type="submit" className="btn-auth" disabled={loading}>
+                          {loading ? 'Enviando…' : 'Enviar link de acesso'}
+                        </button>
+                      </form>
+                    )}
+
+                    <button
+                      type="button"
+                      className="forgot-return"
+                      onClick={() => { setForgotMode(false); setForgotSent(false); setLoginErr({}); }}
+                    >
+                      ← Voltar para o acesso
+                    </button>
+                  </div>
+                ) : (
+                  <>
                 <div className="panel-heading">
                   <h2>ACESSO</h2>
                   <p>Bem-vindo de volta à arena</p>
@@ -223,7 +290,7 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
                     <label className="remember-label">
                       <input type="checkbox" /> Lembrar acesso
                     </label>
-                    <a href="#" className="forgot-link" onClick={e => e.preventDefault()}>Esqueci a senha</a>
+                    <a href="#" className="forgot-link" onClick={(e) => { e.preventDefault(); setForgotMode(true); setLoginErr({}); }}>Esqueci a senha</a>
                   </div>
 
                   <button type="submit" className="btn-auth" disabled={loading}>{loading ? 'Entrando…' : 'Entrar na Arena'}</button>
@@ -240,6 +307,8 @@ export default function AuthModal({ initialTab = 'login', onClose }) {
                   Ao entrar, você aceita os <a href="#">Termos de Uso</a> e a{' '}
                   <a href="#">Política de Privacidade</a> da Podium Arena.
                 </p>
+                  </>
+                )}
               </div>
 
               {/* CADASTRO */}

@@ -24,6 +24,7 @@ import './styles/number-input.css';
 
 /* ── Toast (único CSS novo, não sobrepõe nada) ── */
 import './styles/toast.css';
+import './styles/reset-password.css';
 
 import App from './App';
 

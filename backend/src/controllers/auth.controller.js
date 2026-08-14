@@ -1,8 +1,17 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
-const { enviarEmailResetSenha, enviarEmailSenhaAlterada } = require('../utils/email');
+const {
+  enviarEmailContaCriada,
+  enviarEmailResetSenha,
+  enviarEmailSenhaAlterada,
+} = require('../utils/email');
 const { broadcast } = require('../utils/live');
+
+// Evita links com "//redefinir-senha" quando FRONTEND_URL termina com barra.
+if (process.env.FRONTEND_URL) {
+  process.env.FRONTEND_URL = process.env.FRONTEND_URL.trim().replace(/\/+$/, '');
+}
 
 const gerarToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
@@ -21,6 +30,9 @@ const register = async (req, res) => {
   if (cpfExistente) return res.status(409).json({ message: 'CPF já cadastrado' });
 
   const user = await User.create({ nome, email, senha, cpf, nasc, tel, genero });
+
+  enviarEmailContaCriada({ destinatario: user.email, nome: user.nome })
+    .catch((error) => console.warn('Falha no e-mail de boas-vindas:', error.message));
 
   broadcast('users');
   res.status(201).json({ token: gerarToken(user._id), user: user.toPublic() });
@@ -65,9 +77,11 @@ const googleAuth = async (req, res) => {
     if (!email) return res.status(401).json({ message: 'Não foi possível obter e-mail do Google' });
 
     let user = await User.findOne({ $or: [{ googleId }, { email }] });
+    let contaCriada = false;
 
     if (!user) {
       user = await User.create({ nome, email, googleId });
+      contaCriada = true;
       broadcast('users');
     } else if (!user.googleId) {
       user.googleId = googleId;
@@ -76,6 +90,11 @@ const googleAuth = async (req, res) => {
 
     if (user.status === 'bloqueado') {
       return res.status(403).json({ message: 'Conta bloqueada. Entre em contato com o suporte.' });
+    }
+
+    if (contaCriada) {
+      enviarEmailContaCriada({ destinatario: user.email, nome: user.nome })
+        .catch((error) => console.warn('Falha no e-mail de boas-vindas:', error.message));
     }
 
     res.json({ token: gerarToken(user._id), user: user.toPublic() });
@@ -109,6 +128,30 @@ const enviarResetSenha = async (req, res) => {
   }
 };
 
+const solicitarResetSenha = async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const resposta = { message: 'Se o e-mail estiver cadastrado, você receberá o link de redefinição.' };
+  if (!email) return res.status(400).json({ message: 'Informe o e-mail' });
+
+  const user = await User.findOne({ email });
+  if (!user) return res.json(resposta);
+
+  const token = crypto.randomBytes(32).toString('hex');
+  user.resetToken = token;
+  user.resetTokenExpires = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  await user.save();
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const link = `${frontendUrl}/redefinir-senha/${token}`;
+
+  try {
+    await enviarEmailResetSenha({ destinatario: user.email, nome: user.nome, link });
+  } catch (error) {
+    console.warn('Falha no e-mail público de redefinição:', error.message);
+  }
+  return res.json(resposta);
+};
+
 const redefinirSenha = async (req, res) => {
   const { token, novaSenha } = req.body;
   if (!token || !novaSenha) return res.status(400).json({ message: 'Token e nova senha são obrigatórios' });
@@ -126,4 +169,12 @@ const redefinirSenha = async (req, res) => {
   res.json({ message: 'Senha redefinida com sucesso' });
 };
 
-module.exports = { register, login, googleAuth, me, enviarResetSenha, redefinirSenha };
+module.exports = {
+  register,
+  login,
+  googleAuth,
+  me,
+  enviarResetSenha,
+  solicitarResetSenha,
+  redefinirSenha,
+};

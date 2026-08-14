@@ -16,7 +16,7 @@ import RedefinirSenha from './pages/RedefinirSenha';
 import PagamentoRetorno from './pages/PagamentoRetorno';
 
 /* Páginas que têm seu próprio topbar e não devem exibir o Nav global */
-const NO_NAV_PATHS = ['/painel', '/admin'];
+const NO_NAV_PATHS = ['/painel', '/admin', '/redefinir-senha'];
 
 /* Rola até a seção do hash (ex.: /#sobre) ou para o topo ao trocar de página */
 function ScrollManager() {
