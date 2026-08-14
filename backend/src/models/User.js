@@ -34,6 +34,7 @@ userSchema.methods.verificarSenha = function (senha) {
 
 userSchema.methods.toPublic = function () {
   const obj = this.toObject();
+  obj.hasPassword = Boolean(obj.senha);
   delete obj.senha;
   delete obj.resetToken;
   delete obj.resetTokenExpires;

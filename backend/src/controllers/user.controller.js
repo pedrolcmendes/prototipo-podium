@@ -28,13 +28,29 @@ const atualizarMe = async (req, res) => {
 
 const alterarSenha = async (req, res) => {
   const { senhaAtual, novaSenha } = req.body;
-  if (!senhaAtual || !novaSenha) return res.status(400).json({ message: 'Informe senhaAtual e novaSenha' });
+  if (!novaSenha) return res.status(400).json({ message: 'Informe a nova senha' });
+  if (novaSenha.length < 6) return res.status(400).json({ message: 'A nova senha deve ter pelo menos 6 caracteres' });
+
   const user = await User.findById(req.user._id);
-  const ok = await user.verificarSenha(senhaAtual);
-  if (!ok) return res.status(400).json({ message: 'Senha atual incorreta' });
+  if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
+  const criandoPrimeiraSenha = !user.senha;
+
+  // Contas criadas via Google não possuem senha inicial. Como a rota exige uma
+  // sessão autenticada, o usuário pode cadastrar sua primeira senha no painel.
+  if (user.senha) {
+    if (!senhaAtual) return res.status(400).json({ message: 'Informe a senha atual' });
+    const ok = await user.verificarSenha(senhaAtual);
+    if (!ok) return res.status(400).json({ message: 'Senha atual incorreta' });
+  }
+
   user.senha = novaSenha;
+  user.resetToken = null;
+  user.resetTokenExpires = null;
   await user.save();
-  res.json({ message: 'Senha alterada com sucesso' });
+  res.json({
+    message: criandoPrimeiraSenha ? 'Senha configurada com sucesso' : 'Senha alterada com sucesso',
+    user: user.toPublic(),
+  });
 };
 
 const listar = async (req, res) => {
