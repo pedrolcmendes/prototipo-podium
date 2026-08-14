@@ -35,7 +35,7 @@ const bookingSchema = new mongoose.Schema({
   paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment', default: null },
   paymentExpiresAt: { type: Date, default: null },
   foiPago: { type: Boolean, default: false },
-  reminderSent: { type: Boolean, default: false }, // lembrete de 2h antes já enviado
+  reminderSent: { type: Boolean, default: false }, // lembrete de 1h antes já enviado
 }, { timestamps: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);

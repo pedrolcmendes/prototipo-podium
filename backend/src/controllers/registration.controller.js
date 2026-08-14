@@ -9,6 +9,7 @@ const { cancelarReferenciaPendente } = require('../services/paymentReference.ser
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { sanitizeRegistrationForAdmin } = require('../utils/adminPermissions');
 const { paymentExpirationDate } = require('../utils/paymentTimeout');
+const { enviarEmailInscricaoConfirmada } = require('../utils/email');
 
 const minhasInscricoes = async (req, res) => {
   const registrations = await Registration.find({ userId: req.user._id })
@@ -182,6 +183,14 @@ const inscrever = async (req, res) => {
   }
 
   broadcast('registrations');
+  if (registration.status === 'confirmada' && req.user.email) {
+    enviarEmailInscricaoConfirmada({
+      destinatario: req.user.email,
+      nome: req.user.nome,
+      inscricao: registration,
+      evento: event,
+    }).catch((error) => console.warn('Falha no e-mail de inscrição:', error.message));
+  }
   return res.status(jaInscrito ? 200 : 201).json(registration);
 };
 

@@ -1,6 +1,6 @@
 /*
   Tarefas automáticas do sistema (rodam a cada 5 minutos):
-    - Lembrete 2h antes da reserva (e-mail + WhatsApp se o Twilio estiver configurado)
+    - Lembrete 1h antes da reserva (e-mail + WhatsApp se o Twilio estiver configurado)
     - Resumo semanal para o admin (toda segunda-feira)
   Obs.: o servidor do Render roda em UTC, então todos os cálculos de "agora"
   usam o horário de Brasília (America/Sao_Paulo) via Intl.
@@ -53,14 +53,15 @@ const enviarLembretes = async (settings) => {
       await r.save();
       continue;
     }
-    if (minutosAte > 120) continue; // ainda falta mais de 2h
+    if (minutosAte > 60) continue; // ainda falta mais de 1h
 
-    const msg = `⏰ Podium Arena: lembrete! Sua reserva de ${r.modalidade} é hoje às ${fmtSlots(r.slots)}. Bom jogo! 🎾`;
+    const msg = `⏰ Podium Arena: lembrete! Sua reserva de ${r.modalidade} começa em aproximadamente 1 hora, às ${fmtSlots(r.slots)}. Bom jogo! 🎾`;
     try {
-      await Promise.allSettled([
+      const [emailResult] = await Promise.allSettled([
         enviarEmailLembreteReserva({ destinatario: r.userId.email, nome: r.userId.nome, reserva: r }),
         enviarWhatsApp({ para: r.userId.tel, mensagem: msg }),
       ]);
+      if (emailResult.status === 'rejected') throw emailResult.reason;
       r.reminderSent = true;
       await r.save();
       console.log(`Lembrete enviado: ${r.userId.email} (${r.date} ${fmtSlots(r.slots)})`);

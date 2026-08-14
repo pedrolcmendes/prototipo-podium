@@ -5,7 +5,10 @@ const Registration = require('../models/Registration');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
 const { broadcast } = require('../utils/live');
-const { enviarEmailReservaConfirmada } = require('../utils/email');
+const {
+  enviarEmailReservaConfirmada,
+  enviarEmailInscricaoConfirmada,
+} = require('../utils/email');
 const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
 const { paymentExpirationDate } = require('../utils/paymentTimeout');
@@ -111,7 +114,18 @@ const confirmarReferencia = async (tipo, referenciaId, userId) => {
       { $set: { status: 'confirmada', paymentExpiresAt: null } },
       { new: true },
     );
-    if (registration) broadcast('registrations');
+    if (registration) {
+      broadcast('registrations');
+      const user = await User.findById(userId).select('nome email');
+      if (user?.email) {
+        enviarEmailInscricaoConfirmada({
+          destinatario: user.email,
+          nome: user.nome,
+          inscricao: registration,
+          evento: { nome: registration.eventNome },
+        }).catch((error) => console.warn('Email registration error:', error.message));
+      }
+    }
   }
 };
 

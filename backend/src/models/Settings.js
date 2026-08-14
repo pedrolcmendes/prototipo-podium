@@ -23,7 +23,7 @@ const settingsSchema = new mongoose.Schema({
 
   // Notificações automáticas
   notifEmailConfirm: { type: Boolean, default: true },   // comprovante ao confirmar reserva
-  notifReminder: { type: Boolean, default: true },       // lembrete 2h antes do horário
+  notifReminder: { type: Boolean, default: true },       // lembrete 1h antes do horário
   notifCancelAlert: { type: Boolean, default: true },    // avisar o admin ao cancelar
   notifWeeklySummary: { type: Boolean, default: false }, // resumo toda segunda-feira
 

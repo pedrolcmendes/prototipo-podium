@@ -6,7 +6,11 @@ const Settings = require('../models/Settings');
 const PaymentModel = require('../models/Payment');
 const { cancelarReferenciaPendente } = require('../services/paymentReference.service');
 const { cancelarPagamentosPendentes } = require('../services/paymentCancellation.service');
-const { enviarEmailReservaConfirmada, enviarEmailCancelamentoAdmin } = require('../utils/email');
+const {
+  enviarEmailReservaConfirmada,
+  enviarEmailReservaCancelada,
+  enviarEmailCancelamentoAdmin,
+} = require('../utils/email');
 const { broadcast } = require('../utils/live');
 const { isMasterAdmin, sanitizeBookingForAdmin } = require('../utils/adminPermissions');
 const { arenaDateTimeParts, bookingScheduleStatus } = require('../utils/arenaDateTime');
@@ -26,6 +30,35 @@ const BOOKING_PAYMENTS = new Set(['pix', 'credito', 'creditos', 'cartao']);
 const BOOKING_COURT_TYPES = new Set(['coberta', 'descoberta', 'areia', 'pickleball', 'teste']);
 
 const DAY_USE_PRICE = 25;
+
+const notificarReservaCancelada = async ({ booking, canceladoPor, creditosEstornados }) => {
+  const [user, settings] = await Promise.all([
+    User.findById(booking.userId).select('nome email'),
+    Settings.findById('global'),
+  ]);
+  const envios = [];
+  if (user?.email) {
+    envios.push(enviarEmailReservaCancelada({
+      destinatario: user.email,
+      nome: user.nome,
+      reserva: booking,
+      creditosEstornados,
+    }));
+  }
+  if (settings?.notifCancelAlert !== false) {
+    const destinatarioAdmin = settings?.email || process.env.EMAIL_USER;
+    if (destinatarioAdmin) {
+      envios.push(enviarEmailCancelamentoAdmin({
+        destinatario: destinatarioAdmin,
+        reserva: booking,
+        canceladoPor,
+      }));
+    }
+  }
+  const resultados = await Promise.allSettled(envios);
+  resultados.filter((item) => item.status === 'rejected')
+    .forEach((item) => console.warn('Falha no e-mail de cancelamento:', item.reason?.message));
+};
 
 function calcularPrecoSlot(hora, tipoQuadra, isFimDeSemana) {
   if (tipoQuadra === 'teste') return 1.00;
@@ -293,9 +326,15 @@ const cancelar = async (req, res) => {
       });
     }
     const cancelamento = await cancelarReferenciaPendente('booking', booking._id);
+    const reservaCancelada = cancelamento.referencia || booking;
+    notificarReservaCancelada({
+      booking: reservaCancelada,
+      canceladoPor: req.user.nome,
+      creditosEstornados: cancelamento.creditosEstornados,
+    }).catch((e) => console.warn('Falha ao preparar e-mails de cancelamento:', e.message));
     return res.json({
       message: 'Reserva cancelada',
-      booking: cancelamento.referencia || booking,
+      booking: reservaCancelada,
       creditosEstornados: cancelamento.creditosEstornados,
     });
   }
@@ -344,15 +383,12 @@ const cancelar = async (req, res) => {
   }
   broadcast('bookings');
 
-  // Alerta de cancelamento para o admin (sem bloquear a resposta)
-  Settings.findById('global')
-    .then((s) => {
-      if (s?.notifCancelAlert === false) return;
-      const destinatario = s?.email || process.env.EMAIL_USER;
-      if (!destinatario) return;
-      return enviarEmailCancelamentoAdmin({ destinatario, reserva: booking, canceladoPor: req.user.nome });
-    })
-    .catch((e) => console.warn('Falha no alerta de cancelamento:', e.message));
+  // Confirma o cancelamento ao cliente e mantém o alerta administrativo.
+  notificarReservaCancelada({
+    booking,
+    canceladoPor: req.user.nome,
+    creditosEstornados: creditosARefundar,
+  }).catch((e) => console.warn('Falha ao preparar e-mails de cancelamento:', e.message));
 
   res.json({ message: 'Reserva cancelada', booking, creditosEstornados: creditosARefundar });
 };
