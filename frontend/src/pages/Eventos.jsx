@@ -15,6 +15,7 @@ const DIAS_FULL = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quin
 const CAT_LABEL = { beachtennis: 'Beach Tennis', futevolei: 'Futevôlei', volei: 'Vôlei', pickleball: 'Pickleball', taekwondo: 'Taekwondo', geral: 'Geral' };
 const catLabel = (c) => CAT_LABEL[c] || c || 'Campeonato';
 const isDupla = (event) => event?.tipoInscricao === 'dupla';
+const isMistoEvent = (event) => isDupla(event) && event?.genero === 'misto';
 const registrationTotal = (event) => Number(event?.preco || 0) * (isDupla(event) ? 2 : 1);
 const fmtBRL = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 // imagem com caminho morto (uploads antigos em disco) cai no fallback
@@ -81,6 +82,10 @@ export default function Eventos() {
   const [parceiro, setParceiro] = useState('');
   const [nivel, setNivel] = useState('');
   const [payMetodo, setPayMetodo] = useState('pix');
+  const [parceiroSearch, setParceiroSearch] = useState('');
+  const [parceiroResults, setParceiroResults] = useState([]);
+  const [parceiroSelecionado, setParceiroSelecionado] = useState(null);
+  const [parceiroSearchLoading, setParceiroSearchLoading] = useState(false);
   const [pagOpen, setPagOpen] = useState(false);
   const [pendingReg, setPendingReg] = useState(null);
   const [pendingEvt, setPendingEvt] = useState(null);
@@ -90,9 +95,17 @@ export default function Eventos() {
   useBodyScrollLock(!!selectedEvt);
 
   const processRegs = (regs) => {
-    setUserRegs(regs.filter(x => x.status === 'confirmada').map(x => x.eventId?._id || x.eventId));
+    // confirmados (pagador ou parceiro) → "Já inscrito"
+    const confirmedIds = regs.filter(x => x.status === 'confirmada').map(x => x.eventId?._id || x.eventId);
+    // parceiro com inscrição pendente → também bloqueia nova inscrição mas sem botão de pagamento
+    const partnerPendingIds = regs
+      .filter(x => x.status === 'pendente_pagamento' && x.isPartnerView)
+      .map(x => x.eventId?._id || x.eventId);
+    setUserRegs([...new Set([...confirmedIds, ...partnerPendingIds])]);
+
+    // pendente com botão de pagamento: apenas quem é o pagador
     const pending = {};
-    regs.filter(x => x.status === 'pendente_pagamento').forEach(x => {
+    regs.filter(x => x.status === 'pendente_pagamento' && !x.isPartnerView).forEach(x => {
       const evId = x.eventId?._id || x.eventId;
       if (evId) pending[evId] = x;
     });
@@ -105,6 +118,22 @@ export default function Eventos() {
       api.get('/registrations/me').then(r => processRegs(r.data.data || r.data || [])).catch(() => {});
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // busca de parceiro com debounce
+  useEffect(() => {
+    if (!parceiroSearch.trim() || parceiroSearch.trim().length < 2) {
+      setParceiroResults([]);
+      return;
+    }
+    setParceiroSearchLoading(true);
+    const timer = setTimeout(() => {
+      api.get(`/users/search?q=${encodeURIComponent(parceiroSearch.trim())}`)
+        .then(r => setParceiroResults(r.data || []))
+        .catch(() => setParceiroResults([]))
+        .finally(() => setParceiroSearchLoading(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [parceiroSearch]);
 
   // tempo real: vagas e novos eventos atualizam sem recarregar
   useLive(['events', 'registrations'], () => {
@@ -124,6 +153,9 @@ export default function Eventos() {
     setParceiro('');
     setNivel('');
     setPayMetodo('pix');
+    setParceiroSearch('');
+    setParceiroResults([]);
+    setParceiroSelecionado(null);
     setIsContinuando(false);
     setInscStep('details');
   };
@@ -147,13 +179,17 @@ export default function Eventos() {
   const handleRegistrationContinue = async () => {
     if (!selectedEvt) return;
     const individual = !isDupla(selectedEvt);
+    const isMisto = isMistoEvent(selectedEvt);
     if (individual && !nivel) { toast('Selecione seu nível: A, B, C ou D', 'error'); return; }
-    if (!individual && !parceiro.trim()) { toast('Informe o nome do(a) parceiro(a)', 'error'); return; }
+    if (isMisto && !parceiroSelecionado) { toast('Selecione o(a) parceiro(a) pelo sistema', 'error'); return; }
+    if (!individual && !isMisto && !parceiro.trim()) { toast('Informe o nome do(a) parceiro(a)', 'error'); return; }
     setInscLoading(true);
     try {
       const payload = individual
         ? { nivel, payment: payMetodo }
-        : { parceiro: parceiro.trim(), payment: payMetodo };
+        : isMisto
+          ? { parceiroId: parceiroSelecionado._id, payment: payMetodo }
+          : { parceiro: parceiro.trim(), payment: payMetodo };
       const res = await api.post(`/registrations/evento/${selectedEvt._id}`, payload);
       const reg = res.data.data || res.data;
       if (reg.creditosAplicados > 0) {
@@ -474,6 +510,55 @@ export default function Eventos() {
                             Categoria <strong style={{ color: 'var(--white)', textTransform: 'capitalize' }}>{user?.genero}</strong>, identificada pelo seu perfil.
                           </p>
                         </>
+                      ) : isMistoEvent(selectedEvt) ? (
+                        <>
+                          <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Selecione sua dupla</p>
+                          {parceiroSelecionado ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', background: 'var(--dark)', border: '1px solid var(--gold)', padding: '.65rem 1rem' }}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                              <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '.9rem', color: 'var(--white)' }}>{parceiroSelecionado.nome}</span>
+                              <button type="button" onClick={() => { setParceiroSelecionado(null); setParceiroSearch(''); setParceiroResults([]); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '0', lineHeight: 0 }} title="Remover seleção">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                type="text"
+                                placeholder={user?.genero === 'masculino' ? 'Buscar parceira pelo nome…' : user?.genero === 'feminino' ? 'Buscar parceiro pelo nome…' : 'Buscar parceiro(a) pelo nome…'}
+                                value={parceiroSearch}
+                                onChange={e => setParceiroSearch(e.target.value)}
+                                autoFocus
+                                style={{ width: '100%', background: 'var(--dark)', border: '1px solid var(--border)', color: 'var(--white)', padding: '.7rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' }}
+                              />
+                              {(parceiroSearchLoading || parceiroResults.length > 0 || (parceiroSearch.trim().length >= 2 && !parceiroSearchLoading)) && (
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none', zIndex: 10, maxHeight: '200px', overflowY: 'auto' }}>
+                                  {parceiroSearchLoading && (
+                                    <div style={{ padding: '.7rem 1rem', fontFamily: 'var(--font-cond)', fontSize: '.75rem', color: 'var(--muted)' }}>Buscando…</div>
+                                  )}
+                                  {!parceiroSearchLoading && parceiroResults.length === 0 && parceiroSearch.trim().length >= 2 && (
+                                    <div style={{ padding: '.7rem 1rem', fontFamily: 'var(--font-cond)', fontSize: '.75rem', color: 'var(--muted)' }}>Nenhum atleta encontrado.</div>
+                                  )}
+                                  {!parceiroSearchLoading && parceiroResults.map(u => (
+                                    <button
+                                      key={u._id}
+                                      type="button"
+                                      onClick={() => { setParceiroSelecionado(u); setParceiroSearch(''); setParceiroResults([]); }}
+                                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', padding: '.65rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.88rem', color: 'var(--white)', cursor: 'pointer' }}
+                                      onMouseOver={e => e.currentTarget.style.background = 'var(--dark)'}
+                                      onMouseOut={e => e.currentTarget.style.background = 'none'}
+                                    >
+                                      {u.nome}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', color: 'var(--gray)', letterSpacing: '.5px', margin: 0 }}>
+                            Apenas atletas cadastrados no sistema são exibidos.
+                          </p>
+                        </>
                       ) : (
                         <>
                           <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Inscrição em dupla</p>
@@ -503,22 +588,26 @@ export default function Eventos() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                      <span className={statusClass(selectedStatus)}>{statusLabel(selectedStatus)}</span>
-                      {isInscrito ? (
-                        <button className="btn-outline" disabled style={{ opacity: .6 }}>Já inscrito ✓</button>
-                      ) : pendingRegForEvt ? (
-                        <button className="btn-gold" onClick={iniciarContinuarPagamento}>Continuar pagamento</button>
-                      ) : selectedStatus === 'passado' ? (
-                        <button className="btn-outline" disabled style={{ opacity: .5 }}>Campeonato Encerrado</button>
-                      ) : selectedStatus === 'encerrado' ? (
-                        <button className="btn-outline" disabled style={{ opacity: .5 }}>Inscrições Encerradas</button>
-                      ) : selectedStatus === 'esgotado' ? (
-                        <button className="btn-outline" disabled style={{ opacity: .5 }}>Vagas Esgotadas</button>
-                      ) : (
-                        <button className="btn-gold" disabled={inscLoading} onClick={handleInscrever}>
-                          {inscLoading ? 'Inscrevendo…' : 'Inscrever-se'}
-                        </button>
+                      {['aberto', 'breve'].includes(selectedStatus) && (
+                        <span className={statusClass(selectedStatus)}>{statusLabel(selectedStatus)}</span>
                       )}
+                      <div style={{ marginLeft: 'auto' }}>
+                        {isInscrito ? (
+                          <button className="btn-outline" disabled style={{ opacity: .6 }}>Já inscrito ✓</button>
+                        ) : pendingRegForEvt ? (
+                          <button className="btn-gold" onClick={iniciarContinuarPagamento}>Continuar pagamento</button>
+                        ) : selectedStatus === 'passado' ? (
+                          <button className="btn-outline" disabled style={{ opacity: .5 }}>Campeonato Encerrado</button>
+                        ) : selectedStatus === 'encerrado' ? (
+                          <button className="btn-outline" disabled style={{ opacity: .5 }}>Inscrições Encerradas</button>
+                        ) : selectedStatus === 'esgotado' ? (
+                          <button className="btn-outline" disabled style={{ opacity: .5 }}>Vagas Esgotadas</button>
+                        ) : (
+                          <button className="btn-gold" disabled={inscLoading} onClick={handleInscrever}>
+                            {inscLoading ? 'Inscrevendo…' : 'Inscrever-se'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

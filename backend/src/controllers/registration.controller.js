@@ -12,11 +12,25 @@ const { paymentExpirationDate } = require('../utils/paymentTimeout');
 const { enviarEmailInscricaoConfirmada } = require('../utils/email');
 
 const minhasInscricoes = async (req, res) => {
-  const registrations = await Registration.find({ userId: req.user._id })
-    .populate('eventId', 'nome data hora local status categoria tipoInscricao imagem preco')
-    .populate('paymentId', 'metodo status paidAt createdAt updatedAt')
-    .sort({ createdAt: -1 });
-  res.json(registrations);
+  const [minhas, comoParceiro] = await Promise.all([
+    Registration.find({ userId: req.user._id })
+      .populate('eventId', 'nome data hora local status categoria tipoInscricao imagem preco genero')
+      .populate('paymentId', 'metodo status paidAt createdAt updatedAt')
+      .sort({ createdAt: -1 }),
+    Registration.find({
+      parceiroId: req.user._id,
+      status: { $in: ['confirmada', 'pendente_pagamento'] },
+    })
+      .populate('eventId', 'nome data hora local status categoria tipoInscricao imagem preco genero')
+      .sort({ createdAt: -1 }),
+  ]);
+
+  const comoParceiroPlainas = comoParceiro.map(r => ({
+    ...r.toObject(),
+    isPartnerView: true,
+  }));
+
+  res.json([...minhas, ...comoParceiroPlainas]);
 };
 
 const listar = async (req, res) => {
@@ -57,7 +71,7 @@ const inscrever = async (req, res) => {
   if (!event) return res.status(404).json({ message: 'Evento não encontrado' });
 
   const individual = event.tipoInscricao !== 'dupla';
-  const parceiro = req.body.parceiro?.trim() || null;
+  const isMisto = !individual && event.genero === 'misto';
   const nivel = req.body.nivel?.toUpperCase() || null;
   const payment = req.body.payment || 'pix';
   const genero = ['masculino', 'feminino'].includes(req.user.genero) ? req.user.genero : null;
@@ -72,7 +86,30 @@ const inscrever = async (req, res) => {
   if (individual && !genero) {
     return res.status(400).json({ message: 'Informe masculino ou feminino no seu perfil antes de se inscrever' });
   }
-  if (!individual && !parceiro) {
+
+  // Dupla misto: parceiro deve ser um usuário cadastrado de gênero oposto
+  let parceiroUser = null;
+  if (isMisto) {
+    if (!genero) {
+      return res.status(400).json({ message: 'Informe masculino ou feminino no seu perfil antes de se inscrever em dupla misto.' });
+    }
+    const parceiroId = req.body.parceiroId;
+    if (!parceiroId) {
+      return res.status(400).json({ message: 'Selecione o(a) parceiro(a) pelo sistema.' });
+    }
+    parceiroUser = await User.findById(parceiroId).select('nome genero');
+    if (!parceiroUser) {
+      return res.status(400).json({ message: 'Parceiro(a) não encontrado(a).' });
+    }
+    const generoOposto = genero === 'masculino' ? 'feminino' : 'masculino';
+    if (parceiroUser.genero !== generoOposto) {
+      return res.status(400).json({ message: `Em dupla misto o(a) parceiro(a) deve ser do gênero oposto.` });
+    }
+  }
+
+  const parceiro = isMisto ? (parceiroUser?.nome || null) : (req.body.parceiro?.trim() || null);
+
+  if (!individual && !isMisto && !parceiro) {
     return res.status(400).json({ message: 'Informe o nome do(a) parceiro(a)' });
   }
 
@@ -97,12 +134,27 @@ const inscrever = async (req, res) => {
   }
 
   const jaInscrito = await Registration.findOne({
-    userId: req.user._id,
     eventId: event._id,
+    status: { $in: ['confirmada', 'pendente_pagamento'] },
+    $or: [{ userId: req.user._id }, { parceiroId: req.user._id }],
   });
 
-  if (jaInscrito && (jaInscrito.status === 'confirmada' || jaInscrito.status === 'pendente_pagamento')) {
-    return res.status(409).json({ message: jaInscrito.status === 'pendente_pagamento' ? 'Você já tem uma inscrição pendente de pagamento' : 'Você já está inscrito neste evento' });
+  if (jaInscrito) {
+    const msg = jaInscrito.status === 'pendente_pagamento'
+      ? 'Você já tem uma inscrição pendente de pagamento neste evento'
+      : 'Você já está inscrito neste evento';
+    return res.status(409).json({ message: msg });
+  }
+
+  if (isMisto && parceiroUser) {
+    const parceiroJaInscrito = await Registration.findOne({
+      eventId: event._id,
+      status: { $in: ['confirmada', 'pendente_pagamento'] },
+      $or: [{ userId: parceiroUser._id }, { parceiroId: parceiroUser._id }],
+    });
+    if (parceiroJaInscrito) {
+      return res.status(409).json({ message: `${parceiroUser.nome} já está inscrito(a) neste evento.` });
+    }
   }
 
   const valorTotal = individual ? event.preco : event.preco * 2;
@@ -116,6 +168,7 @@ const inscrever = async (req, res) => {
     genero: individual ? genero : null,
     nivel: individual ? nivel : null,
     parceiro: individual ? null : parceiro,
+    parceiroId: isMisto ? (parceiroUser?._id || null) : null,
     precoDupla: individual ? null : event.preco * 2,
     creditosAplicados: 0,
     creditosEstornados: 0,

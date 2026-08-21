@@ -202,7 +202,7 @@ export default function PagamentoModal({ tipo, referenciaId, metodo, valor, cred
         } else if (['cancelado', 'expirado'].includes(sync.status)) {
           clearInterval(cardPollRef.current);
           setCardErrorTitle(sync.status === 'expirado' ? 'Tentativa expirada' : 'Pagamento recusado');
-          setCardError('O pagamento não foi aprovado. Tente outro cartão ou fale com a instituição emissora.');
+          setCardError(sync.declineMessage || 'O pagamento não foi aprovado. Tente outro cartão ou fale com a instituição emissora.');
           setPhase('cartao_erro');
           cardSubmittingRef.current = false;
         }

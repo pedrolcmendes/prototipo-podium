@@ -1,8 +1,9 @@
 const router = require('express').Router();
-const { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover, importar, limparNaoAdmins } = require('../controllers/user.controller');
+const { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover, importar, limparNaoAdmins, buscarParceiros } = require('../controllers/user.controller');
 const { protect, adminOnly, masterOnly } = require('../middleware/auth');
 
 router.get('/me', protect, me);
+router.get('/search', protect, buscarParceiros);
 router.put('/me', protect, atualizarMe);
 router.put('/me/password', protect, alterarSenha);
 router.get('/', protect, adminOnly, listar);

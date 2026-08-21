@@ -22,18 +22,45 @@ function validarAssinaturaMP(req) {
   const xRequestId = req.headers['x-request-id'];
   if (!xSignature) return false;
 
-  const parts = Object.fromEntries(xSignature.split(',').map(p => p.split('=')));
+  const parts = Object.fromEntries(xSignature.split(',').map(p => p.split('=').map(s => s.trim())));
   const ts = parts.ts;
   const v1 = parts.v1;
   if (!ts || !v1) return false;
 
-  const dataId = req.body?.data?.id ?? '';
-  const manifest = `id:${dataId};request-id:${xRequestId ?? ''};ts:${ts}`;
-  const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
-  const expectedBuffer = Buffer.from(expected);
+  // Anti-replay: rejeita assinaturas antigas (MP envia ts em segundos; os
+  // testes usam milissegundos — normaliza pelos dígitos)
+  const tsNumber = Number(ts);
+  if (!Number.isFinite(tsNumber)) return false;
+  const tsMs = String(ts).length > 11 ? tsNumber : tsNumber * 1000;
+  if (Math.abs(Date.now() - tsMs) > 5 * 60 * 1000) return false;
+
+  // O manifesto oficial do MP usa o data.id da QUERY STRING, em minúsculas
+  // quando alfanumérico e com ';' final. Aceita também as variantes (id do
+  // corpo, sem ';' final) — todas exigem HMAC válido com o secret.
+  const queryId = req.query?.['data.id'];
+  const bodyId = req.body?.data?.id;
+  const candidateIds = [...new Set(
+    [queryId, bodyId]
+      .filter(v => v !== undefined && v !== null && v !== '')
+      .map(String)
+      .flatMap(v => [v, v.toLowerCase()]),
+  )];
+  if (candidateIds.length === 0) candidateIds.push('');
+
   const receivedBuffer = Buffer.from(v1);
-  if (expectedBuffer.length !== receivedBuffer.length) return false;
-  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+  return candidateIds.some((dataId) => {
+    const requestIdPart = xRequestId ? `request-id:${xRequestId};` : '';
+    const manifests = [
+      `id:${dataId};${requestIdPart}ts:${ts};`,
+      `id:${dataId};request-id:${xRequestId ?? ''};ts:${ts}`,
+    ];
+    return manifests.some((manifest) => {
+      const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
+      const expectedBuffer = Buffer.from(expected);
+      return expectedBuffer.length === receivedBuffer.length
+        && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+    });
+  });
 }
 
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
@@ -50,10 +77,12 @@ const validarMetodoCartaoCredito = async (paymentMethodId) => {
       expiresAt: Date.now() + 10 * 60 * 1000,
     };
   }
-  const method = paymentMethodsCache.methods.find((item) => item.id === paymentMethodId);
+  // Uma mesma bandeira pode aparecer com mais de um payment_type_id;
+  // aceita se QUALQUER entrada ativa do id for cartão de crédito.
+  const entries = paymentMethodsCache.methods.filter((item) => item.id === paymentMethodId);
   // fail-open: se a lista estiver vazia ou o método não for encontrado, deixa o MP decidir
-  if (!method) return true;
-  return method.status === 'active' && method.payment_type_id === 'credit_card';
+  if (entries.length === 0) return true;
+  return entries.some((method) => method.status === 'active' && method.payment_type_id === 'credit_card');
 };
 
 const validarConfiguracaoMP = (res) => {
@@ -346,21 +375,30 @@ const criarPagamentoCartao = async (req, res) => {
   }
 
   const expiresAt = await resolvePaymentExpiration(referencia);
-  // chave derivada do token do cartão: cada tokenização do Brick gera uma nova tentativa
-  const idempotencyKey = crypto
-    .createHash('sha256')
-    .update(`card:${tipo}:${referenciaId}:${token}`)
-    .digest('hex');
+  // chave por tentativa: token do Brick + contagem de tentativas. Uma tentativa
+  // que sofreu timeout REUTILIZA a chave gravada (o MP devolve o resultado
+  // original em vez de cobrar de novo); uma tentativa encerrada gera chave nova.
+  const gerarChaveCartao = async () => {
+    const tentativa = await PaymentModel.countDocuments({ tipo, referenciaId, metodo: 'cartao' });
+    return crypto
+      .createHash('sha256')
+      .update(`card:${tipo}:${referenciaId}:${token}:${tentativa}`)
+      .digest('hex');
+  };
 
+  let idempotencyKey;
   try {
     if (pagamentoPendente) {
-      // registro de tentativa anterior que não chegou ao MP — reaproveita com a nova chave
-      pagamentoPendente.idempotencyKey = idempotencyKey;
+      // registro de tentativa anterior que não chegou ao MP — mantém a chave original
+      if (!pagamentoPendente.idempotencyKey) {
+        pagamentoPendente.idempotencyKey = await gerarChaveCartao();
+      }
       pagamentoPendente.valor = valor;
       pagamentoPendente.expiresAt = expiresAt;
       pagamentoPendente.processingStartedAt = new Date();
       await pagamentoPendente.save();
     } else {
+      idempotencyKey = await gerarChaveCartao();
       try {
         pagamentoPendente = await PaymentModel.create({
           userId: req.user._id,
@@ -380,6 +418,7 @@ const criarPagamentoCartao = async (req, res) => {
         pagamentoPendente = await PaymentModel.findOne({ idempotencyKey });
       }
     }
+    idempotencyKey = pagamentoPendente.idempotencyKey;
 
     if (tipo === 'booking') await Booking.findByIdAndUpdate(referenciaId, { paymentId: pagamentoPendente._id });
     else await Registration.findByIdAndUpdate(referenciaId, { paymentId: pagamentoPendente._id });
@@ -410,6 +449,26 @@ const criarPagamentoCartao = async (req, res) => {
     pagamentoPendente.cardBrand = mpResult.payment_method_id || paymentMethodId;
     pagamentoPendente.cardLastFour = mpResult.card?.last_four_digits || cardLastFour || null;
     pagamentoPendente.lastSyncedAt = new Date();
+
+    // 3DS Challenge exigido pelo emissor — devolve os dados para o front
+    const threeDs = mpResult.three_ds_info;
+    if (threeDs?.external_resource_url) {
+      pagamentoPendente.requiresAction = true;
+      pagamentoPendente.threeDsInfo = {
+        externalResourceURL: threeDs.external_resource_url,
+        creq: threeDs.creq || null,
+      };
+      await pagamentoPendente.save();
+      return res.status(201).json({
+        paymentId: pagamentoPendente._id,
+        mpPaymentId: pagamentoPendente.mpPaymentId,
+        status: mpResult.status,
+        statusDetail: mpResult.status_detail || null,
+        requiresAction: true,
+        threeDsInfo: pagamentoPendente.threeDsInfo,
+        expiresAt: expiresAt.toISOString(),
+      });
+    }
 
     if (mpResult.status === 'approved') {
       pagamentoPendente.status = 'aprovado';
@@ -446,8 +505,14 @@ const criarPagamentoCartao = async (req, res) => {
     console.error('MP Card error:', JSON.stringify(err?.cause ?? err, null, 2));
     const httpStatus = Number(err?.status || err?.api_response?.status);
     if ([401, 403].includes(httpStatus)) {
-      // credenciais inválidas/bloqueadas pelo MP (ex.: PA_UNAUTHORIZED_RESULT_FROM_POLICIES)
-      return res.status(422).json({ message: 'O Mercado Pago rejeitou a integração (credenciais bloqueadas ou inválidas). Verifique o MP_ACCESS_TOKEN e a public key do ambiente.' });
+      // recusa definitiva do MP (ex.: PA_UNAUTHORIZED_RESULT_FROM_POLICIES ou
+      // credenciais inválidas) — encerra a tentativa para a próxima gerar chave nova
+      if (pagamentoPendente) {
+        pagamentoPendente.status = 'cancelado';
+        pagamentoPendente.statusDetail = err?.cause?.[0]?.code || 'policy_unauthorized';
+        await pagamentoPendente.save().catch(() => {});
+      }
+      return res.status(422).json({ message: 'O Mercado Pago recusou a transação por política de segurança. Tente novamente; se o erro persistir, verifique o MP_ACCESS_TOKEN e a public key do ambiente.' });
     }
     return res.status(502).json({ message: 'Erro ao processar o pagamento. Sua reserva continua pendente; tente novamente.' });
   }
@@ -477,39 +542,133 @@ const getStatus = async (req, res) => {
   return res.json({ status: payment.status, expiresAt: payment.expiresAt, valor: payment.valor });
 };
 
-const webhook = async (req, res) => {
-  if (!process.env.MP_ACCESS_TOKEN) return res.sendStatus(503);
-  if (!validarAssinaturaMP(req)) {
-    return res.sendStatus(401);
-  }
-  res.sendStatus(200);
-  try {
-    const { type, data } = req.body;
-    if (type !== 'payment' || !data?.id) return;
-
-    const mpResult = await mpApi.get({ id: String(data.id) });
-    let payment = await PaymentModel.findOne({ mpPaymentId: String(data.id) });
-
-    if (!payment && mpResult.external_reference) {
-      const [tipo, referenciaId] = mpResult.external_reference.split(':');
-      payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
-    }
-
-    if (!payment || payment.status !== 'pendente') return;
-
-    payment.mpPaymentId = String(data.id);
-    if (mpResult.status === 'approved') {
+// Concilia o estado local com o estado do Mercado Pago. Compartilhada entre
+// webhook e sync para os dois caminhos aplicarem exatamente as mesmas regras.
+const aplicarStatusMP = async (payment, mpResult, mpPaymentId) => {
+  if (mpResult.status === 'approved') {
+    if (payment.status === 'pendente') {
+      payment.mpPaymentId = mpPaymentId;
+      payment.mpStatus = mpResult.status;
+      payment.statusDetail = mpResult.status_detail || null;
       payment.status = 'aprovado';
       payment.paidAt ||= new Date();
       await payment.save();
       await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
-    } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status)) {
-      payment.status = 'cancelado';
-      await payment.save();
+      return { status: 'aprovado' };
+    }
+    if (['cancelado', 'expirado'].includes(payment.status)) {
+      // Aprovação tardia (pagou depois da referência ser cancelada/expirada):
+      // política da arena — converte o valor em Créditos Arena, uma única vez.
+      const credited = await PaymentModel.findOneAndUpdate(
+        { _id: payment._id, arenaCreditsRefundedAt: null },
+        {
+          $set: {
+            status: 'estornado_creditos',
+            arenaCreditsRefundedAt: new Date(),
+            arenaCreditsRefundedValue: payment.valor,
+            mpPaymentId,
+            mpStatus: mpResult.status,
+            statusDetail: mpResult.status_detail || null,
+            paidAt: payment.paidAt || new Date(),
+          },
+        },
+        { new: true },
+      );
+      if (credited) {
+        await User.findByIdAndUpdate(payment.userId, { $inc: { creditos: payment.valor } });
+        broadcast('users');
+        broadcast('payments');
+      }
+      return { status: 'estornado_creditos' };
+    }
+    return { status: payment.status };
+  }
+
+  const isChargebackOuEstorno = ['refunded', 'charged_back'].includes(mpResult.status);
+  const novoStatusFinanceiro = mpResult.status === 'charged_back' ? 'chargeback' : 'estornado';
+  if (isChargebackOuEstorno
+    && ['aprovado', 'estornado'].includes(payment.status)
+    && payment.status !== novoStatusFinanceiro) {
+    // Dinheiro saiu depois da aprovação — marca para revisão financeira manual
+    const isChargeback = mpResult.status === 'charged_back';
+    const updated = await PaymentModel.findOneAndUpdate(
+      { _id: payment._id },
+      {
+        $set: {
+          status: isChargeback ? 'chargeback' : 'estornado',
+          [isChargeback ? 'chargedBackAt' : 'refundedAt']: new Date(),
+          mpStatus: mpResult.status,
+          statusDetail: mpResult.status_detail || null,
+          financialReviewRequired: true,
+          financialReviewReason: isChargeback
+            ? `Chargeback registrado no Mercado Pago (pagamento ${mpPaymentId}).`
+            : `Estorno registrado no Mercado Pago (pagamento ${mpPaymentId}).`,
+        },
+      },
+      { new: true },
+    );
+    broadcast('payments');
+    return { status: updated?.status || payment.status };
+  }
+
+  if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status) && payment.status === 'pendente') {
+    payment.status = 'cancelado';
+    payment.mpStatus = mpResult.status;
+    payment.statusDetail = mpResult.status_detail || null;
+    await payment.save();
+    // Cartão recusado NÃO cancela a reserva — o cliente pode tentar outro
+    // cartão. PIX cancelado no MP encerra a referência.
+    if (payment.metodo === 'pix') {
       await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
     }
+    const resultado = { status: 'cancelado' };
+    if (mpResult.status === 'rejected') resultado.declineMessage = declineMessage(mpResult.status_detail);
+    return resultado;
+  }
+
+  // MP ainda pendente porém o prazo local venceu — encerra a cobrança
+  if (payment.status === 'pendente' && payment.expiresAt && new Date() > new Date(payment.expiresAt)) {
+    await cancelarPagamentosPendentes(payment.tipo, payment.referenciaId);
+    payment.status = 'expirado';
+    await payment.save();
+    await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
+    return { status: 'expirado' };
+  }
+
+  return { status: payment.status };
+};
+
+const buscarPagamentoPorMp = async (mpPaymentId, mpResult) => {
+  let payment = await PaymentModel.findOne({ mpPaymentId });
+  if (!payment && mpResult.external_reference) {
+    const [tipo, referenciaId] = mpResult.external_reference.split(':');
+    payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
+  }
+  return payment;
+};
+
+const webhook = async (req, res) => {
+  if (!process.env.MP_ACCESS_TOKEN) return res.sendStatus(503);
+  // fail-closed: sem o segredo configurado não há como autenticar a notificação
+  if (!process.env.MP_WEBHOOK_SECRET) return res.sendStatus(503);
+  if (!validarAssinaturaMP(req)) {
+    return res.sendStatus(401);
+  }
+  try {
+    const { type, data } = req.body ?? {};
+    const dataId = data?.id ?? req.query?.['data.id'];
+    if (type !== 'payment' || !dataId) return res.sendStatus(200);
+
+    const mpResult = await mpApi.get({ id: String(dataId) });
+    const payment = await buscarPagamentoPorMp(String(dataId), mpResult);
+    if (!payment) return res.sendStatus(200);
+
+    await aplicarStatusMP(payment, mpResult, String(dataId));
+    // 200 somente após persistir — em falha o MP reentrega a notificação
+    return res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err?.message);
+    return res.sendStatus(500);
   }
 };
 
@@ -520,32 +679,15 @@ const syncPagamento = async (req, res) => {
 
   try {
     const mpResult = await mpApi.get({ id: String(mpPaymentId) });
-
-    let payment = await PaymentModel.findOne({ mpPaymentId: String(mpPaymentId) });
-
-    if (!payment && mpResult.external_reference) {
-      const [tipo, referenciaId] = mpResult.external_reference.split(':');
-      payment = await PaymentModel.findOne({ tipo, referenciaId, status: 'pendente' });
-    }
+    const payment = await buscarPagamentoPorMp(String(mpPaymentId), mpResult);
 
     if (!payment) return res.json({ status: 'not_found' });
     if (payment.userId.toString() !== req.user._id.toString() && !req.user.admin) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
 
-    if (mpResult.status === 'approved' && payment.status === 'pendente') {
-      payment.mpPaymentId = String(mpPaymentId);
-      payment.status = 'aprovado';
-      payment.paidAt ||= new Date();
-      await payment.save();
-      await confirmarReferencia(payment.tipo, payment.referenciaId, payment.userId);
-    } else if (['cancelled', 'rejected', 'refunded', 'charged_back'].includes(mpResult.status) && payment.status === 'pendente') {
-      payment.status = 'cancelado';
-      await payment.save();
-      await cancelarReferenciaPendente(payment.tipo, payment.referenciaId);
-    }
-
-    return res.json({ status: payment.status });
+    const resultado = await aplicarStatusMP(payment, mpResult, String(mpPaymentId));
+    return res.json(resultado);
   } catch (err) {
     console.error('Sync error:', err?.message);
     return res.status(500).json({ message: 'Erro ao sincronizar pagamento' });

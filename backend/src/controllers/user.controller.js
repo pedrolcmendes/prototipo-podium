@@ -184,4 +184,22 @@ const limparNaoAdmins = async (req, res) => {
   res.json({ removidos: result.deletedCount });
 };
 
-module.exports = { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover, importar, limparNaoAdmins };
+const buscarParceiros = async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+
+  const generoOposto = req.user.genero === 'masculino' ? 'feminino'
+    : req.user.genero === 'feminino' ? 'masculino'
+    : null;
+  if (!generoOposto) return res.json([]);
+
+  const users = await User.find({
+    _id: { $ne: req.user._id },
+    genero: generoOposto,
+    nome: { $regex: q, $options: 'i' },
+  }).select('_id nome').limit(10);
+
+  res.json(users);
+};
+
+module.exports = { me, atualizarMe, alterarSenha, listar, buscarPorId, atualizar, remover, importar, limparNaoAdmins, buscarParceiros };

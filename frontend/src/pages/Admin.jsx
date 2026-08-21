@@ -840,7 +840,7 @@ export default function Admin() {
   const [importLoading, setImportLoading] = useState(false);
   const importUsersRef = useRef(null);
   const [eventoModal, setEventoModal] = useState(null);
-  const [eventoForm, setEventoForm] = useState({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 40, tipoInscricao: 'individual', categoria: 'beachtennis', status: 'aberto', nivel: 'A, B, C e D', desc: '' });
+  const [eventoForm, setEventoForm] = useState({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 40, tipoInscricao: 'individual', genero: null, categoria: 'beachtennis', status: 'aberto', nivel: 'A, B, C e D', desc: '' });
   const [eventoImagemFile, setEventoImagemFile] = useState(null);
   const [eventoImagemPreview, setEventoImagemPreview] = useState('');
   const [detalhesRes, setDetalhesRes] = useState(null);
@@ -1976,11 +1976,22 @@ export default function Admin() {
           </div>
           <div className="admin-field">
             <label>Formato da inscrição e pagamento</label>
-            <PodiumSelect value={eventoForm.tipoInscricao} onChange={e => setEventoForm({ ...eventoForm, tipoInscricao: e.target.value })}>
+            <PodiumSelect value={eventoForm.tipoInscricao} onChange={e => setEventoForm({ ...eventoForm, tipoInscricao: e.target.value, genero: e.target.value === 'individual' ? null : eventoForm.genero })}>
               <option value="individual">Individual — cada atleta se inscreve e paga</option>
               <option value="dupla">Dupla — uma inscrição e um pagamento para 2 atletas</option>
             </PodiumSelect>
           </div>
+          {eventoForm.tipoInscricao === 'dupla' && (
+            <div className="admin-field">
+              <label>Gênero da dupla</label>
+              <PodiumSelect value={eventoForm.genero || ''} onChange={e => setEventoForm({ ...eventoForm, genero: e.target.value || null })}>
+                <option value="">Sem restrição de gênero</option>
+                <option value="masculino">Masculino</option>
+                <option value="feminino">Feminino</option>
+                <option value="misto">Misto — parceiro selecionado pelo sistema</option>
+              </PodiumSelect>
+            </div>
+          )}
           <div className="admin-field">
             <label>Categoria</label>
             <PodiumSelect value={eventoForm.categoria} onChange={e => setEventoForm({ ...eventoForm, categoria: e.target.value })}>
@@ -2924,7 +2935,7 @@ export default function Admin() {
           <section id="admin-eventos" className={`admin-section${tab === 'eventos' ? ' active' : ''}`}>
             <div className="admin-section-header">
               <div><p className="admin-eyebrow">Gestão</p><h2 className="admin-section-h2">CAMPEONATOS</h2></div>
-              <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 40, tipoInscricao: 'individual', categoria: 'beachtennis', status: 'aberto', nivel: 'A, B, C e D', desc: '' }); setEventoImagemFile(null); setEventoImagemPreview(''); }}>
+              <button className="btn-admin-primary" onClick={() => { setEventoModal({}); setEventoForm({ nome: '', data: '', hora: '08h–19h', local: 'Podium Arena', vagas: 32, preco: 40, tipoInscricao: 'individual', genero: null, categoria: 'beachtennis', status: 'aberto', nivel: 'A, B, C e D', desc: '' }); setEventoImagemFile(null); setEventoImagemPreview(''); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
                 Novo Campeonato
               </button>
@@ -2975,7 +2986,7 @@ export default function Admin() {
                           </div>
                           <div className="admin-event-actions">
                             <button className="btn-admin-secondary" style={{ fontSize: '.77rem', padding: '.45rem' }} onClick={() => setInscricoesModal(ev)}>Ver inscrições</button>
-                            <button className="admin-action-btn" title="Editar" onClick={() => { setEventoModal(ev); setEventoForm({ nome: ev.nome, data: ev.data, hora: ev.hora, local: ev.local, vagas: ev.vagas, preco: ev.preco, tipoInscricao: ev.tipoInscricao || 'individual', categoria: ev.categoria, status: ev.status, nivel: ev.nivel || '', desc: ev.desc || '' }); setEventoImagemFile(null); setEventoImagemPreview(ev.imagem || ''); }}>
+                            <button className="admin-action-btn" title="Editar" onClick={() => { setEventoModal(ev); setEventoForm({ nome: ev.nome, data: ev.data, hora: ev.hora, local: ev.local, vagas: ev.vagas, preco: ev.preco, tipoInscricao: ev.tipoInscricao || 'individual', genero: ev.genero || null, categoria: ev.categoria, status: ev.status, nivel: ev.nivel || '', desc: ev.desc || '' }); setEventoImagemFile(null); setEventoImagemPreview(ev.imagem || ''); }}>
                               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                             </button>
                             <button className="admin-action-btn danger" title="Remover" onClick={() => removerEvento(ev._id)}>

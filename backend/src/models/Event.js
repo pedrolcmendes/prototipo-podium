@@ -22,6 +22,11 @@ const eventSchema = new mongoose.Schema({
     enum: ['aberto', 'encerrado', 'breve'],
     default: 'aberto',
   },
+  genero: {
+    type: String,
+    enum: ['masculino', 'feminino', 'misto', null],
+    default: null,
+  },
   nivel: { type: String, default: 'Todos os níveis' },
   desc: { type: String, default: '' },
   imagem: { type: String, default: null },
