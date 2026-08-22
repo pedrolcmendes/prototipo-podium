@@ -86,6 +86,7 @@ export default function Eventos() {
   const [parceiroResults, setParceiroResults] = useState([]);
   const [parceiroSelecionado, setParceiroSelecionado] = useState(null);
   const [parceiroSearchLoading, setParceiroSearchLoading] = useState(false);
+  const [parceiroDropdownOpen, setParceiroDropdownOpen] = useState(false);
   const [pagOpen, setPagOpen] = useState(false);
   const [pendingReg, setPendingReg] = useState(null);
   const [pendingEvt, setPendingEvt] = useState(null);
@@ -156,6 +157,7 @@ export default function Eventos() {
     setParceiroSearch('');
     setParceiroResults([]);
     setParceiroSelecionado(null);
+    setParceiroDropdownOpen(false);
     setIsContinuando(false);
     setInscStep('details');
   };
@@ -514,12 +516,15 @@ export default function Eventos() {
                         <>
                           <p style={{ fontFamily: 'var(--font-cond)', fontSize: '.72rem', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0 }}>Selecione sua dupla</p>
                           {parceiroSelecionado ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', background: 'var(--dark)', border: '1px solid var(--gold)', padding: '.65rem 1rem' }}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                              <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '.9rem', color: 'var(--white)' }}>{parceiroSelecionado.nome}</span>
-                              <button type="button" onClick={() => { setParceiroSelecionado(null); setParceiroSearch(''); setParceiroResults([]); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '0', lineHeight: 0 }} title="Remover seleção">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                              </button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', background: 'var(--dark)', border: '1px solid var(--gold)', padding: '.65rem 1rem' }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '.9rem', color: 'var(--white)' }}>{parceiroSelecionado.nome}</span>
+                                <button type="button" onClick={() => { setParceiroSelecionado(null); setParceiroSearch(''); setParceiroResults([]); setParceiroDropdownOpen(false); }} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--gray)', cursor: 'pointer', padding: '.2rem .4rem', lineHeight: 0, borderRadius: '2px' }} title="Trocar parceiro(a)">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                </button>
+                              </div>
+                              <span style={{ fontFamily: 'var(--font-cond)', fontSize: '.65rem', color: 'var(--muted)', letterSpacing: '.5px' }}>Clique no × para trocar o(a) parceiro(a)</span>
                             </div>
                           ) : (
                             <div style={{ position: 'relative' }}>
@@ -527,12 +532,14 @@ export default function Eventos() {
                                 type="text"
                                 placeholder={user?.genero === 'masculino' ? 'Buscar parceira pelo nome…' : user?.genero === 'feminino' ? 'Buscar parceiro pelo nome…' : 'Buscar parceiro(a) pelo nome…'}
                                 value={parceiroSearch}
-                                onChange={e => setParceiroSearch(e.target.value)}
+                                onChange={e => { setParceiroSearch(e.target.value); setParceiroDropdownOpen(true); }}
+                                onFocus={() => setParceiroDropdownOpen(true)}
+                                onBlur={() => setTimeout(() => setParceiroDropdownOpen(false), 160)}
                                 autoFocus
                                 style={{ width: '100%', background: 'var(--dark)', border: '1px solid var(--border)', color: 'var(--white)', padding: '.7rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' }}
                               />
-                              {(parceiroSearchLoading || parceiroResults.length > 0 || (parceiroSearch.trim().length >= 2 && !parceiroSearchLoading)) && (
-                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none', zIndex: 10, maxHeight: '200px', overflowY: 'auto' }}>
+                              {parceiroDropdownOpen && (parceiroSearchLoading || parceiroResults.length > 0 || parceiroSearch.trim().length >= 2) && (
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card)', border: '1px solid var(--border)', borderTop: 'none', zIndex: 200, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 6px 18px rgba(0,0,0,.4)' }}>
                                   {parceiroSearchLoading && (
                                     <div style={{ padding: '.7rem 1rem', fontFamily: 'var(--font-cond)', fontSize: '.75rem', color: 'var(--muted)' }}>Buscando…</div>
                                   )}
@@ -540,16 +547,15 @@ export default function Eventos() {
                                     <div style={{ padding: '.7rem 1rem', fontFamily: 'var(--font-cond)', fontSize: '.75rem', color: 'var(--muted)' }}>Nenhum atleta encontrado.</div>
                                   )}
                                   {!parceiroSearchLoading && parceiroResults.map(u => (
-                                    <button
+                                    <div
                                       key={u._id}
-                                      type="button"
-                                      onClick={() => { setParceiroSelecionado(u); setParceiroSearch(''); setParceiroResults([]); }}
-                                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', padding: '.65rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.88rem', color: 'var(--white)', cursor: 'pointer' }}
-                                      onMouseOver={e => e.currentTarget.style.background = 'var(--dark)'}
-                                      onMouseOut={e => e.currentTarget.style.background = 'none'}
+                                      onMouseDown={() => { setParceiroSelecionado(u); setParceiroSearch(''); setParceiroResults([]); setParceiroDropdownOpen(false); }}
+                                      style={{ padding: '.65rem 1rem', fontFamily: 'var(--font-body)', fontSize: '.88rem', color: 'var(--white)', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+                                      onMouseEnter={e => e.currentTarget.style.background = 'var(--dark)'}
+                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                     >
                                       {u.nome}
-                                    </button>
+                                    </div>
                                   ))}
                                 </div>
                               )}

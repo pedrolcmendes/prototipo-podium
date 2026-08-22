@@ -157,6 +157,10 @@ const inscrever = async (req, res) => {
     }
   }
 
+  // Busca inscrição anterior do próprio usuário neste evento (qualquer status),
+  // para reusar o documento e evitar E11000 no índice único (userId + eventId).
+  const regAnterior = await Registration.findOne({ eventId: event._id, userId: req.user._id });
+
   const valorTotal = individual ? event.preco : event.preco * 2;
   const registrationData = {
     userId: req.user._id,
@@ -203,9 +207,9 @@ const inscrever = async (req, res) => {
           status: creditosAplicados === valorTotal ? 'confirmada' : 'pendente_pagamento',
         };
 
-        if (jaInscrito) {
+        if (regAnterior) {
           registration = await Registration.findByIdAndUpdate(
-            jaInscrito._id,
+            regAnterior._id,
             { $set: data },
             { new: true, session, runValidators: true },
           );
@@ -225,9 +229,9 @@ const inscrever = async (req, res) => {
       await session.endSession();
     }
     if (creditosAplicados > 0) broadcast('users');
-  } else if (jaInscrito) {
+  } else if (regAnterior) {
     registration = await Registration.findByIdAndUpdate(
-      jaInscrito._id,
+      regAnterior._id,
       { $set: registrationData },
       { new: true, runValidators: true },
     );
